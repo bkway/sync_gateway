@@ -22,7 +22,7 @@ import (
 func init() {
 	// Increase max memcached request size to 20M bytes, to support large docs (attachments!)
 	// arriving in a tap feed. (see issues #210, #333.)
-	gomemcached.MaxBodyLen = int(20.0e6)
+	gomemcached.MaxBodyLen = int(20 * 1024 * 1024)
 }
 
 type Bucket walrus.Bucket
