@@ -1,13 +1,21 @@
 {
-    "SSLCert": "examples/ssl/cert.pem",
-    "SSLKey":  "examples/ssl/privkey.pem",
-    
-	"databases": {
-		"db": {
-			"server": "walrus:",
-			"users": {
-				"GUEST": {"disabled": false, "admin_channels": ["*"] }
-			}
-		}
-	}
+  "bootstrap": {
+    "server": "couchbases://localhost",
+    "server_tls_skip_verify": true,
+    "username": "username",
+    "password": "password"
+  },
+  "logging": {
+    "console": {
+      "enabled": true,
+      "log_level": "info",
+      "log_keys": ["*"]
+    }
+  },
+  "api": {
+    "https": {
+      "tls_cert_path": "examples/ssl/cert.pem",
+      "tls_key_path": "examples/ssl/privkey.pem"
+    }
+  }
 }

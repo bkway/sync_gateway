@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Include>
+  <?ifndef Company ?>
+    <?define Company = "Couchbase"?>
+  <?endif?>
+  <?ifndef ProductName ?>
+    <?define ProductName = "sync-gateway"?>
+  <?endif?>
+  <?define Name = "SyncGateway" ?>
+  <?define DisplayName = "Sync Gateway" ?>
+  <?define Description = "Couchbase Sync Gateway mobile application REST gateway service." ?>
+  <?define UpgradeCodeID = "5E6FC699-4DCB-C674-3991-0B7EFC1B3FFD" ?>
+  <?define WinServiceApp = "sg-windows.exe" ?>
+  <?define WinSGWEXE = "sync_gateway.exe" ?>
+  <?define WinServiceConfig = "serviceconfig.json" ?>
+  <?define WinServiceControl = "auto" ?>
+</Include>

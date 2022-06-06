@@ -1,4 +1,13 @@
 #!/bin/sh
+
+# Copyright 2013-Present Couchbase, Inc.
+#
+# Use of this software is governed by the Business Source License included in
+# the file licenses/BSL-Couchbase.txt.  As of the Change Date specified in that
+# file, in accordance with the Business Source License, use of this software
+# will be governed by the Apache License, Version 2.0, included in the file
+# licenses/APL2.txt.
+
 # postinst script for @@PRODUCT@@
 #
 # see: dh_installdeb(1)
@@ -34,23 +43,39 @@ EOF
 
     chown -R @@PRODUCT_BASE@@:@@PRODUCT_BASE@@ @@PREFIX@@
 
+    chmod 755 @@PREFIX@@/service/@@PRODUCT_EXEC@@_service_install.sh
+
+    chmod 755 @@PREFIX@@/examples
+
+    # create user if it does not exist
+    if [ -z `id -u @@PRODUCT_EXEC@@ 2>/dev/null` ]; then
+      useradd @@PRODUCT_EXEC@@
+    fi
+
+    cd @@PREFIX@@/service
+    ./@@PRODUCT_EXEC@@_service_install.sh
+    SERVICE_CMD=`./@@PRODUCT_EXEC@@_service_install.sh --servicecmd`
+
     export UPGRADE_MARKER=/tmp/@@PRODUCT_BASE@@-`date +%Y%m%d`-upgrade-from
 
     cat <<EOF
 
 You have successfully installed @@PRODUCT_BASE_CAP@@ Sync Gateway.
 
-You can start Couchbase Sync Gateway by using the following command:
+You can find sample @@PRODUCT_EXEC@@ configuration files in the @@PREFIX@@/examples folder.
 
-@@PREFIX@@/bin/sync_gateway
+You can control the Couchbase Sync Gateway service by using the following command:
 
-That's it! This command starts Sync Gateway on port 4984, connects to a limited in-memory database
- that lives on Sync Gateway called "walrus", and starts the admin server on port 4985. 
+  ${SERVICE_CMD}
+
+That's it! Sync Gateway is now running on port 4984. We've setup a simple in-memory database
+which works great for exploring Sync Gateway's capabilities. A limited console is available
+by opening your browser to http://localhost:4985/_admin/.
 
 The command-line options are:
 
   -adminInterface=":4985": Address to bind admin interface to
-  -bucket="sync_gateway": Name of bucket
+  -bucket="@@PRODUCT_EXEC@@": Name of bucket
   -dbname="": Name of CouchDB database (defaults to name of bucket)
   -interface=":4984": Address to bind to
   -log="": Log keywords, comma separated

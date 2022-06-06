@@ -1,4 +1,13 @@
 #!/bin/sh
+
+# Copyright 2014-Present Couchbase, Inc.
+#
+# Use of this software is governed by the Business Source License included in
+# the file licenses/BSL-Couchbase.txt.  As of the Change Date specified in that
+# file, in accordance with the Business Source License, use of this software
+# will be governed by the Apache License, Version 2.0, included in the file
+# licenses/APL2.txt.
+
 ### BEGIN INIT INFO
 # Provides:          ${SERVICE_NAME}
 # Required-Start:    $remote_fs $syslog
@@ -17,8 +26,6 @@ CONFIG=${CONFIG_TEMPLATE_VAR}
 LOGS=${LOGS_TEMPLATE_VAR}
 
 name=${SERVICE_NAME}
-stdout_log=\${LOGS}/\${name}_access.log
-stderr_log=\${LOGS}/\${name}_error.log
 
 get_pid() {
     cat \"\$PIDFILE\"    
@@ -41,10 +48,10 @@ case \"\$1\" in
         else
             echo "Starting $name"
             cd \"\$RUNBASE\"
-            sudo -u \"\$RUNAS\" \$GATEWAY \$CONFIG >> \"\$stdout_log\" 2>> \"\$stderr_log\" &
+            sudo -u \"\$RUNAS\" \$GATEWAY --defaultLogFilePath \"\$LOGS\" \$CONFIG &
             echo \$! > \"\$PIDFILE\"
             if ! is_running; then
-                echo "Unable to start, see \$stdout_log and \$stderr_log"
+                echo "Unable to start"
                 exit 1
             fi
         fi
@@ -78,12 +85,12 @@ case \"\$1\" in
         fi
         ;;
     restart)
-        \$name stop
+        service \$name stop
         if is_running; then
             echo "Unable to stop, will not attempt to start"
             exit 1
         fi
-        \$name start
+        service \$name start
         ;;
     status)
         if is_running; then

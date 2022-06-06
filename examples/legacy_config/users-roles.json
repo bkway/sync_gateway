@@ -1,0 +1,26 @@
+{
+  "disable_persistent_config": true,
+  "logging": {
+    "console": {
+      "log_keys": ["*"]
+    }
+  },
+  "databases": {
+    "db": {
+      "server": "couchbase://localhost",
+      "username": "username",
+      "password": "password",
+      "bucket": "default",
+      "users": {
+        "pupshaw": {
+          "admin_channels": ["*"],
+          "admin_roles": ["froods"],
+          "password": "foo"
+        }
+      },
+      "roles": { "froods": { "admin_channels": ["hoopy"] } },
+      "allow_conflicts": false,
+      "revs_limit": 20
+    }
+  }
+}

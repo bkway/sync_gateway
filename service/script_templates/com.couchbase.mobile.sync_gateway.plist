@@ -4,17 +4,18 @@
 <dict>
         <key>Label</key>
         <string>com.couchbase.mobile.sync_gateway</string>
+        <key>UserName</key>
+        <string>${RUNAS_TEMPLATE_VAR}</string>
+        <key>WorkingDirectory</key>
+        <string>${RUNBASE_TEMPLATE_VAR}</string>
         <key>ProgramArguments</key>
         <array>
             <string>${GATEWAY_TEMPLATE_VAR}</string>
-            <string>/opt/couchbase-sync-gateway/examples/admin_party.json</string>
+            <string>--defaultLogFilePath</string>
+            <string>${LOGS_TEMPLATE_VAR}</string>
+            <string>${CONFIG_TEMPLATE_VAR}</string>
         </array>
         <key>KeepAlive</key>
         <true/>
-        <key>StandardOutPath</key>
-        <string>${GATEWAYROOT_TEMPLATE_VAR}/sync-gateway-access.log</string>
-        <key>StandardErrorPath</key>
-        <string>${GATEWAYROOT_TEMPLATE_VAR}/sync-gateway-error.log</string>
 </dict>
 </plist>
-

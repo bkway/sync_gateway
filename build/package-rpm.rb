@@ -1,4 +1,15 @@
 #!/usr/bin/env ruby
+
+=begin
+Copyright 2013-Present Couchbase, Inc.
+
+Use of this software is governed by the Business Source License included in
+the file licenses/BSL-Couchbase.txt.  As of the Change Date specified in that
+file, in accordance with the Business Source License, use of this software will
+be governed by the Apache License, Version 2.0, included in the file
+licenses/APL2.txt.
+=end
+
 # 
 ####    ./${PKGR} ${PREFIX} ${PREFIXP} ${REVISION} ${GITSPEC} ${PLATFORM} ${ARCH}
 
@@ -8,7 +19,6 @@ require 'rake'
 
 PRODUCT         = "couchbase-sync-gateway"
 PRODUCT_BASE    = "couchbase"
-PRODUCT_KIND    = "sync-gateway"
 
 PREFIX          = ARGV[0] || "/opt/#{PRODUCT}"
 PREFIXD         = ARGV[1] || "./opt/#{PRODUCT}"
@@ -16,7 +26,10 @@ PRODUCT_VERSION = ARGV[2] || "1.0-1234"
 REPO_SHA        = ARGV[3] || "master"
 PLATFORM        = ARGV[4] || `uname -s`.chomp + "-" +  `uname -m`.chomp
 ARCH            = ARGV[5] ||                           `uname -m`.chomp
+PRODUCT_KIND    = ARGV[6] || "sync-gateway"
+PRODUCT_EXEC    = ARGV[7] || "sync_gateway"
 
+PRODUCT         = "#{PRODUCT_BASE}-#{PRODUCT_KIND}"
 RELEASE         = PRODUCT_VERSION.split('-')[0]    # e.g., 1.0
 BLDNUM          = PRODUCT_VERSION.split('-')[1]    # e.g., 1234
 
@@ -36,12 +49,13 @@ FileUtils.mkdir_p "#{STAGE_DIR}/rpmbuild/RPMS/x86_64"
     Dir.chdir(src_dst[0]) do
         ["rpm.spec.tmpl", "manifest.txt.tmpl", "manifest.xml.tmpl"].each do |x|
             target = "#{src_dst[1]}/#{x.gsub('.tmpl', '')}"
-            sh %{sed -e s,@@VERSION@@,#{BLDNUM},g                    #{x} |
+            sh %{sed -e s,@@VERSION@@,#{RELEASE},g                   #{x} |
                  sed -e s,@@PLATFORM@@,#{PLATFORM},g                      |
-                 sed -e s,@@RELEASE@@,#{RELEASE},g                        |
+                 sed -e s,@@RELEASE@@,#{BLDNUM},g                         |
                  sed -e s,@@REPO_SHA@@,#{REPO_SHA},g                      |
                  sed -e s,@@PREFIX@@,#{PREFIX},g                          |
                  sed -e s,@@PRODUCT@@,#{PRODUCT},g                        |
+                 sed -e s,@@PRODUCT_EXEC@@,#{PRODUCT_EXEC},g              |
                  sed -e s,@@PRODUCT_BASE@@,#{PRODUCT_BASE},g              |
                  sed -e s,@@PRODUCT_BASE_CAP@@,#{product_base_cap},g      |
                  sed -e s,@@PRODUCT_KIND@@,#{PRODUCT_KIND},g > #{target}}
@@ -53,10 +67,10 @@ FileUtils.mv  "#{STAGE_DIR}/manifest.txt", "#{PREFIXD}/manifest.txt"
 FileUtils.mv  "#{STAGE_DIR}/manifest.xml", "#{PREFIXD}/manifest.xml"
 
 Dir.chdir("#{START_DIR}") do
-    sh %{tar --directory #{File.dirname(PREFIXD)} -czf "#{STAGE_DIR}/rpmbuild/SOURCES/#{PRODUCT}_#{BLDNUM}.tar.gz" #{File.basename(PREFIXD)}}
+    sh %{tar --directory #{File.dirname(PREFIXD)} -czf "#{STAGE_DIR}/rpmbuild/SOURCES/#{PRODUCT}_#{RELEASE}.tar.gz" #{File.basename(PREFIXD)}}
 end
 Dir.chdir("#{STAGE_DIR}") do
-    sh %{rpmbuild -bb rpm.spec}
+    sh %{rpmbuild -bb --define "_binary_filedigest_algorithm  1"  --define "_binary_payload 1" rpm.spec}
 end
 
-FileUtils.cp "#{STAGE_DIR}/rpmbuild/RPMS/#{ARCH}/#{PRODUCT}-#{BLDNUM}-#{RELEASE}.#{ARCH}.rpm", "#{PREFIXD}/#{PRODUCT}_#{PRODUCT_VERSION}_#{ARCH}.rpm"
+FileUtils.cp "#{STAGE_DIR}/rpmbuild/RPMS/#{ARCH}/#{PRODUCT}-#{RELEASE}-#{BLDNUM}.#{ARCH}.rpm", "#{PREFIXD}/#{PRODUCT}_#{PRODUCT_VERSION}_#{ARCH}.rpm"

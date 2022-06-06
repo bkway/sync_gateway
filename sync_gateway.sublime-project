@@ -2,9 +2,14 @@
 	"folders":
 	[
 		{
+			"file_exclude_patterns":
+			[
+				"sync_gateway"
+			],
 			"follow_symlinks": true,
 			"name": "sync_gateway",
-			"path": "src/github.com/couchbaselabs/sync_gateway"
+			"path": ".",
+            "folder_exclude_patterns": ["app"]
 		},
 		{
 			"file_exclude_patterns":
@@ -12,7 +17,7 @@
 				".*"
 			],
 			"follow_symlinks": true,
-			"path": "vendor/src/github.com/couchbaselabs/go-couchbase"
+			"path": "../../../../src/github.com/couchbase/go-couchbase"
 		},
 		{
 			"file_exclude_patterns":
@@ -20,7 +25,7 @@
 				".*"
 			],
 			"follow_symlinks": true,
-			"path": "vendor/src/github.com/dustin/gomemcached"
+			"path": "../../../../src/github.com/couchbase/gomemcached"
 		},
 		{
 			"file_exclude_patterns":
@@ -28,7 +33,30 @@
 				".*"
 			],
 			"follow_symlinks": true,
-			"path": "vendor/src/github.com/couchbaselabs/walrus"
+			"path": "../../../../src/github.com/couchbase/sg-bucket"
+		},
+		{
+			"file_exclude_patterns":
+			[
+				".*"
+			],
+			"follow_symlinks": true,
+			"path": "../../../../src/github.com/couchbaselabs/walrus"
+		},
+		{
+			"file_exclude_patterns":
+			[
+				".*"
+			],
+			"follow_symlinks": true,
+			"path": "../../../../src/github.com/couchbase/cbgt"
+		},{
+			"file_exclude_patterns":
+			[
+				".*"
+			],
+			"follow_symlinks": true,
+			"path": "../../../../src/github.com/couchbase/gocb"
 		},
 		{
 			"follow_symlinks": true,
@@ -40,7 +68,7 @@
 		},
 		{
 			"follow_symlinks": true,
-			"path": "vendor/src/github.com/couchbaselabs/sync_gateway_admin_ui"
+			"path": "../../../../src/github.com/couchbaselabs/sync_gateway_admin_ui"
 		}
 	],
 	"settings":
@@ -49,7 +77,7 @@
 		{
 			"env":
 			{
-				"GOPATH": "/Couchbase/sync_gateway:/Couchbase/sync_gateway/vendor"
+				"GOPATH": "../../../../src/"
 			}
 		},
 		"rulers":

@@ -1,23 +1,15 @@
 #!/bin/sh
 
+# Copyright 2013-Present Couchbase, Inc.
+#
+# Use of this software is governed by the Business Source License included in
+# the file licenses/BSL-Couchbase.txt.  As of the Change Date specified in that
+# file, in accordance with the Business Source License, use of this software
+# will be governed by the Apache License, Version 2.0, included in the file
+# licenses/APL2.txt.
+
 set -e
 
-check_upstart_service () {
-    if [ -f /etc/init/sync_gateway.conf ]; then
-        status $1 | grep -q "^$1 start" > /dev/null
-        return $?
-    else
-        return 1
-    fi
-}
-
-if check_upstart_service sync_gateway; then
-    service sync_gateway stop
-fi
-
-#uninstall service start at boot
-
-if [ -f /etc/init/sync_gateway.conf ]; then
-    rm /etc/init/sync_gateway.conf
-fi
+cd @@PREFIX@@/service
+./@@PRODUCT_EXEC@@_service_uninstall.sh
 

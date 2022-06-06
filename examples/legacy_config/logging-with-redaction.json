@@ -1,0 +1,17 @@
+{
+  "disable_persistent_config": true,
+  "logging": {
+    "redaction_level": "partial"
+  },
+  "databases": {
+    "db": {
+      "server": "couchbase://localhost",
+      "username": "username",
+      "password": "password",
+      "bucket": "default",
+      "users": {"GUEST": {"disabled": false,"admin_channels": ["*"]}},
+      "allow_conflicts": false,
+      "revs_limit": 20
+    }
+  }
+}
