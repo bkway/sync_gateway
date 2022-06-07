@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package rest
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/couchbase/sync_gateway/base"
@@ -64,7 +65,7 @@ func verifyGoogle(idToken string, allowedAppID []string) (*GoogleResponse, error
 	}
 	defer func() { _ = res.Body.Close() }()
 
-	decoder := base.JSONDecoder(res.Body)
+	decoder := json.NewDecoder(res.Body)
 
 	var response GoogleResponse
 	err = decoder.Decode(&response)

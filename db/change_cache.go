@@ -14,6 +14,7 @@ import (
 	"container/heap"
 	"container/list"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -590,7 +591,7 @@ func (c *changeCache) Remove(docIDs []string, startTime time.Time) (count int) {
 // Principals unmarshalled during caching don't need to instantiate a real principal - we're just using name and seq from the document
 func (c *changeCache) unmarshalCachePrincipal(docJSON []byte) (cachePrincipal, error) {
 	var principal cachePrincipal
-	err := base.JSONUnmarshal(docJSON, &principal)
+	err := json.Unmarshal(docJSON, &principal)
 	return principal, err
 }
 

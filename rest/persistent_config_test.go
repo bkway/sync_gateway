@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,7 +220,7 @@ func TestAutomaticConfigUpgradeExistingConfigAndNewGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	var dbConfig DbConfig
-	originalDefaultDbConfigCAS, err := cbs.GetConfig(tb.GetName(), persistentConfigDefaultGroupID, &dbConfig)
+	_, err = cbs.GetConfig(tb.GetName(), persistentConfigDefaultGroupID, &dbConfig)
 	assert.NoError(t, err)
 
 	// Ensure that revs limit hasn't actually been set
@@ -256,113 +255,7 @@ func TestAutomaticConfigUpgradeExistingConfigAndNewGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	startupConfig, _, _, _, err = automaticConfigUpgrade(importConfigPath)
-	// only supported in EE
-	if base.IsEnterpriseEdition() {
-		require.NoError(t, err)
-
-		// Ensure that startupConfig group ID has been set
-		assert.Equal(t, configUpgradeGroupID, startupConfig.Bootstrap.ConfigGroupID)
-
-		// Ensure dbConfig is saved as the specified config group ID
-		var dbConfig DbConfig
-		_, err = cbs.GetConfig(tb.GetName(), configUpgradeGroupID, &dbConfig)
-		assert.NoError(t, err)
-
-		// Ensure default has not changed
-		dbConfig = DbConfig{}
-		defaultDbConfigCAS, err := cbs.GetConfig(tb.GetName(), persistentConfigDefaultGroupID, &dbConfig)
-		assert.NoError(t, err)
-		assert.Equal(t, originalDefaultDbConfigCAS, defaultDbConfigCAS)
-	} else {
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only supported in enterprise edition")
-		assert.Nil(t, startupConfig)
-	}
-}
-
-func TestImportFilterEndpoint(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("Bootstrap works with Couchbase Server only")
-	}
-
-	if !base.TestUseXattrs() {
-		t.Skip("Test requires xattrs")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db1/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": true, "use_views": %t}`,
-			tb.GetName(), base.TestsDisableGSI(),
-		),
-	)
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Ensure we won't fail with an empty import filter
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db1/_config/import_filter", "")
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Add a document
-	err = tb.Bucket.Set("importDoc1", 0, nil, []byte("{}"))
-	assert.NoError(t, err)
-
-	// Ensure document is imported based on default import filter
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db1/importDoc1", "")
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Modify the import filter to always reject import
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db1/_config/import_filter", `function(){return false}`)
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Add a document
-	err = tb.Bucket.Set("importDoc2", 0, nil, []byte("{}"))
-	assert.NoError(t, err)
-
-	// Ensure document is not imported and is rejected based on updated filter
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db1/importDoc2", "")
-	responseBody, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, resp.Body.Close())
-	assert.NoError(t, err)
-	assert.Contains(t, string(responseBody), "Not imported")
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodDelete, "/db1/_config/import_filter", "")
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Add a document
-	err = tb.Bucket.Set("importDoc3", 0, nil, []byte("{}"))
-	assert.NoError(t, err)
-
-	// Ensure document is imported based on default import filter
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db1/importDoc3", "")
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "only supported in enterprise edition")
+	assert.Nil(t, startupConfig)
 }

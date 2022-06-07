@@ -13,6 +13,7 @@ package base
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -562,11 +563,11 @@ func DeepCopyInefficient(dst interface{}, src interface{}) error {
 	if src == nil {
 		return fmt.Errorf("src cannot be nil")
 	}
-	b, err := JSONMarshal(src)
+	b, err := json.Marshal(src)
 	if err != nil {
 		return fmt.Errorf("Unable to marshal src: %s", err)
 	}
-	d := JSONDecoder(bytes.NewBuffer(b))
+	d := json.NewDecoder(bytes.NewBuffer(b))
 	d.UseNumber()
 	err = d.Decode(dst)
 	if err != nil {

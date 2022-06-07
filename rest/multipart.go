@@ -16,6 +16,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -59,7 +60,7 @@ func ReadJSONFromMIMERawErr(headers http.Header, input io.ReadCloser, into inter
 	}
 
 	// Decode the body bytes into target structure.
-	decoder := base.JSONDecoder(input)
+	decoder := json.NewDecoder(input)
 	decoder.DisallowUnknownFields()
 	decoder.UseNumber()
 	err = decoder.Decode(into)
@@ -95,7 +96,7 @@ type attInfo struct {
 }
 
 func writeJSONPart(writer *multipart.Writer, contentType string, body db.Body, compressed bool) (err error) {
-	bytes, err := base.JSONMarshalCanonical(body)
+	bytes, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}

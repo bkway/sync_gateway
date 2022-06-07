@@ -157,11 +157,9 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 		}
 	}
 
+	// TODO remove
 	if lc.ConfigUpgradeGroupID != "" {
-		if !base.IsEnterpriseEdition() {
-			return nil, nil, errors.New("customization of config_upgrade_group_id is only supported in enterprise edition")
-		}
-		bsc.ConfigGroupID = lc.ConfigUpgradeGroupID
+		return nil, nil, errors.New("customization of config_upgrade_group_id is only supported in enterprise edition")
 	}
 
 	sc := StartupConfig{

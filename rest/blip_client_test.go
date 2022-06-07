@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -130,7 +131,7 @@ func (btr *BlipTesterReplicator) initHandlers(btc *BlipTesterClient) {
 
 		if string(body) != "null" {
 			var changesReqs [][]interface{}
-			err = base.JSONUnmarshal(body, &changesReqs)
+			err = json.Unmarshal(body, &changesReqs)
 			if err != nil {
 				panic(err)
 			}
@@ -194,7 +195,7 @@ func (btr *BlipTesterReplicator) initHandlers(btc *BlipTesterClient) {
 			response.Properties["deltas"] = "true"
 		}
 
-		b, err := base.JSONMarshal(knownRevs)
+		b, err := json.Marshal(knownRevs)
 		if err != nil {
 			panic(err)
 		}
@@ -267,12 +268,14 @@ func (btr *BlipTesterReplicator) initHandlers(btc *BlipTesterClient) {
 				panic(err)
 			}
 
-			var oldMap = map[string]interface{}(old)
-			if err := base.Patch(&oldMap, delta); err != nil {
-				panic(err)
-			}
+			// TODO this was removed because of EE, verify this function still called?
+			// var oldMap = map[string]interface{}(old)
+			// if err := base.Patch(&oldMap, delta); err != nil {
+			// 	panic(err)
+			// }
+			// bodyJSON = oldMap
 
-			bodyJSON = oldMap
+			bodyJSON = delta
 		}
 
 		// Fetch any missing attachments (if required) during this rev processing
@@ -345,7 +348,7 @@ func (btr *BlipTesterReplicator) initHandlers(btc *BlipTesterClient) {
 		}
 
 		if bodyJSON != nil {
-			body, err = base.JSONMarshal(bodyJSON)
+			body, err = json.Marshal(bodyJSON)
 			if err != nil {
 				panic(err)
 			}
@@ -675,12 +678,13 @@ func (btc *BlipTesterClient) PushRevWithHistory(docID, parentRev string, body []
 			return "", err
 		}
 
-		delta, err := base.Diff(parentDocJSON, newDocJSON)
-		if err != nil {
-			return "", err
-		}
-		revRequest.Properties[db.RevMessageDeltaSrc] = parentRev
-		body = delta
+		// TODO this was removed because of EE, verify this function still called?
+		// delta, err := base.Diff(parentDocJSON, newDocJSON)
+		// if err != nil {
+		return "", err
+		// }
+		// revRequest.Properties[db.RevMessageDeltaSrc] = parentRev
+		// body = delta
 	} else {
 		base.DebugfCtx(context.TODO(), base.KeySync, "Not sending deltas from test client")
 	}
@@ -718,7 +722,7 @@ func (btc *BlipTesterClient) StoreRevOnClient(docID, revID string, body []byte) 
 func (btc *BlipTesterClient) ProcessInlineAttachments(inputBody []byte, revGen int) (outputBody []byte, err error) {
 	if bytes.Contains(inputBody, []byte(db.BodyAttachments)) {
 		var newDocJSON map[string]interface{}
-		if err := base.JSONUnmarshal(inputBody, &newDocJSON); err != nil {
+		if err := json.Unmarshal(inputBody, &newDocJSON); err != nil {
 			return nil, err
 		}
 		if attachments, ok := newDocJSON[db.BodyAttachments]; ok {
@@ -758,7 +762,7 @@ func (btc *BlipTesterClient) ProcessInlineAttachments(inputBody []byte, revGen i
 				}
 			}
 			var err error
-			if outputBody, err = base.JSONMarshal(newDocJSON); err != nil {
+			if outputBody, err = json.Marshal(newDocJSON); err != nil {
 				return nil, err
 			}
 			return outputBody, nil

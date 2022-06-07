@@ -10,6 +10,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -285,7 +286,7 @@ func (b *BackgroundManager) getStatusFromCluster() ([]byte, error) {
 	}
 
 	var clusterStatus map[string]interface{}
-	err = base.JSONUnmarshal(status, &clusterStatus)
+	err = json.Unmarshal(status, &clusterStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +302,7 @@ func (b *BackgroundManager) getStatusFromCluster() ([]byte, error) {
 		if err != nil {
 			if base.IsDocNotFoundError(err) {
 				clusterStatus["status"] = BackgroundProcessStateStopped
-				status, err = base.JSONMarshal(clusterStatus)
+				status, err = json.Marshal(clusterStatus)
 				if err != nil {
 					return nil, err
 				}
@@ -458,7 +459,7 @@ func (b *BackgroundManager) UpdateHeartbeatDocClusterAware() error {
 	}
 
 	var status HeartbeatDoc
-	err = base.JSONUnmarshal(statusRaw, &status)
+	err = json.Unmarshal(statusRaw, &status)
 	if err != nil {
 		return err
 	}

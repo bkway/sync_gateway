@@ -13,6 +13,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -259,7 +260,7 @@ func (bsc *BlipSyncContext) handleChangesResponse(sender *blip.Sender, response 
 
 	var answer []interface{}
 	if len(respBody) > 0 {
-		if err := base.JSONUnmarshal(respBody, &answer); err != nil {
+		if err := json.Unmarshal(respBody, &answer); err != nil {
 			base.ErrorfCtx(bsc.loggingCtx, "Invalid response to 'changes' message: %s -- %s.  Body: %s", response, err, respBody)
 			return nil
 		}
@@ -568,33 +569,21 @@ func (bsc *BlipSyncContext) sendRevision(sender *blip.Sender, docID, revID strin
 	base.TracefCtx(bsc.loggingCtx, base.KeySync, "sendRevision, rev attachments for %s/%s are %v", base.UD(docID), revID, base.UD(rev.Attachments))
 	attachmentStorageMeta := ToAttachmentStorageMeta(rev.Attachments)
 	var bodyBytes []byte
-	if base.IsEnterpriseEdition() {
-		// Still need to stamp _attachments into BLIP messages
-		if len(rev.Attachments) > 0 {
-			DeleteAttachmentVersion(rev.Attachments)
-			bodyBytes, err = base.InjectJSONProperties(rev.BodyBytes, base.KVPair{Key: BodyAttachments, Val: rev.Attachments})
-			if err != nil {
-				return err
-			}
-		} else {
-			bodyBytes = rev.BodyBytes
-		}
-	} else {
-		body, err := rev.Body()
-		if err != nil {
-			return bsc.sendNoRev(sender, docID, revID, seq, err)
-		}
 
-		// Still need to stamp _attachments into BLIP messages
-		if len(rev.Attachments) > 0 {
-			DeleteAttachmentVersion(rev.Attachments)
-			body[BodyAttachments] = rev.Attachments
-		}
+	body, err := rev.Body()
+	if err != nil {
+		return bsc.sendNoRev(sender, docID, revID, seq, err)
+	}
 
-		bodyBytes, err = base.JSONMarshalCanonical(body)
-		if err != nil {
-			return bsc.sendNoRev(sender, docID, revID, seq, err)
-		}
+	// Still need to stamp _attachments into BLIP messages
+	if len(rev.Attachments) > 0 {
+		DeleteAttachmentVersion(rev.Attachments)
+		body[BodyAttachments] = rev.Attachments
+	}
+
+	bodyBytes, err = json.Marshal(body)
+	if err != nil {
+		return bsc.sendNoRev(sender, docID, revID, seq, err)
 	}
 
 	history := toHistory(rev.History, knownRevs, maxHistory)

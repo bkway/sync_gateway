@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -322,7 +323,7 @@ func TestCoveringQueries(t *testing.T) {
 	plan, explainErr := n1QLStore.ExplainQuery(channelsStatement, params)
 	assert.NoError(t, explainErr, "Error generating explain for channels query")
 	covered := isCovered(plan)
-	planJSON, err := base.JSONMarshal(plan)
+	planJSON, err := json.Marshal(plan)
 	assert.NoError(t, err)
 	assert.True(t, covered, "Channel query isn't covered by index: %s", planJSON)
 
@@ -331,7 +332,7 @@ func TestCoveringQueries(t *testing.T) {
 	plan, explainErr = n1QLStore.ExplainQuery(channelStarStatement, params)
 	assert.NoError(t, explainErr, "Error generating explain for star channel query")
 	covered = isCovered(plan)
-	planJSON, err = base.JSONMarshal(plan)
+	planJSON, err = json.Marshal(plan)
 	assert.NoError(t, err)
 	assert.True(t, covered, "Star channel query isn't covered by index: %s", planJSON)
 
@@ -342,7 +343,7 @@ func TestCoveringQueries(t *testing.T) {
 	plan, explainErr = n1QLStore.ExplainQuery(accessStatement, nil)
 	assert.NoError(t, explainErr, "Error generating explain for access query")
 	covered = isCovered(plan)
-	planJSON, err = base.JSONMarshal(plan)
+	planJSON, err = json.Marshal(plan)
 	assert.NoError(t, err)
 	// assert.True(t, covered, "Access query isn't covered by index: %s", planJSON)
 
@@ -351,7 +352,7 @@ func TestCoveringQueries(t *testing.T) {
 	plan, explainErr = n1QLStore.ExplainQuery(roleAccessStatement, nil)
 	assert.NoError(t, explainErr, "Error generating explain for roleAccess query")
 	covered = isCovered(plan)
-	planJSON, err = base.JSONMarshal(plan)
+	planJSON, err = json.Marshal(plan)
 	assert.NoError(t, err)
 	// assert.True(t, !covered, "RoleAccess query isn't covered by index: %s", planJSON)
 

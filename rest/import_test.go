@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -87,7 +88,7 @@ func TestXattrImportOldDoc(t *testing.T) {
 	response := rt.SendAdminRequest("GET", "/db/_raw/TestImportDelete?redact=false", "")
 	assert.Equal(t, 200, response.Code)
 	var rawInsertResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 	assert.True(t, rawInsertResponse.Sync.Channels != nil, "Expected channels not returned for SDK insert")
 	log.Printf("insert channels: %+v", rawInsertResponse.Sync.Channels)
@@ -106,7 +107,7 @@ func TestXattrImportOldDoc(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_raw/TestImportDelete?redact=false", "")
 	assert.Equal(t, 200, response.Code)
 	var rawUpdateResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawUpdateResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawUpdateResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
 	// If delta sync is enabled, old doc may be available based on the backup used for delta generation, if it hasn't already
@@ -124,7 +125,7 @@ func TestXattrImportOldDoc(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_raw/TestImportDelete?redact=false", "")
 	assert.Equal(t, 200, response.Code)
 	var rawDeleteResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawDeleteResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawDeleteResponse)
 	log.Printf("Post-delete: %s", response.Body.Bytes())
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 	assert.True(t, rawUpdateResponse.Sync.Channels != nil, "Expected channels not returned for SDK update")
@@ -184,7 +185,7 @@ func TestXattrImportOldDocRevHistory(t *testing.T) {
 	response := rt.SendAdminRequest("GET", "/db/_raw/"+docID+"?redact=false", "")
 	assert.Equal(t, 200, response.Code)
 	var rawResponse RawResponse
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &rawResponse))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &rawResponse))
 	log.Printf("raw response: %s", response.Body.Bytes())
 	assert.Equal(t, 1, len(rawResponse.Sync.Channels))
 	_, ok := rawResponse.Sync.Channels["oldDocNil"]
@@ -215,7 +216,7 @@ func TestXattrSGTombstone(t *testing.T) {
 	assert.Equal(t, 201, response.Code)
 	log.Printf("insert response: %s", response.Body.Bytes())
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId := body["rev"].(string)
 
@@ -223,7 +224,7 @@ func TestXattrSGTombstone(t *testing.T) {
 	response = rt.SendAdminRequest("DELETE", fmt.Sprintf("/db/%s?rev=%s", key, revId), "")
 	assert.Equal(t, 200, response.Code)
 	log.Printf("delete response: %s", response.Body.Bytes())
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId = body["rev"].(string)
 
@@ -260,7 +261,7 @@ func TestXattrImportOnCasFailure(t *testing.T) {
 	assert.Equal(t, 201, response.Code)
 	log.Printf("insert response: %s", response.Body.Bytes())
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "1-111c27be37c17f18ae8fe9faa3bb4e0e", body["rev"])
 	revId := body["rev"].(string)
 
@@ -324,7 +325,7 @@ func TestXattrResurrectViaSG(t *testing.T) {
 	assert.Equal(t, 201, response.Code)
 	log.Printf("insert response: %s", response.Body.Bytes())
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId := body["rev"].(string)
 
@@ -332,14 +333,14 @@ func TestXattrResurrectViaSG(t *testing.T) {
 	response = rt.SendAdminRequest("DELETE", fmt.Sprintf("/db/%s?rev=%s", key, revId), "")
 	assert.Equal(t, 200, response.Code)
 	log.Printf("delete response: %s", response.Body.Bytes())
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId = body["rev"].(string)
 
 	// 3. Recreate the doc through the SG (with different data)
 	response = rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s?rev=%s", key, revId), `{"channels":"ABC"}`)
 	assert.Equal(t, 201, response.Code)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	assert.Equal(t, "3-70c113f08c6622cd87af68f4f60d12e3", body["rev"])
 
@@ -377,7 +378,7 @@ func TestXattrResurrectViaSDK(t *testing.T) {
 	response := rt.SendAdminRequest("GET", rawPath, "")
 	assert.Equal(t, 200, response.Code)
 	var rawInsertResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
 	// 2. Delete the doc through the SDK
@@ -387,7 +388,7 @@ func TestXattrResurrectViaSDK(t *testing.T) {
 	response = rt.SendAdminRequest("GET", rawPath, "")
 	assert.Equal(t, 200, response.Code)
 	var rawDeleteResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawDeleteResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawDeleteResponse)
 	log.Printf("Post-delete: %s", response.Body.Bytes())
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
@@ -403,7 +404,7 @@ func TestXattrResurrectViaSDK(t *testing.T) {
 	response = rt.SendAdminRequest("GET", rawPath, "")
 	assert.Equal(t, 200, response.Code)
 	var rawUpdateResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawUpdateResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawUpdateResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 	_, ok := rawUpdateResponse.Sync.Channels["HBO"]
 	assert.True(t, ok, "Didn't find expected channel (HBO) on resurrected doc")
@@ -438,7 +439,7 @@ func TestXattrDoubleDelete(t *testing.T) {
 	assert.Equal(t, 201, response.Code)
 	log.Printf("insert response: %s", response.Body.Bytes())
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId := body["rev"].(string)
 
@@ -454,7 +455,7 @@ func TestXattrDoubleDelete(t *testing.T) {
 	response = rt.SendAdminRequest("DELETE", fmt.Sprintf("/db/%s?rev=%s", key, revId), "")
 	assert.Equal(t, 409, response.Code)
 	log.Printf("delete response: %s", response.Body.Bytes())
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId = body["rev"].(string)
 
@@ -487,7 +488,7 @@ func TestViewQueryTombstoneRetrieval(t *testing.T) {
 	assert.Equal(t, 201, response.Code)
 	log.Printf("insert response: %s", response.Body.Bytes())
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId := body["rev"].(string)
 
@@ -499,7 +500,7 @@ func TestViewQueryTombstoneRetrieval(t *testing.T) {
 	response = rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s", sdk_key), `{"channels":"ABC"}`)
 	assert.Equal(t, 201, response.Code)
 	log.Printf("insert response: %s", response.Body.Bytes())
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 
 	// 2. Delete SDK_delete through the SDK
@@ -516,7 +517,7 @@ func TestViewQueryTombstoneRetrieval(t *testing.T) {
 	response = rt.SendAdminRequest("DELETE", fmt.Sprintf("/db/%s?rev=%s", key, revId), "")
 	assert.Equal(t, 200, response.Code)
 	log.Printf("delete response: %s", response.Body.Bytes())
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, true, body["ok"])
 	revId = body["rev"].(string)
 
@@ -655,7 +656,7 @@ func TestXattrImportMultipleActorOnDemandGet(t *testing.T) {
 	assert.Equal(t, 200, response.Code)
 	// Extract rev from response for comparison with second GET below
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	revId, ok := body[db.BodyRev].(string)
 	assert.True(t, ok, "No rev included in response")
 
@@ -675,7 +676,7 @@ func TestXattrImportMultipleActorOnDemandGet(t *testing.T) {
 	// Attempt to get the document again via Sync Gateway.  Should not trigger import.
 	response = rt.SendAdminRequest("GET", "/db/"+mobileKey, "")
 	assert.Equal(t, 200, response.Code)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	newRevId := body[db.BodyRev].(string)
 	log.Printf("Retrieved via Sync Gateway after non-mobile update, revId:%v", newRevId)
 	assert.Equal(t, revId, newRevId)
@@ -711,7 +712,7 @@ func TestXattrImportMultipleActorOnDemandPut(t *testing.T) {
 	assert.Equal(t, 200, response.Code)
 	// Extract rev from response for comparison with second GET below
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	revId, ok := body[db.BodyRev].(string)
 	assert.True(t, ok, "No rev included in response")
 
@@ -731,7 +732,7 @@ func TestXattrImportMultipleActorOnDemandPut(t *testing.T) {
 	// rev should have generation 2.
 	putResponse := rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s?rev=%s", mobileKey, revId), `{"updated":true}`)
 	assert.Equal(t, 201, putResponse.Code)
-	assert.NoError(t, base.JSONUnmarshal(putResponse.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(putResponse.Body.Bytes(), &body))
 	log.Printf("Put response details: %s", putResponse.Body.Bytes())
 	newRevId, ok := body["rev"].(string)
 	assert.True(t, ok, "Unable to cast rev to string")
@@ -769,7 +770,7 @@ func TestXattrImportMultipleActorOnDemandFeed(t *testing.T) {
 	assert.Equal(t, 200, response.Code)
 	// Extract rev from response for comparison with second GET below
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	revId, ok := body[db.BodyRev].(string)
 	assert.True(t, ok, "No rev included in response")
 
@@ -805,7 +806,7 @@ func TestXattrImportMultipleActorOnDemandFeed(t *testing.T) {
 	// Get the doc again, validate rev hasn't changed
 	response = rt.SendAdminRequest("GET", "/db/"+mobileKey, "")
 	assert.Equal(t, 200, response.Code)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	newRevId := body[db.BodyRev].(string)
 	log.Printf("Retrieved via Sync Gateway after non-mobile update, revId:%v", newRevId)
 	assert.Equal(t, revId, newRevId)
@@ -925,7 +926,7 @@ func TestMigrateLargeInlineRevisions(t *testing.T) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/_raw/"+key, "")
 	assert.Equal(t, 200, rawResponse.Code)
 	var doc treeDoc
-	assert.NoError(t, base.JSONUnmarshal(rawResponse.Body.Bytes(), &doc))
+	assert.NoError(t, json.Unmarshal(rawResponse.Body.Bytes(), &doc))
 	assert.Equal(t, 3, len(doc.Meta.RevTree.BodyKeyMap))
 	assert.Equal(t, 0, len(doc.Meta.RevTree.BodyMap))
 
@@ -994,7 +995,7 @@ func TestMigrateTombstone(t *testing.T) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/_raw/"+key, "")
 	assert.Equal(t, 200, rawResponse.Code)
 	var doc treeDoc
-	assert.NoError(t, base.JSONUnmarshal(rawResponse.Body.Bytes(), &doc))
+	assert.NoError(t, json.Unmarshal(rawResponse.Body.Bytes(), &doc))
 	assert.Equal(t, "2-6b1e1af9190829c1ceab6f1c8fb9fa3f", doc.Meta.CurrentRev)
 	assert.Equal(t, uint64(5), doc.Meta.Sequence)
 
@@ -1065,7 +1066,7 @@ func TestMigrateWithExternalRevisions(t *testing.T) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/_raw/"+key+"?redact=false", "")
 	assert.Equal(t, 200, rawResponse.Code)
 	var doc treeDoc
-	assert.NoError(t, base.JSONUnmarshal(rawResponse.Body.Bytes(), &doc))
+	assert.NoError(t, json.Unmarshal(rawResponse.Body.Bytes(), &doc))
 	assert.Equal(t, 1, len(doc.Meta.RevTree.BodyKeyMap))
 	assert.Equal(t, 2, len(doc.Meta.RevTree.BodyMap))
 }
@@ -1441,7 +1442,7 @@ func TestOnDemandWriteImportReplacingNullDoc(t *testing.T) {
 	mobileBody["type"] = "mobile"
 	mobileBody["channels"] = "ABC"
 	mobileBody["foo"] = "bar"
-	mobileBodyMarshalled, err := base.JSONMarshal(mobileBody)
+	mobileBodyMarshalled, err := json.Marshal(mobileBody)
 	assert.NoError(t, err, "Error marshalling body")
 	response := rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s", key), string(mobileBodyMarshalled))
 	assertStatus(t, response, 201)
@@ -1463,7 +1464,7 @@ func TestXattrOnDemandImportPreservesExpiry(t *testing.T) {
 	}
 	triggerOnDemandViaWrite := func(rt *RestTester, key string) {
 		mobileBody["foo"] = "bar"
-		mobileBodyMarshalled, err := base.JSONMarshal(mobileBody)
+		mobileBodyMarshalled, err := json.Marshal(mobileBody)
 		assert.NoError(t, err, "Error marshalling body")
 		rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s", key), string(mobileBodyMarshalled))
 	}
@@ -1845,7 +1846,7 @@ func TestImportRevisionCopy(t *testing.T) {
 	response := rt.SendAdminRequest("GET", fmt.Sprintf("/db/_raw/%s", key), "")
 	assert.Equal(t, 200, response.Code)
 	var rawInsertResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 	rev1id := rawInsertResponse.Sync.Rev
 
@@ -1859,7 +1860,7 @@ func TestImportRevisionCopy(t *testing.T) {
 	// 4. Trigger import of update via SG retrieval
 	response = rt.SendAdminRequest("GET", fmt.Sprintf("/db/_raw/%s", key), "")
 	assert.Equal(t, 200, response.Code)
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
 	// 5. Flush the rev cache (simulates attempted retrieval by a different SG node, since testing framework isn't great
@@ -1906,7 +1907,7 @@ func TestImportRevisionCopyUnavailable(t *testing.T) {
 	response := rt.SendAdminRequest("GET", fmt.Sprintf("/db/_raw/%s", key), "")
 	assert.Equal(t, 200, response.Code)
 	var rawInsertResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 	rev1id := rawInsertResponse.Sync.Rev
 
@@ -1924,7 +1925,7 @@ func TestImportRevisionCopyUnavailable(t *testing.T) {
 	// 5. Trigger import of update via SG retrieval
 	response = rt.SendAdminRequest("GET", fmt.Sprintf("/db/_raw/%s", key), "")
 	assert.Equal(t, 200, response.Code)
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
 	// 6. Attempt to retrieve previous revision body.  Should return missing, as rev wasn't in rev cache when import occurred.
@@ -1967,7 +1968,7 @@ func TestImportRevisionCopyDisabled(t *testing.T) {
 	response := rt.SendAdminRequest("GET", fmt.Sprintf("/db/_raw/%s", key), "")
 	assert.Equal(t, 200, response.Code)
 	var rawInsertResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 	rev1id := rawInsertResponse.Sync.Rev
 
@@ -1981,7 +1982,7 @@ func TestImportRevisionCopyDisabled(t *testing.T) {
 	// 4. Trigger import of update via SG retrieval
 	response = rt.SendAdminRequest("GET", fmt.Sprintf("/db/_raw/%s", key), "")
 	assert.Equal(t, 200, response.Code)
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
 	// 5. Flush the rev cache (simulates attempted retrieval by a different SG node, since testing framework isn't great
@@ -2080,7 +2081,7 @@ func TestUnexpectedBodyOnTombstone(t *testing.T) {
 	assert.Equal(t, 200, response.Code)
 	// Extract rev from response for comparison with second GET below
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	revId, ok := body[db.BodyRev].(string)
 	assert.True(t, ok, "No rev included in response")
 
@@ -2103,7 +2104,7 @@ func TestUnexpectedBodyOnTombstone(t *testing.T) {
 	// Attempt to get the document again via Sync Gateway.  Should not trigger import.
 	response = rt.SendAdminRequest("GET", "/db/"+mobileKey, "")
 	assert.Equal(t, 200, response.Code)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	newRevId := body[db.BodyRev].(string)
 	log.Printf("Retrieved via Sync Gateway after non-mobile update, revId:%v", newRevId)
 	assert.Equal(t, revId, newRevId)
@@ -2111,7 +2112,7 @@ func TestUnexpectedBodyOnTombstone(t *testing.T) {
 
 func assertDocProperty(t *testing.T, getDocResponse *TestResponse, propertyName string, expectedPropertyValue interface{}) {
 	var responseBody map[string]interface{}
-	err := base.JSONUnmarshal(getDocResponse.Body.Bytes(), &responseBody)
+	err := json.Unmarshal(getDocResponse.Body.Bytes(), &responseBody)
 	assert.NoError(t, err, "Error unmarshalling document response")
 	value, ok := responseBody[propertyName]
 	assert.True(t, ok, fmt.Sprintf("Expected property %s not found in response %s", propertyName, getDocResponse.Body.Bytes()))
@@ -2171,7 +2172,7 @@ func TestDeletedEmptyDocumentImport(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, response.Code)
 
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "1-ca9ad22802b66f662ff171f226211d5c", body["rev"])
 
 	// Delete the document through SDK
@@ -2182,7 +2183,7 @@ func TestDeletedEmptyDocumentImport(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_raw/"+docId, "")
 	assert.Equal(t, http.StatusOK, response.Code)
 	rawResponse := make(map[string]interface{})
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawResponse)
 	assert.NoError(t, err, "Unable to unmarshal raw response")
 
 	assert.True(t, rawResponse[db.BodyDeleted].(bool))
@@ -2223,7 +2224,7 @@ func TestDeletedDocumentImportWithImportFilter(t *testing.T) {
 	response := rt.SendAdminRequest(http.MethodGet, endpoint, "")
 	assert.Equal(t, http.StatusOK, response.Code)
 	var respBody db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &respBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &respBody))
 	syncMeta := respBody[base.SyncPropertyName].(map[string]interface{})
 	assert.NotEmpty(t, syncMeta["rev"].(string))
 
@@ -2234,7 +2235,7 @@ func TestDeletedDocumentImportWithImportFilter(t *testing.T) {
 	// Trigger import and check whether deleted document is getting imported
 	response = rt.SendAdminRequest(http.MethodGet, endpoint, "")
 	assert.Equal(t, http.StatusOK, response.Code)
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &respBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &respBody))
 	assert.True(t, respBody[db.BodyDeleted].(bool))
 	syncMeta = respBody[base.SyncPropertyName].(map[string]interface{})
 	assert.NotEmpty(t, syncMeta["rev"].(string))
@@ -2364,7 +2365,7 @@ func TestImportInternalPropertiesHandling(t *testing.T) {
 				assertStatus(rt.tb, resp, 200)
 			}
 			var body db.Body
-			require.NoError(rt.tb, base.JSONUnmarshal(resp.Body.Bytes(), &body))
+			require.NoError(rt.tb, json.Unmarshal(resp.Body.Bytes(), &body))
 
 			for key, val := range body {
 				assert.EqualValues(t, val, body[key])
@@ -2409,7 +2410,7 @@ func TestImportTouch(t *testing.T) {
 	response := rt.SendAdminRequest("GET", "/db/_raw/"+key+"?redact=false", "")
 	require.Equal(t, 200, response.Code)
 	var rawInsertResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawInsertResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawInsertResponse)
 	require.NoError(t, err, "Unable to unmarshal raw response")
 	initialRev := rawInsertResponse.Sync.Rev
 
@@ -2421,7 +2422,7 @@ func TestImportTouch(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_raw/"+key+"?redact=false", "")
 	require.Equal(t, 200, response.Code)
 	var rawUpdateResponse RawResponse
-	err = base.JSONUnmarshal(response.Body.Bytes(), &rawUpdateResponse)
+	err = json.Unmarshal(response.Body.Bytes(), &rawUpdateResponse)
 	require.NoError(t, err, "Unable to unmarshal raw response")
 	require.Equal(t, initialRev, rawUpdateResponse.Sync.Rev)
 }

@@ -9,6 +9,7 @@
 package channels
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -21,22 +22,22 @@ func TestTimedSetMarshal(t *testing.T) {
 	var str struct {
 		Channels TimedSet
 	}
-	bytes, err := base.JSONMarshal(str)
+	bytes, err := json.Marshal(str)
 	assert.NoError(t, err, "Marshal")
 	assert.Equal(t, string(bytes), `{"Channels":null}`)
 
 	str.Channels = TimedSet{}
-	bytes, err = base.JSONMarshal(str)
+	bytes, err = json.Marshal(str)
 	assert.NoError(t, err, "Marshal")
 	assert.Equal(t, `{"Channels":{}}`, string(bytes))
 
 	str.Channels = AtSequence(SetOf(t, "a"), 17)
-	bytes, err = base.JSONMarshal(str)
+	bytes, err = json.Marshal(str)
 	assert.NoError(t, err, "Marshal")
 	assert.Equal(t, `{"Channels":{"a":17}}`, string(bytes))
 
 	str.Channels = AtSequence(SetOf(t, "a", "b"), 17)
-	bytes, err = base.JSONMarshal(str)
+	bytes, err = json.Marshal(str)
 	assert.NoError(t, err, "Marshal")
 	// Ordering of JSON keys can vary - so just check each channel is present with the correct sequence
 	assert.True(t, strings.Contains(string(bytes), `"a":17`))
@@ -47,28 +48,28 @@ func TestTimedSetUnmarshal(t *testing.T) {
 	var str struct {
 		Channels TimedSet
 	}
-	err := base.JSONUnmarshal([]byte(`{"channels":null}`), &str)
+	err := json.Unmarshal([]byte(`{"channels":null}`), &str)
 	assert.NoError(t, err, "Unmarshal")
 	assert.Equal(t, TimedSet(nil), str.Channels)
 
-	err = base.JSONUnmarshal([]byte(`{"channels":{}}`), &str)
+	err = json.Unmarshal([]byte(`{"channels":{}}`), &str)
 	assert.NoError(t, err, "Unmarshal empty")
 	assert.Equal(t, TimedSet{}, str.Channels)
 
-	err = base.JSONUnmarshal([]byte(`{"channels":{"a":17,"b":17}}`), &str)
+	err = json.Unmarshal([]byte(`{"channels":{"a":17,"b":17}}`), &str)
 	assert.NoError(t, err, "Unmarshal sequence only")
 	assert.Equal(t, TimedSet{"a": NewVbSimpleSequence(17), "b": NewVbSimpleSequence(17)}, str.Channels)
 
 	// Now try unmarshaling the alternative array form:
-	err = base.JSONUnmarshal([]byte(`{"channels":[]}`), &str)
+	err = json.Unmarshal([]byte(`{"channels":[]}`), &str)
 	assert.NoError(t, err, "Unmarshal empty array")
 	assert.Equal(t, TimedSet{}, str.Channels)
 
-	err = base.JSONUnmarshal([]byte(`{"channels":["a","b"]}`), &str)
+	err = json.Unmarshal([]byte(`{"channels":["a","b"]}`), &str)
 	assert.NoError(t, err, "Unmarshal populated array")
 	assert.Equal(t, TimedSet{"a": NewVbSimpleSequence(0), "b": NewVbSimpleSequence(0)}, str.Channels)
 
-	err = base.JSONUnmarshal([]byte(`{"channels":{"a":{"seq":17, "vb":21},"b":{"seq":23, "vb":25}}}`), &str)
+	err = json.Unmarshal([]byte(`{"channels":{"a":{"seq":17, "vb":21},"b":{"seq":23, "vb":25}}}`), &str)
 	assert.NoError(t, err, "Unmarshal sequence and vbucket only")
 	assert.Equal(t, fmt.Sprintf("%s", TimedSet{"a": NewVbSequence(21, 17), "b": NewVbSequence(25, 23)}), fmt.Sprintf("%s", str.Channels))
 }

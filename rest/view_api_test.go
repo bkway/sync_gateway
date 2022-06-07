@@ -9,6 +9,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -67,7 +68,7 @@ func TestViewQuery(t *testing.T) {
 	// TODO: update the query to use stale=false and remove the wait
 	result, err := rt.WaitForNAdminViewResults(2, "/db/_design/foo/_view/bar")
 	assert.NoError(t, err, "Got unexpected error")
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 2)
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc2", Key: 7.0, Value: "seven"}, result.Rows[0])
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc1", Key: 10.0, Value: "ten"}, result.Rows[1])
@@ -211,21 +212,21 @@ func TestViewQueryMultipleViewsInterfaceValues(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_design/foo/_view/by_age", ``)
 	assertStatus(t, response, http.StatusOK)
 	var result sgbucket.ViewResult
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 2)
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc2", Key: 7.0, Value: interface{}(nil)}, result.Rows[0])
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc1", Key: 10.0, Value: interface{}(nil)}, result.Rows[1])
 
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_design/foo/_view/by_fname", ``)
 	assertStatus(t, response, http.StatusOK)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 2)
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc1", Key: "Alice", Value: interface{}(nil)}, result.Rows[0])
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc2", Key: "Bob", Value: interface{}(nil)}, result.Rows[1])
 
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_design/foo/_view/by_lname", ``)
 	assertStatus(t, response, http.StatusOK)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 2)
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc2", Key: "Seven", Value: interface{}(nil)}, result.Rows[0])
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc1", Key: "Ten", Value: interface{}(nil)}, result.Rows[1])
@@ -344,7 +345,7 @@ func TestAdminReduceViewQuery(t *testing.T) {
 	// // test group=true
 	// response = rt.sendAdminRequest("GET", "/db/_design/foo/_view/bar?reduce=true&group=true", ``)
 	// assertStatus(t, response, 200)
-	// base.JSONUnmarshal(response.Body.Bytes(), &result)
+	// json.Unmarshal(response.Body.Bytes(), &result)
 	// // we should get 2 rows with the reduce result
 	// goassert.Equals(t, len(result.Rows), 2)
 	// row = result.Rows[0]
@@ -451,7 +452,7 @@ func TestViewQueryWithKeys(t *testing.T) {
 	assertStatus(t, response, http.StatusOK) // Query string was parsed properly
 
 	var result sgbucket.ViewResult
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 1)
 
 	// Ensure that query for non-existent keys returns no rows
@@ -459,7 +460,7 @@ func TestViewQueryWithKeys(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, viewUrlPath, ``)
 	assertStatus(t, response, http.StatusOK) // Query string was parsed properly
 
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 0)
 }
 
@@ -488,7 +489,7 @@ func TestViewQueryWithCompositeKeys(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, viewUrlPath, ``)
 	assertStatus(t, response, http.StatusOK)
 	var result sgbucket.ViewResult
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 1)
 
 	// Ensure that a query for non-existent key returns no rows
@@ -496,7 +497,7 @@ func TestViewQueryWithCompositeKeys(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, viewUrlPath, ``)
 	assertStatus(t, response, http.StatusOK)
 
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 0)
 }
 
@@ -525,7 +526,7 @@ func TestViewQueryWithIntKeys(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, viewUrlPath, ``)
 	assertStatus(t, response, http.StatusOK)
 	var result sgbucket.ViewResult
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 1)
 
 	// Ensure that a query for non-existent key returns no rows
@@ -534,7 +535,7 @@ func TestViewQueryWithIntKeys(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, viewUrlPath, ``)
 	assertStatus(t, response, http.StatusOK)
 
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &result))
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	require.Len(t, result.Rows, 0)
 }
 
@@ -602,7 +603,7 @@ func TestPostInstallCleanup(t *testing.T) {
 	var postUpgradeResponse PostUpgradeResponse
 	response := rt.SendAdminRequest(http.MethodPost, "/_post_upgrade?preview=true", "")
 	assertStatus(t, response, http.StatusOK)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
 	assert.True(t, postUpgradeResponse.Preview)
 	require.Lenf(t, postUpgradeResponse.Result["db"].RemovedDDocs, 2, "Response: %#v", postUpgradeResponse)
 
@@ -610,7 +611,7 @@ func TestPostInstallCleanup(t *testing.T) {
 	postUpgradeResponse = PostUpgradeResponse{}
 	response = rt.SendAdminRequest(http.MethodPost, "/_post_upgrade", "")
 	assertStatus(t, response, http.StatusOK)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
 	assert.False(t, postUpgradeResponse.Preview)
 	require.Len(t, postUpgradeResponse.Result["db"].RemovedDDocs, 2)
 
@@ -618,7 +619,7 @@ func TestPostInstallCleanup(t *testing.T) {
 	postUpgradeResponse = PostUpgradeResponse{}
 	response = rt.SendAdminRequest(http.MethodPost, "/_post_upgrade?preview=true", "")
 	assertStatus(t, response, http.StatusOK)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
 	assert.True(t, postUpgradeResponse.Preview)
 	require.Len(t, postUpgradeResponse.Result["db"].RemovedDDocs, 0)
 
@@ -626,7 +627,7 @@ func TestPostInstallCleanup(t *testing.T) {
 	postUpgradeResponse = PostUpgradeResponse{}
 	response = rt.SendAdminRequest(http.MethodPost, "/_post_upgrade", "")
 	assertStatus(t, response, http.StatusOK)
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &postUpgradeResponse), "Error unmarshalling post_upgrade response")
 	assert.False(t, postUpgradeResponse.Preview)
 	require.Len(t, postUpgradeResponse.Result["db"].RemovedDDocs, 0)
 }

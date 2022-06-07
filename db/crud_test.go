@@ -40,7 +40,7 @@ func getRevTreeList(bucket base.Bucket, key string, useXattrs bool) (revTreeList
 		}
 
 		var treeMeta treeMeta
-		err := base.JSONUnmarshal(rawXattr, &treeMeta)
+		err := json.Unmarshal(rawXattr, &treeMeta)
 		if err != nil {
 			return revTreeList{}, err
 		}
@@ -52,7 +52,7 @@ func getRevTreeList(bucket base.Bucket, key string, useXattrs bool) (revTreeList
 			return revTreeList{}, err
 		}
 		var doc treeDoc
-		err = base.JSONUnmarshal(rawDoc, &doc)
+		err = json.Unmarshal(rawDoc, &doc)
 		return doc.Meta.RevTree, err
 	}
 
@@ -365,7 +365,7 @@ func TestRevisionStorageConflictAndTombstones(t *testing.T) {
 	var revisionBody Body
 	rawRevision, _, err := db.Bucket.GetRaw(base.SyncPrefix + "rb:4GctXhLVg13d59D0PUTPRD0i58Hbe1d0djgo1qOEpfI=")
 	assert.NoError(t, err, "Couldn't get raw backup revision")
-	assert.NoError(t, base.JSONUnmarshal(rawRevision, &revisionBody))
+	assert.NoError(t, json.Unmarshal(rawRevision, &revisionBody))
 	assert.Equal(t, rev2a_body["version"], revisionBody["version"])
 	assert.Equal(t, rev2a_body["value"], revisionBody["value"])
 
@@ -548,7 +548,7 @@ func TestRevisionStoragePruneTombstone(t *testing.T) {
 	var revisionBody Body
 	rawRevision, _, err := db.Bucket.GetRaw(base.SyncPrefix + "rb:4GctXhLVg13d59D0PUTPRD0i58Hbe1d0djgo1qOEpfI=")
 	assert.NoError(t, err, "Couldn't get raw backup revision")
-	assert.NoError(t, base.JSONUnmarshal(rawRevision, &revisionBody))
+	assert.NoError(t, json.Unmarshal(rawRevision, &revisionBody))
 	assert.Equal(t, rev2a_body["version"], revisionBody["version"])
 	assert.Equal(t, rev2a_body["value"], revisionBody["value"])
 
@@ -1032,7 +1032,7 @@ func BenchmarkDatabaseGet1xRev(b *testing.B) {
 
 	var shortWithAttachmentsDataBody Body
 	shortWithAttachmentsData := `{"test": true, "_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}, "rev":"1-a"}`
-	_ = base.JSONUnmarshal([]byte(shortWithAttachmentsData), &shortWithAttachmentsDataBody)
+	_ = json.Unmarshal([]byte(shortWithAttachmentsData), &shortWithAttachmentsDataBody)
 	_, _, _ = db.PutExistingRevWithBody("doc3", shortWithAttachmentsDataBody, []string{"1-a"}, false)
 
 	b.Run("ShortLatest", func(b *testing.B) {
@@ -1088,7 +1088,7 @@ func BenchmarkDatabaseGetRev(b *testing.B) {
 
 	var shortWithAttachmentsDataBody Body
 	shortWithAttachmentsData := `{"test": true, "_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}, "rev":"1-a"}`
-	_ = base.JSONUnmarshal([]byte(shortWithAttachmentsData), &shortWithAttachmentsDataBody)
+	_ = json.Unmarshal([]byte(shortWithAttachmentsData), &shortWithAttachmentsDataBody)
 	_, _, _ = db.PutExistingRevWithBody("doc3", shortWithAttachmentsDataBody, []string{"1-a"}, false)
 
 	b.Run("ShortLatest", func(b *testing.B) {
@@ -1149,8 +1149,9 @@ func BenchmarkHandleRevDelta(b *testing.B) {
 			deltaSrcBody[BodyAttachments] = map[string]interface{}(deltaSrcRev.Attachments)
 		}
 
-		deltaSrcMap := map[string]interface{}(deltaSrcBody)
-		_ = base.Patch(&deltaSrcMap, newDoc.Body())
+		// TODO this was removed because of EE, verify this function still called?
+		// deltaSrcMap := map[string]interface{}(deltaSrcBody)
+		// base.Patch(&deltaSrcMap, newDoc.Body())
 	}
 
 	b.Run("SmallDiff", func(b *testing.B) {
@@ -1171,7 +1172,7 @@ func BenchmarkHandleRevDelta(b *testing.B) {
 		}
 		largeDoc := make([]byte, 1000000)
 		longBody := Body{"val": string(largeDoc)}
-		bodyBytes, _ := base.JSONMarshal(longBody)
+		bodyBytes, _ := json.Marshal(longBody)
 		newDoc.UpdateBodyBytes(bodyBytes)
 		for n := 0; n < b.N; n++ {
 			getDelta(newDoc)

@@ -12,6 +12,7 @@ package rest
 
 import (
 	"crypto/sha1"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -104,7 +105,7 @@ func (h *handler) handleView() error {
 	for _, name := range []string{"startkey", "endkey", "key", "keys"} {
 		if rawVal := h.getQuery(name); "" != rawVal {
 			var val interface{}
-			if err := base.JSONUnmarshal([]byte(rawVal), &val); err != nil {
+			if err := json.Unmarshal([]byte(rawVal), &val); err != nil {
 				return err
 			}
 			opts[name] = val

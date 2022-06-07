@@ -12,6 +12,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -323,7 +324,7 @@ func (r *replicationCheckpoint) AsBody() Body {
 // NewReplicationCheckpoint converts a revID and checkpoint body into a replicationCheckpoint
 func NewReplicationCheckpoint(revID string, body []byte) (checkpoint *replicationCheckpoint, err error) {
 
-	err = base.JSONUnmarshal(body, &checkpoint)
+	err = json.Unmarshal(body, &checkpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -472,7 +473,7 @@ func (c *Checkpointer) getLocalCheckpoint() (checkpoint *replicationCheckpoint, 
 		return &replicationCheckpoint{}, nil
 	}
 
-	err = base.JSONUnmarshal(checkpointBytes, &checkpoint)
+	err = json.Unmarshal(checkpointBytes, &checkpoint)
 	return checkpoint, err
 }
 
@@ -672,7 +673,7 @@ func getLocalCheckpoint(db *DatabaseContext, clientID string) (*replicationCheck
 		return nil, nil
 	}
 	var checkpoint *replicationCheckpoint
-	err = base.JSONUnmarshal(checkpointBytes, &checkpoint)
+	err = json.Unmarshal(checkpointBytes, &checkpoint)
 	return checkpoint, err
 }
 

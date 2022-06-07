@@ -12,6 +12,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -42,11 +43,11 @@ func (c *Collection) GetDDoc(docname string) (ddoc sgbucket.DesignDoc, err error
 	}
 
 	// Serialize/deserialize to convert to sgbucket.DesignDoc
-	designDocBytes, marshalErr := JSONMarshal(designDoc)
+	designDocBytes, marshalErr := json.Marshal(designDoc)
 	if marshalErr != nil {
 		return ddoc, marshalErr
 	}
-	err = JSONUnmarshal(designDocBytes, &ddoc)
+	err = json.Unmarshal(designDocBytes, &ddoc)
 	return ddoc, err
 }
 
@@ -63,11 +64,11 @@ func (c *Collection) GetDDocs() (ddocs map[string]sgbucket.DesignDoc, err error)
 	}
 
 	// Serialize/deserialize to convert to sgbucket.DesignDoc
-	resultBytes, marshalErr := JSONMarshal(result)
+	resultBytes, marshalErr := json.Marshal(result)
 	if marshalErr != nil {
 		return nil, marshalErr
 	}
-	err = JSONUnmarshal(resultBytes, &ddocs)
+	err = json.Unmarshal(resultBytes, &ddocs)
 	return ddocs, err
 }
 
@@ -149,7 +150,7 @@ func (c *Collection) putDDocForTombstones(ddoc *gocb.DesignDocument) error {
 		jsonDesignDocument:     jsonDdoc,
 		IndexXattrOnTombstones: true,
 	}
-	data, err := JSONMarshal(&xattrEnabledDesignDoc)
+	data, err := json.Marshal(&xattrEnabledDesignDoc)
 	if err != nil {
 		return err
 	}
@@ -215,7 +216,7 @@ func unmarshalViewMetadata(viewResult *gocb.ViewResultRaw) (viewMetadata, error)
 	var viewMeta viewMetadata
 	rawMeta, err := viewResult.MetaData()
 	if err == nil {
-		err = JSONUnmarshal(rawMeta, &viewMeta)
+		err = json.Unmarshal(rawMeta, &viewMeta)
 	}
 	return viewMeta, err
 }

@@ -170,7 +170,7 @@ func (h *handler) handleOidcProviderConfiguration() error {
 		ClaimsSupported:                   []string{"email", "sub", "exp", "iat", "iss", "aud", "nickname"},
 	}
 
-	if bytes, err := base.JSONMarshal(config); err == nil {
+	if bytes, err := json.Marshal(config); err == nil {
 		h.response.Header().Set("Expires", "0")
 		_, _ = h.response.Write(bytes)
 	}
@@ -533,7 +533,7 @@ func writeTokenResponse(h *handler, subject string, issuerUrl string, authState 
 		IdToken:      idToken,
 	}
 
-	if bytes, err := base.JSONMarshal(tokenResponse); err == nil {
+	if bytes, err := json.Marshal(tokenResponse); err == nil {
 		_, _ = h.response.Write(bytes)
 	}
 

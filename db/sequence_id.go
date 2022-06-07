@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -132,7 +133,7 @@ func (s *SequenceID) UnmarshalJSON(data []byte) error {
 
 func (s *SequenceID) unmarshalIntSequence(data []byte) error {
 	var raw string
-	err := base.JSONUnmarshal(data, &raw)
+	err := json.Unmarshal(data, &raw)
 	if err != nil {
 		*s, err = parseIntegerSequenceID(string(data))
 	} else {

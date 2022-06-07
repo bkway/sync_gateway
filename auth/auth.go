@@ -10,6 +10,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -142,8 +143,8 @@ func (auth *Authenticator) getPrincipal(docID string, factory func() Principal) 
 		}
 
 		princ = factory()
-		if err := base.JSONUnmarshal(currentValue, princ); err != nil {
-			return nil, nil, false, pkgerrors.WithStack(base.RedactErrorf("base.JSONUnmarshal() error for doc ID: %s in getPrincipal().  Error: %v", base.UD(docID), err))
+		if err := json.Unmarshal(currentValue, princ); err != nil {
+			return nil, nil, false, pkgerrors.WithStack(base.RedactErrorf("json.Unmarshal() error for doc ID: %s in getPrincipal().  Error: %v", base.UD(docID), err))
 		}
 		changed := false
 		if princ.Channels() == nil && !princ.IsDeleted() {
@@ -166,9 +167,9 @@ func (auth *Authenticator) getPrincipal(docID string, factory func() Principal) 
 
 		if changed {
 			// Save the updated doc:
-			updatedBytes, marshalErr := base.JSONMarshal(princ)
+			updatedBytes, marshalErr := json.Marshal(princ)
 			if marshalErr != nil {
-				marshalErr = pkgerrors.WithStack(base.RedactErrorf("base.JSONUnmarshal() error for doc ID: %s in getPrincipal(). Error: %v", base.UD(docID), marshalErr))
+				marshalErr = pkgerrors.WithStack(base.RedactErrorf("json.Unmarshal() error for doc ID: %s in getPrincipal(). Error: %v", base.UD(docID), marshalErr))
 			}
 			return updatedBytes, nil, false, marshalErr
 		} else {
@@ -392,7 +393,7 @@ func (auth *Authenticator) InvalidateChannels(name string, isUser bool, invalSeq
 			return nil, nil, false, base.ErrUpdateCancel
 		}
 
-		err = base.JSONUnmarshal(current, &princ)
+		err = json.Unmarshal(current, &princ)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -403,7 +404,7 @@ func (auth *Authenticator) InvalidateChannels(name string, isUser bool, invalSeq
 
 		princ.SetChannelInvalSeq(invalSeq)
 
-		updated, err = base.JSONMarshal(princ)
+		updated, err = json.Marshal(princ)
 
 		return updated, nil, false, err
 	})
@@ -436,7 +437,7 @@ func (auth *Authenticator) InvalidateRoles(username string, invalSeq uint64) err
 		}
 
 		var user userImpl
-		err = base.JSONUnmarshal(current, &user)
+		err = json.Unmarshal(current, &user)
 		if err != nil {
 			return nil, nil, false, base.ErrUpdateCancel
 		}
@@ -448,7 +449,7 @@ func (auth *Authenticator) InvalidateRoles(username string, invalSeq uint64) err
 
 		user.SetRoleInvalSeq(invalSeq)
 
-		updated, err = base.JSONMarshal(&user)
+		updated, err = json.Marshal(&user)
 		return updated, nil, false, err
 	})
 

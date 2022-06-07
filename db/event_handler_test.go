@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package db
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
@@ -50,7 +51,7 @@ func TestCallValidateFunction(t *testing.T) {
 	// filter function which returns a bool value while calling CallValidateFunction.
 	channels := base.SetFromArray([]string{"Netflix"})
 	docId, body, oldBodyJSON := "doc1", Body{BodyId: "doc1", "key1": "value1"}, ""
-	bodyBytes, _ := base.JSONMarshal(body)
+	bodyBytes, _ := json.Marshal(body)
 	event := &DocumentChangeEvent{DocID: docId, DocBytes: bodyBytes, OldDoc: oldBodyJSON, Channels: channels}
 
 	// Boolean return type handling of CallValidateFunction; bool true value.

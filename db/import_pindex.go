@@ -12,6 +12,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -43,7 +44,7 @@ func RegisterImportPindexImpl(configGroup string) {
 func getListenerImportDest(indexParams string) (cbgt.Dest, error) {
 
 	var sgIndexParams base.SGFeedIndexParams
-	err := base.JSONUnmarshal([]byte(indexParams), &sgIndexParams)
+	err := json.Unmarshal([]byte(indexParams), &sgIndexParams)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling dbname from cbgt index params: %w", err)
 	}

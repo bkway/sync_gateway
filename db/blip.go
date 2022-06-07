@@ -12,6 +12,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/couchbase/go-blip"
@@ -66,7 +67,7 @@ func blipRevMessageProperties(revisionHistory []string, deleted bool, seq Sequen
 	properties := make(blip.Properties)
 
 	// TODO: Assert? db.SequenceID.MarshalJSON can never error
-	seqJSON, _ := base.JSONMarshal(seq)
+	seqJSON, _ := json.Marshal(seq)
 	properties[RevMessageSequence] = string(seqJSON)
 
 	if len(revisionHistory) > 0 {

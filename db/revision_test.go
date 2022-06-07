@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"testing"
@@ -66,7 +67,7 @@ func TestBodyUnmarshal(t *testing.T) {
 
 			// Unmarshal using json.Unmarshal for comparison below
 			var jsonUnmarshalBody Body
-			unmarshalErr := base.JSONUnmarshal(test.inputBytes, &jsonUnmarshalBody)
+			unmarshalErr := json.Unmarshal(test.inputBytes, &jsonUnmarshalBody)
 
 			if unmarshalErr != nil {
 				// If json.Unmarshal returns error for input, body.Unmarshal should do the same
@@ -99,7 +100,7 @@ func TestParseRevisionsToAncestor(t *testing.T) {
 func TestBackupOldRevision(t *testing.T) {
 	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
 
-	deltasEnabled := base.IsEnterpriseEdition()
+	deltasEnabled := false
 	xattrsEnabled := base.TestUseXattrs()
 
 	db := setupTestDBWithOptions(t, DatabaseContextOptions{DeltaSyncOptions: DeltaSyncOptions{

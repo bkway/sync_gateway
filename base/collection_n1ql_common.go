@@ -12,6 +12,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -71,7 +72,7 @@ func ExplainQuery(store N1QLStore, statement string, params map[string]interface
 		return nil, err
 	}
 
-	unmarshalErr := JSONUnmarshal(firstRow, &plan)
+	unmarshalErr := json.Unmarshal(firstRow, &plan)
 	return plan, unmarshalErr
 }
 
@@ -108,7 +109,7 @@ func CreatePrimaryIndex(store N1QLStore, indexName string, options *N1qlIndexOpt
 func createIndex(store N1QLStore, indexName string, createStatement string, options *N1qlIndexOptions) error {
 
 	if options != nil {
-		withClause, marshalErr := JSONMarshal(options)
+		withClause, marshalErr := json.Marshal(options)
 		if marshalErr != nil {
 			return marshalErr
 		}
@@ -476,7 +477,7 @@ func (i *gocbRawIterator) Next(valuePtr interface{}) bool {
 		return false
 	}
 
-	err := JSONUnmarshal(nextBytes, &valuePtr)
+	err := json.Unmarshal(nextBytes, &valuePtr)
 	if err != nil {
 		WarnfCtx(context.TODO(), "Unable to marshal view result row into value: %v", err)
 		return false

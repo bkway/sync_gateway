@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -512,10 +513,11 @@ func (dbConfig *DbConfig) validatePersistentDbConfig() (errorMessages error) {
 }
 
 func (dbConfig *DbConfig) validate(ctx context.Context, validateOIDCConfig bool) error {
-	return dbConfig.validateVersion(ctx, base.IsEnterpriseEdition(), validateOIDCConfig)
+	return dbConfig.validateVersion(ctx, validateOIDCConfig)
 }
 
-func (dbConfig *DbConfig) validateVersion(ctx context.Context, isEnterpriseEdition, validateOIDCConfig bool) error {
+// TODO removed second param (bool)
+func (dbConfig *DbConfig) validateVersion(ctx context.Context, validateOIDCConfig bool) error {
 
 	var multiError *base.MultiError
 	// Make sure a non-zero compact_interval_days config is within the valid range
@@ -529,20 +531,17 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, isEnterpriseEditi
 
 		if dbConfig.CacheConfig.ChannelCacheConfig != nil {
 
-			// EE: channel cache
-			if !isEnterpriseEdition {
-				if val := dbConfig.CacheConfig.ChannelCacheConfig.MaxNumber; val != nil {
-					base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.channel_cache.max_number", *val, db.DefaultChannelCacheMaxNumber)
-					dbConfig.CacheConfig.ChannelCacheConfig.MaxNumber = nil
-				}
-				if val := dbConfig.CacheConfig.ChannelCacheConfig.HighWatermarkPercent; val != nil {
-					base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.channel_cache.compact_high_watermark_pct", *val, db.DefaultCompactHighWatermarkPercent)
-					dbConfig.CacheConfig.ChannelCacheConfig.HighWatermarkPercent = nil
-				}
-				if val := dbConfig.CacheConfig.ChannelCacheConfig.LowWatermarkPercent; val != nil {
-					base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.channel_cache.compact_low_watermark_pct", *val, db.DefaultCompactLowWatermarkPercent)
-					dbConfig.CacheConfig.ChannelCacheConfig.LowWatermarkPercent = nil
-				}
+			if val := dbConfig.CacheConfig.ChannelCacheConfig.MaxNumber; val != nil {
+				base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.channel_cache.max_number", *val, db.DefaultChannelCacheMaxNumber)
+				dbConfig.CacheConfig.ChannelCacheConfig.MaxNumber = nil
+			}
+			if val := dbConfig.CacheConfig.ChannelCacheConfig.HighWatermarkPercent; val != nil {
+				base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.channel_cache.compact_high_watermark_pct", *val, db.DefaultCompactHighWatermarkPercent)
+				dbConfig.CacheConfig.ChannelCacheConfig.HighWatermarkPercent = nil
+			}
+			if val := dbConfig.CacheConfig.ChannelCacheConfig.LowWatermarkPercent; val != nil {
+				base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.channel_cache.compact_low_watermark_pct", *val, db.DefaultCompactLowWatermarkPercent)
+				dbConfig.CacheConfig.ChannelCacheConfig.LowWatermarkPercent = nil
 			}
 
 			if dbConfig.CacheConfig.ChannelCacheConfig.MaxNumPending != nil && *dbConfig.CacheConfig.ChannelCacheConfig.MaxNumPending < 1 {
@@ -591,7 +590,7 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, isEnterpriseEditi
 		if dbConfig.CacheConfig.RevCacheConfig != nil {
 			// EE: disable revcache
 			revCacheSize := dbConfig.CacheConfig.RevCacheConfig.Size
-			if !isEnterpriseEdition && revCacheSize != nil && *revCacheSize == 0 {
+			if revCacheSize != nil && *revCacheSize == 0 {
 				base.WarnfCtx(ctx, eeOnlyWarningMsg, "cache.rev_cache.size", *revCacheSize, db.DefaultRevisionCacheSize)
 				dbConfig.CacheConfig.RevCacheConfig.Size = nil
 			}
@@ -604,8 +603,7 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, isEnterpriseEditi
 		}
 	}
 
-	// EE: delta sync
-	if !isEnterpriseEdition && dbConfig.DeltaSync != nil && dbConfig.DeltaSync.Enabled != nil {
+	if dbConfig.DeltaSync != nil && dbConfig.DeltaSync.Enabled != nil {
 		base.WarnfCtx(ctx, eeOnlyWarningMsg, "delta_sync.enabled", *dbConfig.DeltaSync.Enabled, false)
 		dbConfig.DeltaSync.Enabled = nil
 	}
@@ -624,16 +622,8 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, isEnterpriseEditi
 	}
 
 	if dbConfig.ImportPartitions != nil {
-		if !isEnterpriseEdition {
-			base.WarnfCtx(ctx, eeOnlyWarningMsg, "import_partitions", *dbConfig.ImportPartitions, nil)
-			dbConfig.ImportPartitions = nil
-		} else if !dbConfig.UseXattrs() {
-			multiError = multiError.Append(fmt.Errorf("Invalid configuration - import_partitions set, but enable_shared_bucket_access not enabled"))
-		} else if !autoImportEnabled {
-			multiError = multiError.Append(fmt.Errorf("Invalid configuration - import_partitions set, but import_docs disabled"))
-		} else if *dbConfig.ImportPartitions < 1 || *dbConfig.ImportPartitions > 1024 {
-			multiError = multiError.Append(fmt.Errorf(rangeValueErrorMsg, "import_partitions", "1-1024"))
-		}
+		base.WarnfCtx(ctx, eeOnlyWarningMsg, "import_partitions", *dbConfig.ImportPartitions, nil)
+		dbConfig.ImportPartitions = nil
 	}
 
 	if dbConfig.DeprecatedPool != nil {
@@ -878,7 +868,7 @@ func (config *DbConfig) redactInPlace() error {
 		}
 	}
 
-	for i, _ := range config.Replications {
+	for i := range config.Replications {
 		config.Replications[i] = config.Replications[i].Redacted()
 	}
 
@@ -899,7 +889,7 @@ func decodeAndSanitiseConfig(r io.Reader, config interface{}) (err error) {
 	}
 	b = base.ConvertBackQuotedStrings(b)
 
-	d := base.JSONDecoder(bytes.NewBuffer(b))
+	d := json.NewDecoder(bytes.NewBuffer(b))
 	d.DisallowUnknownFields()
 	err = d.Decode(config)
 	return base.WrapJSONUnknownFieldErr(err)
@@ -1024,7 +1014,8 @@ func (sc *ServerContext) addHTTPServer(s *http.Server) {
 	sc._httpServers = append(sc._httpServers, s)
 }
 
-func (sc *StartupConfig) validate(isEnterpriseEdition bool) (errorMessages error) {
+// TODO I made a lot of things broken by removing the param. it's not needed
+func (sc *StartupConfig) validate() (errorMessages error) {
 	var multiError *base.MultiError
 	if sc.Bootstrap.Server == "" {
 		multiError = multiError.Append(fmt.Errorf("a server must be provided in the Bootstrap configuration"))
@@ -1055,14 +1046,8 @@ func (sc *StartupConfig) validate(isEnterpriseEdition bool) (errorMessages error
 	}
 
 	// EE only features
-	if !isEnterpriseEdition {
-		if sc.API.EnableAdminAuthenticationPermissionsCheck != nil && *sc.API.EnableAdminAuthenticationPermissionsCheck {
-			multiError = multiError.Append(fmt.Errorf("enable_advanced_auth_dp is only supported in enterprise edition"))
-		}
-
-		if sc.Bootstrap.ConfigGroupID != persistentConfigDefaultGroupID {
-			multiError = multiError.Append(fmt.Errorf("customization of group_id is only supported in enterprise edition"))
-		}
+	if sc.API.EnableAdminAuthenticationPermissionsCheck != nil && *sc.API.EnableAdminAuthenticationPermissionsCheck {
+		multiError = multiError.Append(fmt.Errorf("enable_advanced_auth_dp is only supported in enterprise edition"))
 	}
 
 	if len(sc.Bootstrap.ConfigGroupID) > persistentConfigGroupIDMaxLength {
@@ -1094,7 +1079,7 @@ func setupServerContext(config *StartupConfig, persistentConfig bool) (*ServerCo
 		return nil, err
 	}
 
-	if err := config.validate(base.IsEnterpriseEdition()); err != nil {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 

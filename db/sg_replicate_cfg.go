@@ -13,6 +13,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -159,17 +160,17 @@ type ReplicationUpsertConfig struct {
 
 func (rc *ReplicationConfig) ValidateReplication(fromConfig bool) (err error) {
 
-	// Perform EE checks first, to avoid error messages related to EE functionality
-	if !base.IsEnterpriseEdition() {
-		if rc.ConflictResolutionType != "" && rc.ConflictResolutionType != ConflictResolverDefault {
-			return base.HTTPErrorf(http.StatusBadRequest, "Non-default conflict_resolution_type is only supported in enterprise edition")
-		}
-		if rc.DeltaSyncEnabled == true {
-			return base.HTTPErrorf(http.StatusBadRequest, "Delta sync for sg-replicate is only supported in enterprise edition")
-		}
-		if rc.BatchSize > 0 && rc.BatchSize != defaultChangesBatchSize {
-			return base.HTTPErrorf(http.StatusBadRequest, "Replication batch_size can only be configured in enterprise edition")
-		}
+	// TODO delete
+	if rc.ConflictResolutionType != "" && rc.ConflictResolutionType != ConflictResolverDefault {
+		return base.HTTPErrorf(http.StatusBadRequest, "Non-default conflict_resolution_type is only supported in enterprise edition")
+	}
+	// TODO delete
+	if rc.DeltaSyncEnabled == true {
+		return base.HTTPErrorf(http.StatusBadRequest, "Delta sync for sg-replicate is only supported in enterprise edition")
+	}
+	// TODO delete
+	if rc.BatchSize > 0 && rc.BatchSize != defaultChangesBatchSize {
+		return base.HTTPErrorf(http.StatusBadRequest, "Replication batch_size can only be configured in enterprise edition")
 	}
 
 	// Checkpoint keys are prefixed with 35 characters:  _sync:local:checkpoint/sgr2cp:pull:
@@ -334,11 +335,11 @@ func (rc *ReplicationConfig) Upsert(c *ReplicationUpsertConfig) {
 
 // Equals is doing a relatively expensive json-based equality computation, so shouldn't be used in performance-sensitive scenarios
 func (rc *ReplicationConfig) Equals(compareToCfg *ReplicationConfig) (bool, error) {
-	currentBytes, err := base.JSONMarshalCanonical(rc)
+	currentBytes, err := json.Marshal(rc)
 	if err != nil {
 		return false, err
 	}
-	compareToBytes, err := base.JSONMarshalCanonical(compareToCfg)
+	compareToBytes, err := json.Marshal(compareToCfg)
 	if err != nil {
 		return false, err
 	}
@@ -833,7 +834,7 @@ func (m *sgReplicateManager) loadSGRCluster() (sgrCluster *SGRCluster, cas uint6
 		cas = 0
 	} else {
 		sgrCluster = &SGRCluster{}
-		err := base.JSONUnmarshal(cfgBytes, sgrCluster)
+		err := json.Unmarshal(cfgBytes, sgrCluster)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -871,7 +872,7 @@ func (m *sgReplicateManager) updateCluster(callback ClusterUpdateFunc) error {
 			return nil
 		}
 
-		updatedBytes, err := base.JSONMarshal(sgrCluster)
+		updatedBytes, err := json.Marshal(sgrCluster)
 		if err != nil {
 			return err
 		}
@@ -1421,7 +1422,7 @@ func (m *sgReplicateManager) GetReplicationStatusAll(options ReplicationStatusOp
 		return nil, err
 	}
 
-	for replicationID, _ := range persistedReplications {
+	for replicationID := range persistedReplications {
 		status, err := m.GetReplicationStatus(replicationID, options)
 		if err != nil {
 			base.WarnfCtx(m.loggingCtx, "Unable to retrieve replication status for replication %s", replicationID)

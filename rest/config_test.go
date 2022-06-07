@@ -88,10 +88,6 @@ func TestReadServerConfig(t *testing.T) {
 
 			// stdlib/CE specific error checking
 			expectedErr := test.errStdlib
-			if !base.UseStdlibJSON && base.IsEnterpriseEdition() {
-				// jsoniter specific error checking
-				expectedErr = test.errJSONIter
-			}
 
 			// If we expected no error, make sure we didn't get one
 			if expectedErr == "" {
@@ -158,13 +154,7 @@ func TestConfigValidationDeltaSync(t *testing.T) {
 
 	require.NotNil(t, config.Databases["db"])
 	require.NotNil(t, config.Databases["db"].DeltaSync)
-	if base.IsEnterpriseEdition() {
-		require.NotNil(t, config.Databases["db"].DeltaSync.Enabled)
-		assert.True(t, *config.Databases["db"].DeltaSync.Enabled)
-	} else {
-		// CE disallowed - should be nil
-		assert.Nil(t, config.Databases["db"].DeltaSync.Enabled)
-	}
+	assert.Nil(t, config.Databases["db"].DeltaSync.Enabled)
 }
 
 func TestConfigValidationCache(t *testing.T) {
@@ -181,38 +171,16 @@ func TestConfigValidationCache(t *testing.T) {
 	require.NotNil(t, config.Databases["db"].CacheConfig)
 
 	require.NotNil(t, config.Databases["db"].CacheConfig.RevCacheConfig)
-	if base.IsEnterpriseEdition() {
-		require.NotNil(t, config.Databases["db"].CacheConfig.RevCacheConfig.Size)
-		assert.Equal(t, 0, int(*config.Databases["db"].CacheConfig.RevCacheConfig.Size))
-	} else {
-		// CE disallowed - should be nil
-		assert.Nil(t, config.Databases["db"].CacheConfig.RevCacheConfig.Size)
-	}
+
+	assert.Nil(t, config.Databases["db"].CacheConfig.RevCacheConfig.Size)
 
 	require.NotNil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig)
-	if base.IsEnterpriseEdition() {
-		require.NotNil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.MaxNumber)
-		assert.Equal(t, 100, int(*config.Databases["db"].CacheConfig.ChannelCacheConfig.MaxNumber))
-	} else {
-		// CE disallowed - should be nil
-		assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.MaxNumber)
-	}
 
-	if base.IsEnterpriseEdition() {
-		require.NotNil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.HighWatermarkPercent)
-		assert.Equal(t, 95, int(*config.Databases["db"].CacheConfig.ChannelCacheConfig.HighWatermarkPercent))
-	} else {
-		// CE disallowed - should be nil
-		assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.HighWatermarkPercent)
-	}
+	assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.MaxNumber)
 
-	if base.IsEnterpriseEdition() {
-		require.NotNil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.LowWatermarkPercent)
-		assert.Equal(t, 25, int(*config.Databases["db"].CacheConfig.ChannelCacheConfig.LowWatermarkPercent))
-	} else {
-		// CE disallowed - should be nil
-		assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.LowWatermarkPercent)
-	}
+	assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.HighWatermarkPercent)
+
+	assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.LowWatermarkPercent)
 }
 
 func TestConfigValidationImport(t *testing.T) {
@@ -226,86 +194,13 @@ func TestConfigValidationImport(t *testing.T) {
 	require.NoError(t, errorMessages)
 	require.NotNil(t, config.Databases["db"])
 
-	if base.IsEnterpriseEdition() {
-		require.NotNil(t, config.Databases["db"].ImportPartitions)
-		assert.Equal(t, uint16(32), *config.Databases["db"].ImportPartitions)
-	} else {
-		// CE disallowed - should be nil
-		assert.Nil(t, config.Databases["db"].ImportPartitions)
-	}
-}
-
-func TestConfigValidationImportPartitions(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skip("Import partitions config validation is enterprise edition only")
-	}
-
-	tests := []struct {
-		name   string
-		config string
-		err    string
-	}{
-		{
-			name:   "Import enabled, shared bucket disabled",
-			config: `{"databases": {"db": {"import_docs":true, "enable_shared_bucket_access":false}}}`,
-			err:    "Invalid configuration - import_docs enabled, but enable_shared_bucket_access not enabled",
-		},
-		{
-			name:   "Import partitions set, shared bucket disabled",
-			config: `{"databases": {"db": {"import_partitions":32, "enable_shared_bucket_access":false}}}`,
-			err:    "Invalid configuration - import_partitions set, but enable_shared_bucket_access not enabled",
-		},
-		{
-			name:   "Import disabled, but partitions set",
-			config: `{"databases": {"db": {"enable_shared_bucket_access":true,"import_docs":false,"import_partitions":32}}}`,
-			err:    "Invalid configuration - import_partitions set, but import_docs disabled",
-		},
-		{
-			name:   "Too many partitions",
-			config: `{"databases": {"db": {"enable_shared_bucket_access":true,"import_partitions":2048}}}`,
-			err:    "valid range for import_partitions is: 1-1024",
-		},
-		{
-			name:   "Not enough partitions",
-			config: `{"databases": {"db": {"enable_shared_bucket_access":true,"import_partitions":0}}}`,
-			err:    "valid range for import_partitions is: 1-1024",
-		},
-		{
-			name:   "Valid partitions",
-			config: `{"databases": {"db": {"enable_shared_bucket_access":true,"import_partitions":32}}}`,
-		},
-		{
-			name:   "Valid partitions, enable_shared_bucket_access default value (true)",
-			config: `{"databases": {"db": {"import_partitions":32}}}`,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			buf := bytes.NewBufferString(test.config)
-			config, err := readLegacyServerConfig(buf)
-			assert.NoError(t, err)
-			errorMessages := config.setupAndValidateDatabases()
-			if test.err != "" {
-				require.NotNil(t, errorMessages)
-				multiError, ok := errorMessages.(*base.MultiError)
-				require.True(t, ok)
-				require.Equal(t, multiError.Len(), 1)
-				assert.EqualError(t, multiError.Errors[0], test.err)
-			} else {
-				assert.NoError(t, errorMessages)
-			}
-		})
-	}
+	assert.Nil(t, config.Databases["db"].ImportPartitions)
 }
 
 // TestLoadServerConfigExamples will run LoadLegacyServerConfig for configs found under the legacy examples directory.
 func TestLoadServerConfigExamples(t *testing.T) {
 	const exampleLogDirectory = "../examples/legacy_config"
 	const configSuffix = ".json"
-
-	const enterpriseConfigPrefix = "ee_"
 
 	err := filepath.Walk(exampleLogDirectory, func(configPath string, file os.FileInfo, err error) error {
 		assert.NoError(t, err)
@@ -316,7 +211,8 @@ func TestLoadServerConfigExamples(t *testing.T) {
 		}
 
 		// Skip EE configs in CE
-		if !base.IsEnterpriseEdition() && strings.HasPrefix(file.Name(), enterpriseConfigPrefix) {
+		// TODO remove
+		if strings.HasPrefix(file.Name(), "ee_") {
 			return nil
 		}
 
@@ -1161,7 +1057,7 @@ func TestExpandEnv(t *testing.T) {
 			require.Equal(t, test.expectedConfig, actualConfig)
 
 			// Unset environment variables.
-			for k, _ := range test.varsEnv {
+			for k := range test.varsEnv {
 				err := os.Unsetenv(k)
 				require.NoError(t, err, "Error removing environment variable %q", k)
 				value, ok := os.LookupEnv(k)
@@ -1228,52 +1124,20 @@ func TestConfigGroupIDValidation(t *testing.T) {
 	testCases := []struct {
 		name          string
 		cfgGroupID    string
-		eeMode        bool
 		expectedError string
 	}{
 		{
 			name:       "No change, CE mode",
 			cfgGroupID: persistentConfigDefaultGroupID,
-			eeMode:     false,
-		},
-		{
-			name:       "No change, EE mode",
-			cfgGroupID: persistentConfigDefaultGroupID,
-			eeMode:     true,
-		},
-		{
-			name:       "Changed, EE mode",
-			cfgGroupID: "testGroup",
-			eeMode:     true,
 		},
 		{
 			name:          "Changed, CE mode",
 			cfgGroupID:    "testGroup",
-			eeMode:        false,
 			expectedError: "customization of group_id is only supported in enterprise edition",
-		},
-		{
-			name:       "Changed, EE mode, at max length",
-			cfgGroupID: strings.Repeat("a", persistentConfigGroupIDMaxLength),
-			eeMode:     true,
-		},
-		{
-			name:          "Changed, EE mode, over max length",
-			cfgGroupID:    strings.Repeat("a", persistentConfigGroupIDMaxLength+1),
-			eeMode:        true,
-			expectedError: "group_id must be at most",
 		},
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			isEnterpriseEdition := base.IsEnterpriseEdition()
-			if test.eeMode && !isEnterpriseEdition {
-				t.Skip("EE mode only test case")
-			}
-			if !test.eeMode && isEnterpriseEdition {
-				t.Skip("CE mode only test case")
-			}
-
 			sc := StartupConfig{
 				Bootstrap: BootstrapConfig{
 					ConfigGroupID: test.cfgGroupID,
@@ -1281,7 +1145,7 @@ func TestConfigGroupIDValidation(t *testing.T) {
 					UseTLSServer:  base.BoolPtr(base.ServerIsTLS(base.UnitTestUrl())),
 				},
 			}
-			err := sc.validate(isEnterpriseEdition)
+			err := sc.validate()
 			if test.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expectedError)
@@ -1332,7 +1196,7 @@ func TestClientTLSMissing(t *testing.T) {
 			if test.tlsCert {
 				config.API.HTTPS.TLSCertPath = "test.cert"
 			}
-			err := config.validate(base.IsEnterpriseEdition())
+			err := config.validate()
 			if test.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), errorTLSOneMissing)
@@ -2227,7 +2091,7 @@ func TestStartupConfigBcryptCostValidation(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			sc := StartupConfig{Auth: AuthConfig{BcryptCost: test.cost}}
-			err := sc.validate(base.IsEnterpriseEdition())
+			err := sc.validate()
 			if test.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), errContains)

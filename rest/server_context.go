@@ -738,13 +738,7 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	}
 
 	if config.UserXattrKey != "" {
-		if !base.IsEnterpriseEdition() {
-			return db.DatabaseContextOptions{}, fmt.Errorf("user_xattr_key is only supported in enterpise edition")
-		}
-
-		if !config.UseXattrs() {
-			return db.DatabaseContextOptions{}, fmt.Errorf("use of user_xattr_key requires shared_bucket_access to be enabled")
-		}
+		return db.DatabaseContextOptions{}, fmt.Errorf("user_xattr_key is only supported in enterpise edition")
 	}
 
 	clientPartitionWindow := base.DefaultClientPartitionWindow
@@ -1112,7 +1106,7 @@ func (sc *ServerContext) logStats() error {
 		RFC3339:            currentTime.Format(time.RFC3339),
 	}
 
-	marshalled, err := base.JSONMarshal(wrapper)
+	marshalled, err := json.Marshal(wrapper)
 	if err != nil {
 		return err
 	}
@@ -1352,7 +1346,7 @@ func CheckPermissions(httpClient *http.Client, managementEndpoints []string, buc
 	if len(combinedPermissions) > 0 {
 		var permissions map[string]bool
 
-		err = base.JSONUnmarshal(bodyResponse, &permissions)
+		err = json.Unmarshal(bodyResponse, &permissions)
 		if err != nil {
 			return http.StatusInternalServerError, nil, err
 		}
@@ -1395,7 +1389,7 @@ func CheckRoles(httpClient *http.Client, managementEndpoints []string, username,
 		} `json:"roles"`
 	}
 
-	err = base.JSONUnmarshal(bodyResponse, &whoAmIResults)
+	err = json.Unmarshal(bodyResponse, &whoAmIResults)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

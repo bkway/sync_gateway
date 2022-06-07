@@ -13,6 +13,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -183,7 +184,7 @@ func readDocIDsFromRequest(rq *blip.Message) (docIDs []string, err error) {
 	// If there's a non-empty body, unmarshal to get the docIDs
 	if len(rawBody) > 0 {
 		var body SubChangesBody
-		unmarshalErr := base.JSONUnmarshal(rawBody, &body)
+		unmarshalErr := json.Unmarshal(rawBody, &body)
 		if unmarshalErr != nil {
 			return nil, err
 		} else {

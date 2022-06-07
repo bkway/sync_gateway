@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package base
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -506,7 +507,7 @@ func legacyFeedParams(spec BucketSpec) (string, error) {
 		feedParams.IncludeXAttrs = true
 	}
 
-	paramBytes, err := JSONMarshal(feedParams)
+	paramBytes, err := json.Marshal(feedParams)
 	if err != nil {
 		return "", err
 	}

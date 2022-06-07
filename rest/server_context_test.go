@@ -421,7 +421,7 @@ func TestTLSSkipVerifyCombinations(t *testing.T) {
 				},
 			}
 
-			err := startupConfig.validate(base.IsEnterpriseEdition())
+			err := startupConfig.validate()
 			if test.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), errorText)
@@ -544,7 +544,7 @@ func TestUseTLSServer(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sc := StartupConfig{Bootstrap: BootstrapConfig{Server: test.server, UseTLSServer: &test.useTLSServer}}
 
-			err := sc.validate(base.IsEnterpriseEdition())
+			err := sc.validate()
 
 			if test.expectedError != nil {
 				require.Error(t, err)

@@ -352,208 +352,6 @@ func TestActiveReplicatorPullAttachments(t *testing.T) {
 	assert.Equal(t, int64(0), ar.Pull.GetStats().ProveAttachment.Value())
 }
 
-// TestActiveReplicatorPullMergeConflictingAttachments:
-//   - Creates an initial revision on rt2 which is replicated to rt1.
-//   - Stops the replicator, and adds different attachments to the doc on both rt1 and rt2 at conflicting revisions.
-//   - Starts the replicator to trigger conflict resolution to merge both attachments in the conflict.
-func TestActiveReplicatorPullMergeConflictingAttachments(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skip("Test uses EE-only features for custom conflict resolution")
-	}
-
-	base.RequireNumTestBuckets(t, 2)
-
-	tests := []struct {
-		name                     string
-		initialRevBody           string
-		localConflictingRevBody  string
-		remoteConflictingRevBody string
-		expectedAttachments      int
-	}{
-		{
-			name:                     "merge new conflicting atts",
-			initialRevBody:           `{"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","_attachments":{"localAtt.txt":{"data":"cmVtb3Rl"}},"channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","_attachments":{"remoteAtt.txt":{"data":"bG9jYWw="}},"channels":["alice"]}`,
-			expectedAttachments:      2,
-		},
-		{
-			name:                     "remove initial attachment",
-			initialRevBody:           `{"_attachments":{"initialAtt.txt":{"data":"aW5pdGlhbA=="}},"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","channels":["alice"]}`,
-			expectedAttachments:      0,
-		},
-		{
-			name:                     "preserve initial attachment with local",
-			initialRevBody:           `{"_attachments":{"initialAtt.txt":{"data":"aW5pdGlhbA=="}},"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","_attachments":{"initialAtt.txt":{"stub":true,"revpos":1}},"channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","channels":["alice"]}`,
-			expectedAttachments:      1,
-		},
-		{
-			name:                     "preserve initial attachment with remote",
-			initialRevBody:           `{"_attachments":{"initialAtt.txt":{"data":"aW5pdGlhbA=="}},"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","_attachments":{"initialAtt.txt":{"stub":true,"revpos":1}},"channels":["alice"]}`,
-			expectedAttachments:      1,
-		},
-		{
-			name:                     "preserve initial attachment with new local att",
-			initialRevBody:           `{"_attachments":{"initialAtt.txt":{"data":"aW5pdGlhbA=="}},"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","_attachments":{"initialAtt.txt":{"stub":true,"revpos":1},"localAtt.txt":{"data":"cmVtb3Rl"}},"channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","channels":["alice"]}`,
-			expectedAttachments:      2,
-		},
-		{
-			name:                     "preserve initial attachment with new remote att",
-			initialRevBody:           `{"_attachments":{"initialAtt.txt":{"data":"aW5pdGlhbA=="}},"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","_attachments":{"initialAtt.txt":{"stub":true,"revpos":1}},"channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","_attachments":{"remoteAtt.txt":{"data":"bG9jYWw="}},"channels":["alice"]}`,
-			expectedAttachments:      2,
-		},
-		{
-			name:                     "preserve initial attachment with new conflicting atts",
-			initialRevBody:           `{"_attachments":{"initialAtt.txt":{"data":"aW5pdGlhbA=="}},"channels":["alice"]}`,
-			localConflictingRevBody:  `{"source":"rt1","_attachments":{"initialAtt.txt":{"stub":true,"revpos":1},"localAtt.txt":{"data":"cmVtb3Rl"}},"channels":["alice"]}`,
-			remoteConflictingRevBody: `{"source":"rt2","_attachments":{"remoteAtt.txt":{"data":"bG9jYWw="}},"channels":["alice"]}`,
-			expectedAttachments:      3,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-
-			base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
-
-			// Increase checkpoint persistence frequency for cross-node status verification
-			defer reduceTestCheckpointInterval(50 * time.Millisecond)()
-
-			// Disable sequence batching for multi-RT tests (pending CBG-1000)
-			defer db.SuspendSequenceBatching()()
-
-			// Passive
-			rt2 := NewRestTester(t, &RestTesterConfig{
-				DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-					Users: map[string]*db.PrincipalConfig{
-						"alice": {
-							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("alice"),
-						},
-					},
-				}},
-			})
-			defer rt2.Close()
-
-			// Make rt2 listen on an actual HTTP port, so it can receive the blipsync request from rt1.
-			srv := httptest.NewServer(rt2.TestPublicHandler())
-			defer srv.Close()
-
-			passiveDBURL, err := url.Parse(srv.URL + "/db")
-			require.NoError(t, err)
-
-			// Add basic auth creds to target db URL
-			passiveDBURL.User = url.UserPassword("alice", "pass")
-
-			// Active
-			rt1 := NewRestTester(t, &RestTesterConfig{
-				DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-					Replications: map[string]*db.ReplicationConfig{
-						"repl1": {
-							Remote:                 passiveDBURL.String(),
-							Direction:              db.ActiveReplicatorTypePull,
-							Continuous:             true,
-							ConflictResolutionType: db.ConflictResolverCustom,
-							ConflictResolutionFn: `
-					function(conflict) {
-						var mergedDoc = new Object();
-						mergedDoc.source = "merged";
-
-						var mergedAttachments = new Object();
-						dst = conflict.RemoteDocument._attachments;
-						for (var key in dst) {
-							mergedAttachments[key] = dst[key];
-						}
-						src = conflict.LocalDocument._attachments;
-						for (var key in src) {
-							mergedAttachments[key] = src[key];
-						}
-						mergedDoc._attachments = mergedAttachments;
-
-						mergedDoc.channels = ["alice"];
-
-						return mergedDoc;
-					}`},
-					},
-				}},
-				sgReplicateEnabled: true,
-			})
-			defer rt1.Close()
-
-			rt1.waitForAssignedReplications(1)
-
-			docID := test.name + "doc1"
-			putDocResp := rt2.putDoc(docID, test.initialRevBody)
-			require.True(t, putDocResp.Ok)
-			rev1 := putDocResp.Rev
-
-			// wait for the document originally written to rt2 to arrive at rt1
-			changesResults, err := rt1.WaitForChanges(1, "/db/_changes?since=0", "", true)
-			require.NoError(t, err)
-			require.Len(t, changesResults.Results, 1)
-			assert.Equal(t, docID, changesResults.Results[0].ID)
-			lastSeq := changesResults.Last_Seq.(string)
-
-			resp := rt1.SendAdminRequest(http.MethodPut, "/db/_replicationStatus/repl1?action=stop", "")
-			assertStatus(t, resp, http.StatusOK)
-
-			rt1.waitForReplicationStatus("repl1", db.ReplicationStateStopped)
-
-			resp = rt1.SendAdminRequest(http.MethodPut, "/db/"+docID+"?rev="+rev1, test.localConflictingRevBody)
-			assertStatus(t, resp, http.StatusCreated)
-
-			changesResults, err = rt1.WaitForChanges(1, "/db/_changes?since="+lastSeq, "", true)
-			require.NoError(t, err)
-			assert.Len(t, changesResults.Results, 1)
-			assert.Equal(t, docID, changesResults.Results[0].ID)
-			lastSeq = changesResults.Last_Seq.(string)
-
-			resp = rt2.SendAdminRequest(http.MethodPut, "/db/"+docID+"?rev="+rev1, test.remoteConflictingRevBody)
-			assertStatus(t, resp, http.StatusCreated)
-
-			resp = rt1.SendAdminRequest(http.MethodPut, "/db/_replicationStatus/repl1?action=start", "")
-			assertStatus(t, resp, http.StatusOK)
-
-			rt1.waitForReplicationStatus("repl1", db.ReplicationStateRunning)
-
-			changesResults, err = rt1.WaitForChanges(1, "/db/_changes?since="+lastSeq, "", true)
-			require.NoError(t, err)
-			assert.Len(t, changesResults.Results, 1)
-			assert.Equal(t, docID, changesResults.Results[0].ID)
-			lastSeq = changesResults.Last_Seq.(string)
-
-			doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
-			require.NoError(t, err)
-			revGen, _ := db.ParseRevID(doc.SyncData.CurrentRev)
-
-			assert.Equal(t, 3, revGen)
-			assert.Equal(t, "merged", doc.Body()["source"].(string))
-
-			assert.Nil(t, doc.Body()[db.BodyAttachments], "_attachments property should not be in resolved doc body")
-
-			assert.Len(t, doc.SyncData.Attachments, test.expectedAttachments, "mismatch in expected number of attachments in sync data of resolved doc")
-			for attName, att := range doc.SyncData.Attachments {
-				attMap := att.(map[string]interface{})
-				assert.Equal(t, true, attMap["stub"].(bool), "attachment %q should be a stub", attName)
-				assert.NotEmpty(t, attMap["digest"].(string), "attachment %q should have digest", attName)
-				assert.True(t, attMap["revpos"].(float64) >= 1, "attachment %q revpos should be at least 1", attName)
-				assert.True(t, attMap["length"].(float64) >= 1, "attachment %q length should be at least 1 byte", attName)
-			}
-		})
-	}
-}
-
 // TestActiveReplicatorPullFromCheckpoint:
 //   - Starts 2 RestTesters, one active, and one passive.
 //   - Creates enough documents on rt2 which can be pulled by a replicator running in rt1 to start setting checkpoints.
@@ -4736,227 +4534,6 @@ func TestDefaultConflictResolverWithTombstoneRemote(t *testing.T) {
 	}
 }
 
-// TestLocalWinsConflictResolution:
-//   - Starts 2 RestTesters, one active, and one passive.
-//   - Validates document metadata (deleted, attachments) are preserved during LocalWins conflict
-//    resolution, when local rev is rewritten as child of remote
-func TestLocalWinsConflictResolution(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("test is EE only (non-default conflict resolver)")
-	}
-
-	type revisionState struct {
-		generation       int
-		propertyValue    string // test creates documents with body like {"prop": propertyValue}
-		deleted          bool
-		attachmentRevPos int
-	}
-
-	newRevisionState := func(generation int, propertyValue string, deleted bool, attachmentRevPos int) revisionState {
-		return revisionState{
-			generation:       generation,
-			deleted:          deleted,
-			attachmentRevPos: attachmentRevPos,
-			propertyValue:    propertyValue,
-		}
-	}
-
-	// makeRevBody creates a revision body with a value "prop" equal to property value, with an attachment
-	// if attachmentRevPos is specified.
-	makeRevBody := func(propertyValue string, attachmentRevPos, generation int) string {
-		// No attachment if revpos==0 or is greater than current generation
-		if attachmentRevPos == 0 || generation < attachmentRevPos {
-			return fmt.Sprintf(`{"prop": %q}`, propertyValue)
-		}
-
-		// Create as new attachment if revpos matches generation
-		if attachmentRevPos == generation {
-			return fmt.Sprintf(`{"prop": %q, "_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}}`, propertyValue)
-		}
-
-		// Otherwise include attachment as digest/stub/revpos
-		return fmt.Sprintf(`{"prop": %q, "_attachments": {"hello.txt": {"stub":true,"revpos":%d,"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0="}}}`, propertyValue, attachmentRevPos)
-	}
-
-	conflictResolutionTests := []struct {
-		name           string
-		initialState   revisionState // Initial revision state on both nodes before conflict is introduced
-		localMutation  revisionState // Revision state post-mutation on local node
-		remoteMutation revisionState // Revision state post-mutation on remote node
-		expectedResult revisionState // Expected revision state after conflict resolution and replication
-	}{
-		{
-			// simpleMutation mutates remote and local
-			name:           "simpleMutation",
-			initialState:   newRevisionState(3, "a", false, 0),
-			localMutation:  newRevisionState(4, "b", false, 0),
-			remoteMutation: newRevisionState(4, "c", false, 0),
-			expectedResult: newRevisionState(5, "b", false, 0),
-		},
-		{
-			// simpleMutation mutates local and tombstones remote, validates _deleted is applied
-			name:           "mutateLocal_tombstoneRemote",
-			initialState:   newRevisionState(3, "a", false, 0),
-			localMutation:  newRevisionState(4, "b", false, 0),
-			remoteMutation: newRevisionState(4, "c", true, 0),
-			expectedResult: newRevisionState(5, "b", false, 0),
-		},
-		{
-			// simpleMutation includes an attachment prior to conflict, validates it's preserved
-			name:           "localAttachment",
-			initialState:   newRevisionState(3, "a", false, 2),
-			localMutation:  newRevisionState(4, "b", false, 0),
-			remoteMutation: newRevisionState(4, "c", false, 0),
-			expectedResult: newRevisionState(5, "b", false, 3), // revpos==3 here because the revision isn't replicated until rev 3
-		},
-		{
-			// localAttachmentPostConflict adds a local attachment on a conflicting branch
-			name:           "localAttachmentPostConflict",
-			initialState:   newRevisionState(3, "a", false, 0),
-			localMutation:  newRevisionState(6, "b", false, 5),
-			remoteMutation: newRevisionState(6, "c", false, 0),
-			expectedResult: newRevisionState(7, "b", false, 7),
-		},
-		{
-			// remoteAttachmentPostConflict adds a remote attachment on a conflicting branch
-			name:           "remoteAttachmentPostConflict",
-			initialState:   newRevisionState(3, "a", false, 0),
-			localMutation:  newRevisionState(6, "b", false, 0),
-			remoteMutation: newRevisionState(6, "c", false, 5),
-			expectedResult: newRevisionState(7, "b", false, 0),
-		},
-		{
-			// remoteAttachmentPostConflict adds the same attachment to local and remote conflicting branches
-			name:           "conflictingDocMatchingAttachmentPostConflict",
-			initialState:   newRevisionState(3, "a", false, 0),
-			localMutation:  newRevisionState(6, "b", false, 4),
-			remoteMutation: newRevisionState(6, "c", false, 5),
-			expectedResult: newRevisionState(7, "b", false, 7),
-		},
-	}
-
-	for _, test := range conflictResolutionTests {
-		t.Run(test.name, func(t *testing.T) {
-			base.RequireNumTestBuckets(t, 2)
-			base.SetUpTestLogging(t, base.LevelTrace, base.KeyAll)
-
-			activeRT, remoteRT, remoteURLString, teardown := setupSGRPeers(t)
-			defer teardown()
-
-			// Create initial revision(s) on local
-			docID := test.name
-
-			var parentRevID, newRevID string
-			for gen := 1; gen <= test.initialState.generation; gen++ {
-				newRevID = fmt.Sprintf("%d-initial", gen)
-				resp := activeRT.putNewEditsFalse(docID, newRevID, parentRevID,
-					makeRevBody(test.initialState.propertyValue, test.initialState.attachmentRevPos, gen))
-				log.Printf("-- Added initial revision: %s", resp.Rev)
-				parentRevID = newRevID
-			}
-
-			// Create replication, wait for initial revision to be replicated
-			replicationID := test.name
-			activeRT.createReplication(replicationID, remoteURLString, db.ActiveReplicatorTypePushAndPull, nil, true, db.ConflictResolverLocalWins)
-			activeRT.waitForReplicationStatus(replicationID, db.ReplicationStateRunning)
-
-			assert.NoError(t, remoteRT.waitForRev(docID, newRevID))
-
-			// Stop the replication
-			response := activeRT.SendAdminRequest("PUT", "/db/_replicationStatus/"+replicationID+"?action=stop", "")
-			assertStatus(t, response, http.StatusOK)
-			activeRT.waitForReplicationStatus(replicationID, db.ReplicationStateStopped)
-
-			rawResponse := activeRT.SendAdminRequest("GET", "/db/_raw/"+docID, "")
-			log.Printf("-- local raw pre-update: %s", rawResponse.Body.Bytes())
-			rawResponse = remoteRT.SendAdminRequest("GET", "/db/_raw/"+docID, "")
-			log.Printf("-- remote raw pre-update: %s", rawResponse.Body.Bytes())
-
-			// Update local and remote revisions
-			localParentRevID := newRevID
-			var newLocalRevID string
-			for localGen := test.initialState.generation + 1; localGen <= test.localMutation.generation; localGen++ {
-				// If deleted=true, tombstone on the last mutation
-				if test.localMutation.deleted == true && localGen == test.localMutation.generation {
-					activeRT.tombstoneDoc(docID, localParentRevID)
-					continue
-				}
-
-				newLocalRevID = fmt.Sprintf("%d-local", localGen)
-				// Local rev pos is greater of initial state revpos and localMutation rev pos
-				localRevPos := test.initialState.attachmentRevPos
-				if test.localMutation.attachmentRevPos > 0 {
-					localRevPos = test.localMutation.attachmentRevPos
-				}
-				resp := activeRT.putNewEditsFalse(docID, newLocalRevID, localParentRevID, makeRevBody(test.localMutation.propertyValue, localRevPos, localGen))
-				log.Printf("-- Added local revision: %s", resp.Rev)
-				localParentRevID = newLocalRevID
-			}
-
-			remoteParentRevID := newRevID
-			var newRemoteRevID string
-			for remoteGen := test.initialState.generation + 1; remoteGen <= test.remoteMutation.generation; remoteGen++ {
-				// If deleted=true, tombstone on the last mutation
-				if test.remoteMutation.deleted == true && remoteGen == test.remoteMutation.generation {
-					remoteRT.tombstoneDoc(docID, remoteParentRevID)
-					continue
-				}
-				newRemoteRevID = fmt.Sprintf("%d-remote", remoteGen)
-
-				// Local rev pos is greater of initial state revpos and remoteMutation rev pos
-				remoteRevPos := test.initialState.attachmentRevPos
-				if test.remoteMutation.attachmentRevPos > 0 {
-					remoteRevPos = test.remoteMutation.attachmentRevPos
-				}
-				resp := remoteRT.putNewEditsFalse(docID, newRemoteRevID, remoteParentRevID, makeRevBody(test.remoteMutation.propertyValue, remoteRevPos, remoteGen))
-				log.Printf("-- Added remote revision: %s", resp.Rev)
-				remoteParentRevID = newRemoteRevID
-			}
-
-			rawResponse = activeRT.SendAdminRequest("GET", "/db/_raw/"+docID, "")
-			log.Printf("-- local raw pre-replication: %s", rawResponse.Body.Bytes())
-			rawResponse = remoteRT.SendAdminRequest("GET", "/db/_raw/"+docID, "")
-			log.Printf("-- remote raw pre-replication: %s", rawResponse.Body.Bytes())
-
-			// Restart the replication
-			response = activeRT.SendAdminRequest("PUT", "/db/_replicationStatus/"+replicationID+"?action=start", "")
-			assertStatus(t, response, http.StatusOK)
-
-			// Wait for expected property value on remote to determine replication complete
-			waitErr := remoteRT.WaitForCondition(func() bool {
-				var remoteDoc db.Body
-				rawResponse := remoteRT.SendAdminRequest("GET", "/db/"+docID, "")
-				require.NoError(t, base.JSONUnmarshal(rawResponse.Body.Bytes(), &remoteDoc))
-				prop, ok := remoteDoc["prop"].(string)
-				log.Printf("-- Waiting for property: %v, got property: %v", test.expectedResult.propertyValue, prop)
-				return ok && prop == test.expectedResult.propertyValue
-			})
-			assert.NoError(t, waitErr)
-
-			localDoc := activeRT.getDoc(docID)
-			localRevID := localDoc.ExtractRev()
-			remoteDoc := remoteRT.getDoc(docID)
-			remoteRevID := remoteDoc.ExtractRev()
-
-			assert.Equal(t, localRevID, remoteRevID) // local and remote rev IDs must match
-			localGeneration, _ := db.ParseRevID(localRevID)
-			assert.Equal(t, test.expectedResult.generation, localGeneration)               // validate expected generation
-			assert.Equal(t, test.expectedResult.propertyValue, remoteDoc["prop"].(string)) // validate expected body
-			assert.Equal(t, test.expectedResult.propertyValue, localDoc["prop"].(string))  // validate expected body
-
-			remoteRevpos := getTestRevpos(t, remoteDoc, "hello.txt")
-			assert.Equal(t, test.expectedResult.attachmentRevPos, remoteRevpos) // validate expected revpos
-
-			rawResponse = activeRT.SendAdminRequest("GET", "/db/_raw/"+docID, "")
-			log.Printf("-- local raw post-replication: %s", rawResponse.Body.Bytes())
-
-			rawResponse = remoteRT.SendAdminRequest("GET", "/db/_raw/"+docID, "")
-			log.Printf("-- remote raw post-replication: %s", rawResponse.Body.Bytes())
-		})
-	}
-}
-
 // This test can be used for testing replication to a pre-hydrogen SGR target. The test itself simply has a passive and
 // active node and attempts to replicate and expects the replicator to enter an error state. The intention is that the
 // passive side emulates a pre-hydrogen target by having ignoreNoConflicts set to false. In order to use this test this
@@ -5023,110 +4600,6 @@ func TestSendChangesToNoConflictPreHydrogenTarget(t *testing.T) {
 
 	assert.Equal(t, db.ReplicationStateStopped, ar.GetStatus().Status)
 	assert.Equal(t, db.PreHydrogenTargetAllowConflictsError.Error(), ar.GetStatus().ErrorMessage)
-}
-
-func TestReplicatorConflictAttachment(t *testing.T) {
-	base.RequireNumTestBuckets(t, 2)
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("requires enterprise edition")
-	}
-
-	testCases := []struct {
-		name                      string
-		conflictResolution        db.ConflictResolverType
-		expectedFinalRev          string
-		expectedRevPos            int
-		expectedAttachmentContent string
-	}{
-		{
-			name:                      "local",
-			conflictResolution:        db.ConflictResolverLocalWins,
-			expectedFinalRev:          "6-3545745ab68aec5b00e745f9e0e3277c",
-			expectedRevPos:            6,
-			expectedAttachmentContent: "hello world",
-		},
-		{
-			name:                      "remote",
-			conflictResolution:        db.ConflictResolverRemoteWins,
-			expectedFinalRev:          "5-remote",
-			expectedRevPos:            4,
-			expectedAttachmentContent: "goodbye cruel world",
-		},
-	}
-
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			activeRT, remoteRT, remoteURLString, teardown := setupSGRPeers(t)
-			defer teardown()
-
-			docID := test.name
-
-			var parentRevID, newRevID string
-			for gen := 1; gen <= 3; gen++ {
-				newRevID = fmt.Sprintf("%d-initial", gen)
-				resp := activeRT.putNewEditsFalse(docID, newRevID, parentRevID, "{}")
-				parentRevID = newRevID
-				assert.True(t, resp.Ok)
-			}
-
-			replicationID := "replication"
-			activeRT.createReplication(replicationID, remoteURLString, db.ActiveReplicatorTypePushAndPull, nil, true, test.conflictResolution)
-			activeRT.waitForReplicationStatus(replicationID, db.ReplicationStateRunning)
-
-			assert.NoError(t, remoteRT.waitForRev(docID, newRevID))
-
-			response := activeRT.SendAdminRequest("PUT", "/db/_replicationStatus/"+replicationID+"?action=stop", "")
-			assertStatus(t, response, http.StatusOK)
-			activeRT.waitForReplicationStatus(replicationID, db.ReplicationStateStopped)
-
-			nextGen := 4
-
-			localGen := nextGen
-			localParentRevID := newRevID
-			newLocalRevID := fmt.Sprintf("%d-local", localGen)
-			resp := activeRT.putNewEditsFalse(docID, newLocalRevID, localParentRevID, `{"_attachments": {"attach": {"data":"aGVsbG8gd29ybGQ="}}}`)
-			assert.True(t, resp.Ok)
-			localParentRevID = newLocalRevID
-
-			localGen++
-			newLocalRevID = fmt.Sprintf("%d-local", localGen)
-			resp = activeRT.putNewEditsFalse(docID, newLocalRevID, localParentRevID, fmt.Sprintf(`{"_attachments": {"attach": {"stub": true, "revpos": %d, "digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0="}}}`, localGen-1))
-			assert.True(t, resp.Ok)
-
-			remoteGen := nextGen
-			remoteParentRevID := newRevID
-			newRemoteRevID := fmt.Sprintf("%d-remote", remoteGen)
-			resp = remoteRT.putNewEditsFalse(docID, newRemoteRevID, remoteParentRevID, `{"_attachments": {"attach": {"data":"Z29vZGJ5ZSBjcnVlbCB3b3JsZA=="}}}`)
-			assert.True(t, resp.Ok)
-			remoteParentRevID = newRemoteRevID
-
-			remoteGen++
-			newRemoteRevID = fmt.Sprintf("%d-remote", remoteGen)
-			resp = remoteRT.putNewEditsFalse(docID, newRemoteRevID, remoteParentRevID, fmt.Sprintf(`{"_attachments": {"attach": {"stub": true, "revpos": %d, "digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}}`, remoteGen-1))
-
-			response = activeRT.SendAdminRequest("PUT", "/db/_replicationStatus/"+replicationID+"?action=start", "")
-			assertStatus(t, response, http.StatusOK)
-
-			waitErr := activeRT.waitForRev(docID, test.expectedFinalRev)
-			assert.NoError(t, waitErr)
-			waitErr = remoteRT.waitForRev(docID, test.expectedFinalRev)
-			assert.NoError(t, waitErr)
-
-			localDoc := activeRT.getDoc(docID)
-			localRevID := localDoc.ExtractRev()
-
-			remoteDoc := remoteRT.getDoc(docID)
-			remoteRevID := remoteDoc.ExtractRev()
-
-			assert.Equal(t, localRevID, remoteRevID)
-			remoteRevpos := getTestRevpos(t, remoteDoc, "attach")
-			assert.Equal(t, test.expectedRevPos, remoteRevpos)
-
-			response = activeRT.SendAdminRequest("GET", "/db/"+docID+"/attach", "")
-			assert.Equal(t, test.expectedAttachmentContent, string(response.BodyBytes()))
-		})
-	}
 }
 
 func TestReplicatorRevocations(t *testing.T) {
@@ -5342,11 +4815,11 @@ func TestReplicatorRevocationsMultipleAlternateAccess(t *testing.T) {
 
 	revocationTester.addRole("user", "foo")
 
-	_ = rt2.createDocReturnRev(t, "docA", "", map[string][]string{"channels": []string{"A"}})
-	_ = rt2.createDocReturnRev(t, "docAB", "", map[string][]string{"channels": []string{"A", "B"}})
-	_ = rt2.createDocReturnRev(t, "docB", "", map[string][]string{"channels": []string{"B"}})
-	_ = rt2.createDocReturnRev(t, "docABC", "", map[string][]string{"channels": []string{"A", "B", "C"}})
-	_ = rt2.createDocReturnRev(t, "docC", "", map[string][]string{"channels": []string{"C"}})
+	_ = rt2.createDocReturnRev(t, "docA", "", map[string][]string{"channels": {"A"}})
+	_ = rt2.createDocReturnRev(t, "docAB", "", map[string][]string{"channels": {"A", "B"}})
+	_ = rt2.createDocReturnRev(t, "docB", "", map[string][]string{"channels": {"B"}})
+	_ = rt2.createDocReturnRev(t, "docABC", "", map[string][]string{"channels": {"A", "B", "C"}})
+	_ = rt2.createDocReturnRev(t, "docC", "", map[string][]string{"channels": {"C"}})
 
 	// Wait for docs to turn up on local / rt1
 	changesResults, err := rt1.WaitForChanges(5, "/db/_changes?since=0", "", true)
@@ -5498,11 +4971,11 @@ func TestReplicatorRevocationsWithTombstoneResurrection(t *testing.T) {
 		ReplicationStatsMap: base.SyncGatewayStats.NewDBStats(t.Name(), false, false, false).DBReplicatorStats(t.Name()),
 	})
 
-	docARev := rt2.createDocReturnRev(t, "docA", "", map[string][]string{"channels": []string{"A"}})
-	docA1Rev := rt2.createDocReturnRev(t, "docA1", "", map[string][]string{"channels": []string{"A"}})
-	_ = rt2.createDocReturnRev(t, "docA2", "", map[string][]string{"channels": []string{"A"}})
+	docARev := rt2.createDocReturnRev(t, "docA", "", map[string][]string{"channels": {"A"}})
+	docA1Rev := rt2.createDocReturnRev(t, "docA1", "", map[string][]string{"channels": {"A"}})
+	_ = rt2.createDocReturnRev(t, "docA2", "", map[string][]string{"channels": {"A"}})
 
-	_ = rt2.createDocReturnRev(t, "docB", "", map[string][]string{"channels": []string{"B"}})
+	_ = rt2.createDocReturnRev(t, "docB", "", map[string][]string{"channels": {"B"}})
 
 	require.NoError(t, ar.Start())
 
@@ -5584,9 +5057,9 @@ func TestReplicatorRevocationsFromZero(t *testing.T) {
 
 	ar := db.NewActiveReplicator(activeReplCfg)
 
-	_ = rt2.createDocReturnRev(t, "docA", "", map[string][]string{"channels": []string{"A"}})
-	_ = rt2.createDocReturnRev(t, "docA1", "", map[string][]string{"channels": []string{"A"}})
-	_ = rt2.createDocReturnRev(t, "docA2", "", map[string][]string{"channels": []string{"A"}})
+	_ = rt2.createDocReturnRev(t, "docA", "", map[string][]string{"channels": {"A"}})
+	_ = rt2.createDocReturnRev(t, "docA1", "", map[string][]string{"channels": {"A"}})
+	_ = rt2.createDocReturnRev(t, "docA2", "", map[string][]string{"channels": {"A"}})
 
 	require.NoError(t, ar.Start())
 
@@ -5685,11 +5158,11 @@ func TestReplicatorSwitchPurgeNoReset(t *testing.T) {
 	})
 
 	for i := 0; i < 10; i++ {
-		_ = rt2.createDocReturnRev(t, fmt.Sprintf("docA%d", i), "", map[string][]string{"channels": []string{"A"}})
+		_ = rt2.createDocReturnRev(t, fmt.Sprintf("docA%d", i), "", map[string][]string{"channels": {"A"}})
 	}
 
 	for i := 0; i < 7; i++ {
-		_ = rt2.createDocReturnRev(t, fmt.Sprintf("docB%d", i), "", map[string][]string{"channels": []string{"B"}})
+		_ = rt2.createDocReturnRev(t, fmt.Sprintf("docB%d", i), "", map[string][]string{"channels": {"B"}})
 	}
 
 	err = rt2.WaitForPendingChanges()
@@ -5712,7 +5185,7 @@ func TestReplicatorSwitchPurgeNoReset(t *testing.T) {
 	// Add another few docs to 'bump' rt1's seq no. Otherwise it'll end up revoking next time as the above user PUT is
 	// not processed by the rt1 receiver.
 	for i := 7; i < 15; i++ {
-		_ = rt2.createDocReturnRev(t, fmt.Sprintf("docB%d", i), "", map[string][]string{"channels": []string{"B"}})
+		_ = rt2.createDocReturnRev(t, fmt.Sprintf("docB%d", i), "", map[string][]string{"channels": {"B"}})
 	}
 
 	err = rt2.WaitForPendingChanges()
@@ -5741,7 +5214,7 @@ func TestReplicatorSwitchPurgeNoReset(t *testing.T) {
 	})
 
 	// Send a doc to act as a 'marker' so we know when replication has completed
-	_ = rt2.createDocReturnRev(t, "docMarker", "", map[string][]string{"channels": []string{"B"}})
+	_ = rt2.createDocReturnRev(t, "docMarker", "", map[string][]string{"channels": {"B"}})
 
 	require.NoError(t, ar.Start())
 	rt1.waitForReplicationStatus(ar.ID, db.ReplicationStateRunning)
@@ -5767,199 +5240,6 @@ func TestReplicatorSwitchPurgeNoReset(t *testing.T) {
 	// Shutdown replicator to close out
 	require.NoError(t, ar.Stop())
 	rt1.waitForReplicationStatus(ar.ID, db.ReplicationStateStopped)
-}
-
-// CBG-1427 - ISGR should not try sending a delta when deltaSrc is a tombstone
-func TestReplicatorDoNotSendDeltaWhenSrcIsTombstone(t *testing.T) {
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("Requires EE for delta sync")
-	}
-	defer db.SuspendSequenceBatching()()
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
-
-	// Passive //
-	passiveBucket := base.GetTestBucket(t)
-	passiveRT := NewRestTester(t, &RestTesterConfig{
-		TestBucket: passiveBucket,
-		DatabaseConfig: &DatabaseConfig{
-			DbConfig: DbConfig{
-				DeltaSync: &DeltaSyncConfig{
-					Enabled: base.BoolPtr(true),
-				},
-			},
-		},
-	})
-	defer passiveRT.Close()
-
-	// Make passive RT listen on an actual HTTP port, so it can receive the blipsync request from the active replicator.
-	srv := httptest.NewServer(passiveRT.TestAdminHandler())
-	defer srv.Close()
-
-	// Active //
-	activeBucket := base.GetTestBucket(t)
-	activeRT := NewRestTester(t, &RestTesterConfig{
-		TestBucket: activeBucket,
-		DatabaseConfig: &DatabaseConfig{
-			DbConfig: DbConfig{
-				DeltaSync: &DeltaSyncConfig{
-					Enabled: base.BoolPtr(true),
-				},
-			},
-		},
-	})
-	defer activeRT.Close()
-
-	// Create a document //
-	resp := activeRT.SendAdminRequest(http.MethodPut, "/db/test", `{"field1":"f1_1","field2":"f2_1"}`)
-	assertStatus(t, resp, http.StatusCreated)
-	revID := respRevID(t, resp)
-	err := activeRT.waitForRev("test", revID)
-	require.NoError(t, err)
-
-	// Set-up replicator //
-	passiveDBURL, err := url.Parse(srv.URL + "/db")
-	require.NoError(t, err)
-
-	ar := db.NewActiveReplicator(&db.ActiveReplicatorConfig{
-		ID:          t.Name(),
-		Direction:   db.ActiveReplicatorTypePush,
-		RemoteDBURL: passiveDBURL,
-		ActiveDB: &db.Database{
-			DatabaseContext: activeRT.GetDatabase(),
-		},
-		Continuous:          true,
-		ChangesBatchSize:    1,
-		DeltasEnabled:       true,
-		ReplicationStatsMap: base.SyncGatewayStats.NewDBStats(t.Name(), true, false, false).DBReplicatorStats(t.Name()),
-	})
-	assert.Equal(t, "", ar.GetStatus().LastSeqPush)
-	assert.NoError(t, ar.Start())
-
-	// Wait for active to replicate to passive
-	err = passiveRT.waitForRev("test", revID)
-	require.NoError(t, err)
-
-	// Delete active document
-	resp = activeRT.SendAdminRequest(http.MethodDelete, "/db/test?rev="+revID, "")
-	assertStatus(t, resp, http.StatusOK)
-	revID = respRevID(t, resp)
-
-	// Replicate tombstone to passive
-	err = passiveRT.WaitForCondition(func() bool {
-		rawResponse := passiveRT.SendAdminRequest("GET", "/db/test?rev="+revID, "")
-		return rawResponse.Code == 404
-	})
-	require.NoError(t, err)
-
-	// Resurrect tombstoned document
-	resp = activeRT.SendAdminRequest(http.MethodPut, "/db/test?rev="+revID, `{"field2":"f2_2"}`)
-	assertStatus(t, resp, http.StatusCreated)
-	revID = respRevID(t, resp)
-
-	// Replicate resurrection to passive
-	err = passiveRT.waitForRev("test", revID)
-	assert.NoError(t, err) // If error, problem not fixed
-
-	// Shutdown replicator to close out
-	require.NoError(t, ar.Stop())
-	activeRT.waitForReplicationStatus(ar.ID, db.ReplicationStateStopped)
-}
-
-// CBG-1672 - Return 422 status for unprocessable deltas instead of 404 to use non-delta retry handling
-// Should log "422 Unable to unmarshal mutable body for doc test deltaSrc=1-dbc7919edc9ec2576d527880186f8e8a"
-// then fall back to full body replication
-func TestUnprocessableDeltas(t *testing.T) {
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("Requires EE for some delta sync")
-	}
-
-	defer db.SuspendSequenceBatching()()
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
-
-	// Passive //
-	passiveBucket := base.GetTestBucket(t)
-	passiveRT := NewRestTester(t, &RestTesterConfig{
-		TestBucket: passiveBucket,
-		DatabaseConfig: &DatabaseConfig{
-			DbConfig: DbConfig{
-				DeltaSync: &DeltaSyncConfig{
-					Enabled: base.BoolPtr(true),
-				},
-			},
-		},
-	})
-	defer passiveRT.Close()
-
-	// Make passive RT listen on an actual HTTP port, so it can receive the blipsync request from the active replicator.
-	srv := httptest.NewServer(passiveRT.TestAdminHandler())
-	defer srv.Close()
-
-	// Active //
-	activeBucket := base.GetTestBucket(t)
-	activeRT := NewRestTester(t, &RestTesterConfig{
-		TestBucket: activeBucket,
-		DatabaseConfig: &DatabaseConfig{
-			DbConfig: DbConfig{
-				DeltaSync: &DeltaSyncConfig{
-					Enabled: base.BoolPtr(true),
-				},
-			},
-		},
-	})
-	defer activeRT.Close()
-
-	// Create a document //
-	resp := activeRT.SendAdminRequest(http.MethodPut, "/db/test", `{"field1":"f1_1","field2":"f2_1"}`)
-	assertStatus(t, resp, http.StatusCreated)
-	revID := respRevID(t, resp)
-	err := activeRT.waitForRev("test", revID)
-	require.NoError(t, err)
-
-	// Set-up replicator //
-	passiveDBURL, err := url.Parse(srv.URL + "/db")
-	require.NoError(t, err)
-
-	ar := db.NewActiveReplicator(&db.ActiveReplicatorConfig{
-		ID:          t.Name(),
-		Direction:   db.ActiveReplicatorTypePush,
-		RemoteDBURL: passiveDBURL,
-		ActiveDB: &db.Database{
-			DatabaseContext: activeRT.GetDatabase(),
-		},
-		Continuous:          true,
-		ChangesBatchSize:    200,
-		DeltasEnabled:       true,
-		ReplicationStatsMap: base.SyncGatewayStats.NewDBStats(t.Name(), true, false, false).DBReplicatorStats(t.Name()),
-	})
-	assert.Equal(t, "", ar.GetStatus().LastSeqPush)
-
-	assert.NoError(t, ar.Start())
-
-	err = passiveRT.waitForRev("test", revID)
-	require.NoError(t, err)
-
-	assert.NoError(t, ar.Stop())
-
-	// Make 2nd revision
-	resp = activeRT.SendAdminRequest(http.MethodPut, "/db/test?rev="+revID, `{"field1":"f1_2","field2":"f2_2"}`)
-	assertStatus(t, resp, http.StatusCreated)
-	revID = respRevID(t, resp)
-	err = activeRT.WaitForPendingChanges()
-	require.NoError(t, err)
-
-	rev, err := passiveRT.GetDatabase().GetRevisionCacheForTest().GetActive(base.TestCtx(t), "test", true)
-	require.NoError(t, err)
-	// Making body invalid to trigger log "Unable to unmarshal mutable body for doc" in handleRev
-	// Which should give a HTTP 422
-	rev.BodyBytes = []byte("{invalid}")
-	passiveRT.GetDatabase().GetRevisionCacheForTest().Upsert(base.TestCtx(t), rev)
-
-	assert.NoError(t, ar.Start())
-	// Check if it replicated
-	err = passiveRT.waitForRev("test", revID)
-	assert.NoError(t, err)
-
-	assert.NoError(t, ar.Stop())
 }
 
 // CBG-1428 - check for regression of ISGR not ignoring _removed:true bodies when purgeOnRemoval is disabled

@@ -2,6 +2,7 @@ package db
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -69,7 +70,7 @@ func attachmentCompactMarkPhase(db *Database, compactionID string, terminator *b
 			// These are strings containing conflicting bodies, need to scan these for attachments
 			for _, bodyMap := range attachmentData.History.BodyMap {
 				var body AttachmentsMetaMap
-				err = base.JSONUnmarshal([]byte(bodyMap), &body)
+				err = json.Unmarshal([]byte(bodyMap), &body)
 				if err != nil {
 					continue
 				}
@@ -89,7 +90,7 @@ func attachmentCompactMarkPhase(db *Database, compactionID string, terminator *b
 				}
 
 				var body AttachmentsMetaMap
-				err = base.JSONUnmarshal(bodyRaw, &body)
+				err = json.Unmarshal(bodyRaw, &body)
 				if err != nil {
 					continue
 				}
@@ -190,7 +191,7 @@ func getAttachmentSyncData(dataType uint8, data []byte) (*AttachmentCompactionDa
 			return nil, err
 		}
 
-		err = base.JSONUnmarshal(xattr, &attachmentData)
+		err = json.Unmarshal(xattr, &attachmentData)
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +202,7 @@ func getAttachmentSyncData(dataType uint8, data []byte) (*AttachmentCompactionDa
 			AttachmentData AttachmentCompactionData `json:"_sync"`
 		}
 		var attachmentDataSync AttachmentDataSync
-		err := base.JSONUnmarshal(data, &attachmentDataSync)
+		err := json.Unmarshal(data, &attachmentDataSync)
 		if err != nil {
 			return nil, err
 		}
@@ -229,7 +230,7 @@ func getAttachmentSyncData(dataType uint8, data []byte) (*AttachmentCompactionDa
 func checkForInlineAttachments(body []byte) (*AttachmentsMetaMap, error) {
 	if bytes.Contains(body, []byte(BodyAttachments)) {
 		var attachmentBody AttachmentsMetaMap
-		err := base.JSONUnmarshal(body, &attachmentBody)
+		err := json.Unmarshal(body, &attachmentBody)
 		if err != nil {
 			return nil, err
 		}
@@ -292,7 +293,7 @@ func attachmentCompactSweepPhase(db *Database, compactionID string, vbUUIDs []ui
 			// running compaction ID we don't want to purge this doc and can continue to the next doc.
 			if xattr != nil {
 				var syncData map[string]interface{}
-				err = base.JSONUnmarshal(xattr, &syncData)
+				err = json.Unmarshal(xattr, &syncData)
 				if err != nil {
 					base.WarnfCtx(db.Ctx, "[%s] Failed to unmarshal xattr data: %v", compactionLoggingID, err)
 					return true
@@ -391,7 +392,7 @@ func attachmentCompactCleanupPhase(db *Database, compactionID string, vbUUIDs []
 		if xattr != nil {
 			// TODO: Struct map
 			var attachmentCompactionMetadata map[string]map[string]interface{}
-			err = base.JSONUnmarshal(xattr, &attachmentCompactionMetadata)
+			err = json.Unmarshal(xattr, &attachmentCompactionMetadata)
 			if err != nil {
 				base.WarnfCtx(db.Ctx, "[%s] Failed to unmarshal attachment compaction xattr: %v", compactionLoggingID, err)
 				return true

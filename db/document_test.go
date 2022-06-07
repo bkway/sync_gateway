@@ -13,6 +13,7 @@ package db
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"log"
 	"testing"
 
@@ -161,14 +162,14 @@ func BenchmarkUnmarshalBody(b *testing.B) {
 				b.StartTimer()
 				var err error
 				if bm.useDecode {
-					//decoder := base.JSONDecoder(bytes.NewReader(doc1k_body))
-					decoder := base.JSONDecoder(docReader)
+					//decoder := json.NewDecoder(bytes.NewReader(doc1k_body))
+					decoder := json.NewDecoder(docReader)
 					if bm.fixJSONNumbers {
 						decoder.UseNumber()
 					}
 					err = decoder.Decode(&doc._body)
 				} else {
-					err = base.JSONUnmarshal(doc1k_body, &doc._body)
+					err = json.Unmarshal(doc1k_body, &doc._body)
 					if bm.fixJSONNumbers {
 						doc.Body().FixJSONNumbers()
 					}

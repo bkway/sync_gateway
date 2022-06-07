@@ -12,6 +12,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -62,7 +63,7 @@ func (t *testBackingStore) getRevision(ctx context.Context, doc *Document, revid
 		BodyRev:       doc.CurrentRev,
 		BodyRevisions: Revisions{RevisionsStart: 1},
 	}
-	bodyBytes, err := base.JSONMarshal(b)
+	bodyBytes, err := json.Marshal(b)
 	return bodyBytes, b, nil, err
 }
 

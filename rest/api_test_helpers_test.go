@@ -11,10 +11,10 @@ licenses/APL2.txt.
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ type putDocResponse struct {
 func (rt *RestTester) getDoc(docID string) (body db.Body) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/"+docID, "")
 	assertStatus(rt.tb, rawResponse, 200)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &body))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &body))
 	return body
 }
 
@@ -40,7 +40,7 @@ func (rt *RestTester) requireDocNotFound(docID string) {
 func (rt *RestTester) putDoc(docID string, body string) (response putDocResponse) {
 	rawResponse := rt.SendAdminRequest("PUT", "/db/"+docID, body)
 	assertStatus(rt.tb, rawResponse, 201)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &response))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &response))
 	require.True(rt.tb, response.Ok)
 	require.NotEmpty(rt.tb, response.Rev)
 	return response
@@ -50,7 +50,7 @@ func (rt *RestTester) updateDoc(docID, revID, body string) (response putDocRespo
 	resource := fmt.Sprintf("/db/%s?rev=%s", docID, revID)
 	rawResponse := rt.SendAdminRequest(http.MethodPut, resource, body)
 	assertStatus(rt.tb, rawResponse, http.StatusCreated)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &response))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &response))
 	require.True(rt.tb, response.Ok)
 	require.NotEmpty(rt.tb, response.Rev)
 	return response
@@ -68,13 +68,13 @@ func (rt *RestTester) upsertDoc(docID string, body string) (response putDocRespo
 		return rt.putDoc(docID, body)
 	}
 	var getBody db.Body
-	require.NoError(rt.tb, base.JSONUnmarshal(getResponse.Body.Bytes(), &getBody))
+	require.NoError(rt.tb, json.Unmarshal(getResponse.Body.Bytes(), &getBody))
 	revID, ok := getBody["revID"].(string)
 	require.True(rt.tb, ok)
 
 	rawResponse := rt.SendAdminRequest("PUT", "/db/"+docID+"?rev="+revID, body)
 	assertStatus(rt.tb, rawResponse, 200)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &response))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &response))
 	require.True(rt.tb, response.Ok)
 	require.NotEmpty(rt.tb, response.Rev)
 	return response
@@ -90,7 +90,7 @@ func (rt *RestTester) purgeDoc(docID string) {
 	response := rt.SendAdminRequest(http.MethodPost, "/db/_purge", fmt.Sprintf(`{"%s":["*"]}`, docID))
 	assertStatus(rt.tb, response, http.StatusOK)
 	var body map[string]interface{}
-	require.NoError(rt.tb, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(rt.tb, json.Unmarshal(response.Body.Bytes(), &body))
 	require.Equal(rt.tb, body, map[string]interface{}{"purged": map[string]interface{}{docID: []interface{}{"*"}}})
 }
 
@@ -99,13 +99,13 @@ func (rt *RestTester) purgeDoc(docID string) {
 func (rt *RestTester) putNewEditsFalse(docID string, newRevID string, parentRevID string, bodyString string) (response putDocResponse) {
 
 	var body db.Body
-	marshalErr := base.JSONUnmarshal([]byte(bodyString), &body)
+	marshalErr := json.Unmarshal([]byte(bodyString), &body)
 	require.NoError(rt.tb, marshalErr)
 
 	rawResponse, err := rt.PutDocumentWithRevID(docID, newRevID, parentRevID, body)
 	require.NoError(rt.tb, err)
 	assertStatus(rt.tb, rawResponse, 201)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &response))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &response))
 	require.True(rt.tb, response.Ok)
 	require.NotEmpty(rt.tb, response.Rev)
 
@@ -128,7 +128,7 @@ func (rt *RestTester) waitForRev(docID string, revID string) error {
 			return false
 		}
 		var body db.Body
-		require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &body))
+		require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &body))
 		return body.ExtractRev() == revID
 	})
 }

@@ -11,6 +11,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -175,7 +176,7 @@ func (db *DatabaseContext) GetDocSyncData(ctx context.Context, docid string) (Sy
 		docRoot := documentRoot{
 			SyncData: &SyncData{History: make(RevTree)},
 		}
-		if err := base.JSONUnmarshal(rawDocBytes, &docRoot); err != nil {
+		if err := json.Unmarshal(rawDocBytes, &docRoot); err != nil {
 			return emptySyncData, err
 		}
 
@@ -397,23 +398,24 @@ func (db *Database) GetDelta(docID, fromRevID, toRevID string) (delta *RevisionD
 			fromBodyCopy[BodyAttachments] = map[string]interface{}(fromRevision.Attachments)
 		}
 
-		var toRevAttStorageMeta []AttachmentStorageMeta
+		// var toRevAttStorageMeta []AttachmentStorageMeta
 		if toRevision.Attachments != nil {
 			// Flatten the AttachmentsMeta into a list of digest version pairs.
-			toRevAttStorageMeta = ToAttachmentStorageMeta(toRevision.Attachments)
+			// toRevAttStorageMeta = ToAttachmentStorageMeta(toRevision.Attachments)
 			DeleteAttachmentVersion(toRevision.Attachments)
 			toBodyCopy[BodyAttachments] = map[string]interface{}(toRevision.Attachments)
 		}
 
-		deltaBytes, err := base.Diff(fromBodyCopy, toBodyCopy)
-		if err != nil {
-			return nil, nil, err
-		}
-		revCacheDelta := newRevCacheDelta(deltaBytes, fromRevID, toRevision, deleted, toRevAttStorageMeta)
+		// TODO this was removed because of EE, verify this function still called?
+		// deltaBytes, err := base.Diff(fromBodyCopy, toBodyCopy)
+		// if err != nil {
+		return nil, nil, err
+		// }
+		// revCacheDelta := newRevCacheDelta(deltaBytes, fromRevID, toRevision, deleted, toRevAttStorageMeta)
 
-		// Write the newly calculated delta back into the cache before returning
-		db.revisionCache.UpdateDelta(db.Ctx, docID, fromRevID, revCacheDelta)
-		return &revCacheDelta, nil, nil
+		// // Write the newly calculated delta back into the cache before returning
+		// db.revisionCache.UpdateDelta(db.Ctx, docID, fromRevID, revCacheDelta)
+		// return &revCacheDelta, nil, nil
 	}
 
 	return nil, nil, nil
@@ -597,7 +599,7 @@ func extractInlineAttachments(bodyBytes []byte) (attachments AttachmentsMeta, cl
 
 	// remove _attachments from body and marshal for clean bodyBytes.
 	delete(body, BodyAttachments)
-	bodyBytes, err = base.JSONMarshal(body)
+	bodyBytes, err = json.Marshal(body)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -874,7 +876,7 @@ func (db *Database) Put(docid string, body Body) (newRevID string, doc *Document
 
 		// Make up a new _rev, and add it to the history:
 		bodyWithoutInternalProps, wasStripped := stripInternalProperties(body)
-		canonicalBytesForRevID, err := base.JSONMarshalCanonical(bodyWithoutInternalProps)
+		canonicalBytesForRevID, err := json.Marshal(bodyWithoutInternalProps)
 		if err != nil {
 			return nil, nil, false, nil, err
 		}
@@ -1961,7 +1963,7 @@ func getAttachmentIDsForLeafRevisions(db *Database, doc *Document, newRevID stri
 		return nil, err
 	}
 
-	for attachmentID, _ := range currentAttachments {
+	for attachmentID := range currentAttachments {
 		leafAttachments[attachmentID] = struct{}{}
 	}
 
@@ -1985,7 +1987,7 @@ func getAttachmentIDsForLeafRevisions(db *Database, doc *Document, newRevID stri
 			return nil, err
 		}
 
-		for attachmentID, _ := range attachmentKeys {
+		for attachmentID := range attachmentKeys {
 			leafAttachments[attachmentID] = struct{}{}
 		}
 
@@ -2384,7 +2386,7 @@ func (db *Database) RevDiff(docid string, revids []string) (missing, possible []
 	// Convert possibleSet to an array (possible)
 	if len(possibleSet) > 0 {
 		possible = make([]string, 0, len(possibleSet))
-		for revid, _ := range possibleSet {
+		for revid := range possibleSet {
 			possible = append(possible, revid)
 		}
 	}

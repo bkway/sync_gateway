@@ -11,6 +11,7 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log"
 	"strings"
@@ -125,12 +126,12 @@ func TestSerializeUser(t *testing.T) {
 	auth := NewAuthenticator(bucket, nil, DefaultAuthenticatorOptions())
 	user, _ := auth.NewUser("me", "letmein", ch.SetOf(t, "me", "public"))
 	require.NoError(t, user.SetEmail("foo@example.com"))
-	encoded, _ := base.JSONMarshal(user)
+	encoded, _ := json.Marshal(user)
 	assert.True(t, encoded != nil)
 	log.Printf("Marshaled User as: %s", encoded)
 
 	resu := &userImpl{auth: auth}
-	err := base.JSONUnmarshal(encoded, resu)
+	err := json.Unmarshal(encoded, resu)
 	assert.True(t, err == nil)
 	assert.Equal(t, user.Name(), resu.Name())
 	assert.Equal(t, user.Email(), resu.Email())
@@ -145,11 +146,11 @@ func TestSerializeRole(t *testing.T) {
 	defer bucket.Close()
 	auth := NewAuthenticator(bucket, nil, DefaultAuthenticatorOptions())
 	role, _ := auth.NewRole("froods", ch.SetOf(t, "hoopy", "public"))
-	encoded, _ := base.JSONMarshal(role)
+	encoded, _ := json.Marshal(role)
 	assert.True(t, encoded != nil)
 	log.Printf("Marshaled Role as: %s", encoded)
 	elor := &roleImpl{}
-	err := base.JSONUnmarshal(encoded, elor)
+	err := json.Unmarshal(encoded, elor)
 
 	assert.True(t, err == nil)
 	assert.Equal(t, role.Name(), elor.Name())

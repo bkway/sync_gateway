@@ -64,7 +64,7 @@ type GrantHistorySequencePair struct {
 // MarshalJSON will handle conversion from having a seq / endSeq struct to the bucket format of "seq-endSeq"
 func (pair *GrantHistorySequencePair) MarshalJSON() ([]byte, error) {
 	stringPair := fmt.Sprintf("%d-%d", pair.StartSeq, pair.EndSeq)
-	return base.JSONMarshal(stringPair)
+	return json.Marshal(stringPair)
 }
 
 // UnmarshalJSON will handle conversion from the bucket format of "seq-endSeq" to the internal struct containing

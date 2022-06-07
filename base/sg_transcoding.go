@@ -11,6 +11,8 @@ licenses/APL2.txt.
 package base
 
 import (
+	"encoding/json"
+
 	"gopkg.in/couchbase/gocb.v1"
 
 	"gopkg.in/couchbase/gocbcore.v7"
@@ -53,7 +55,7 @@ func (t SGTranscoder) Encode(value interface{}) ([]byte, uint32, error) {
 		// calls back into this
 		return t.Encode(*value.(*interface{}))
 	default:
-		bytes, err = JSONMarshal(value)
+		bytes, err = json.Marshal(value)
 		if err != nil {
 			return nil, 0, err
 		}

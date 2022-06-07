@@ -503,7 +503,7 @@ func (op *OIDCProvider) fetchCustomProviderConfig(ctx context.Context, discovery
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, err
 	}
 
-	if err := base.JSONUnmarshal(bodyBytes, &metadata); err != nil {
+	if err := json.Unmarshal(bodyBytes, &metadata); err != nil {
 		base.DebugfCtx(ctx, base.KeyAuth, "Error parsing body during discovery sync: %v", err)
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, err
 	}

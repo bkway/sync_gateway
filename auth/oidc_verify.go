@@ -16,9 +16,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coreos/go-oidc"
 	"strings"
 	"time"
+
+	"github.com/coreos/go-oidc"
 
 	"github.com/couchbase/sync_gateway/base"
 	pkgerrors "github.com/pkg/errors"
@@ -60,7 +61,7 @@ func UnmarshalIdentityJSON(claims []byte) (*IdentityJson, error) {
 	if err := json.Unmarshal(claims, &identity); err != nil {
 		return nil, err
 	}
-	decoder := base.JSONDecoder(bytes.NewReader(claims))
+	decoder := json.NewDecoder(bytes.NewReader(claims))
 	decoder.UseNumber()
 	if err := decoder.Decode(&identity.Claims); err != nil {
 		return nil, err

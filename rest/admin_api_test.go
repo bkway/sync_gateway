@@ -14,11 +14,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -46,7 +44,6 @@ func TestPutDocSpecialChar(t *testing.T) {
 		method       string
 		body         string
 		expectedResp int
-		eeOnly       bool
 	}{
 		{
 			name:         "Double quote PUT",
@@ -54,15 +51,6 @@ func TestPutDocSpecialChar(t *testing.T) {
 			method:       "PUT",
 			body:         "{}",
 			expectedResp: http.StatusCreated,
-			eeOnly:       false,
-		},
-		{
-			name:         "Double quote PUT for replicator2",
-			pathDocID:    `doc"77"?replicator2=true`,
-			method:       "PUT",
-			body:         "{}",
-			expectedResp: http.StatusCreated,
-			eeOnly:       true,
 		},
 		{
 			name:         "Local double quote PUT",
@@ -70,7 +58,6 @@ func TestPutDocSpecialChar(t *testing.T) {
 			method:       "PUT",
 			body:         "{}",
 			expectedResp: http.StatusCreated,
-			eeOnly:       false,
 		},
 		{
 			name:         "Double quote PUT with attachment",
@@ -78,14 +65,10 @@ func TestPutDocSpecialChar(t *testing.T) {
 			method:       "PUT",
 			body:         "{}",
 			expectedResp: http.StatusCreated, // Admin Docs expected response http.StatusOK
-			eeOnly:       false,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			if testCase.eeOnly && !base.IsEnterpriseEdition() {
-				t.Skipf("Skipping enterprise-only test")
-			}
 			tr := rt.SendAdminRequest(testCase.method, fmt.Sprintf("/db/%s", testCase.pathDocID), testCase.body)
 			assertStatus(t, tr, testCase.expectedResp)
 			var body map[string]interface{}
@@ -128,7 +111,7 @@ func TestNoPanicInvalidUpdate(t *testing.T) {
 	// Discover revision ID
 	// TODO: The schema for SG responses should be defined in our code somewhere to avoid this clunky approach
 	var responseDoc map[string]interface{}
-	if err := base.JSONUnmarshal(response.Body.Bytes(), &responseDoc); err != nil {
+	if err := json.Unmarshal(response.Body.Bytes(), &responseDoc); err != nil {
 		t.Fatalf("Error unmarshalling response: %v", err)
 	}
 	revId := responseDoc["rev"].(string)
@@ -146,7 +129,7 @@ func TestNoPanicInvalidUpdate(t *testing.T) {
 
 	response = rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s?new_edits=false", docId), input)
 	response.DumpBody()
-	if err := base.JSONUnmarshal(response.Body.Bytes(), &responseDoc); err != nil {
+	if err := json.Unmarshal(response.Body.Bytes(), &responseDoc); err != nil {
 		t.Fatalf("Error unmarshalling response: %v", err)
 	}
 	revId = responseDoc["rev"].(string)
@@ -156,7 +139,7 @@ func TestNoPanicInvalidUpdate(t *testing.T) {
 	// Create conflict again, should be a no-op and return the same response as previous attempt
 	response = rt.SendAdminRequest("PUT", fmt.Sprintf("/db/%s?new_edits=false", docId), input)
 	response.DumpBody()
-	if err := base.JSONUnmarshal(response.Body.Bytes(), &responseDoc); err != nil {
+	if err := json.Unmarshal(response.Body.Bytes(), &responseDoc); err != nil {
 		t.Fatalf("Error unmarshalling response: %v", err)
 	}
 	revId = responseDoc["rev"].(string)
@@ -442,7 +425,7 @@ func TestLoggingKeys(t *testing.T) {
 	// Assert default log channels are enabled
 	response := rt.SendAdminRequest("GET", "/_logging", "")
 	var logKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &logKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &logKeys))
 	assert.Equal(t, map[string]interface{}{}, logKeys)
 
 	// Set logKeys, Changes+ should enable Changes (PUT replaces any existing log keys)
@@ -450,7 +433,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var updatedLogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &updatedLogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &updatedLogKeys))
 	assert.Equal(t, map[string]interface{}{"Changes": true, "Cache": true, "HTTP": true}, updatedLogKeys)
 
 	// Disable Changes logKey which should also disable Changes+
@@ -458,7 +441,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var deletedLogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &deletedLogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &deletedLogKeys))
 	assert.Equal(t, map[string]interface{}{"Cache": true, "HTTP": true}, deletedLogKeys)
 
 	// Enable Changes++, which should enable Changes (POST append logKeys)
@@ -466,7 +449,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var appendedLogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &appendedLogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &appendedLogKeys))
 	assert.Equal(t, map[string]interface{}{"Changes": true, "Cache": true, "HTTP": true}, appendedLogKeys)
 
 	// Disable Changes++ (POST modifies logKeys)
@@ -474,7 +457,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var disabledLogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &disabledLogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &disabledLogKeys))
 	assert.Equal(t, map[string]interface{}{"Cache": true, "HTTP": true}, disabledLogKeys)
 
 	// Re-Enable Changes++, which should enable Changes (POST append logKeys)
@@ -485,7 +468,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var disabled2LogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &disabled2LogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &disabled2LogKeys))
 	assert.Equal(t, map[string]interface{}{"Cache": true, "HTTP": true}, disabled2LogKeys)
 
 	// Re-Enable Changes++, which should enable Changes (POST append logKeys)
@@ -496,7 +479,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var disabled3LogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &disabled3LogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &disabled3LogKeys))
 	assert.Equal(t, map[string]interface{}{"Cache": true, "HTTP": true}, disabled3LogKeys)
 
 	// Disable all logKeys by using PUT with an empty channel list
@@ -504,7 +487,7 @@ func TestLoggingKeys(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
 	var noLogKeys map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &noLogKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &noLogKeys))
 	assert.Equal(t, map[string]interface{}{}, noLogKeys)
 }
 
@@ -522,7 +505,7 @@ func TestLoggingLevels(t *testing.T) {
 	// Log keys should be blank
 	response := rt.SendAdminRequest("GET", "/_logging", "")
 	var logKeys map[string]bool
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &logKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &logKeys))
 	assert.Equal(t, map[string]bool{}, logKeys)
 
 	// Set log level via logLevel query parameter
@@ -560,14 +543,14 @@ func TestLoggingCombined(t *testing.T) {
 	// Log keys should be blank
 	response := rt.SendAdminRequest("GET", "/_logging", "")
 	var logKeys map[string]bool
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &logKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &logKeys))
 	assert.Equal(t, map[string]bool{}, logKeys)
 
 	// Set log keys and log level in a single request
 	assertStatus(t, rt.SendAdminRequest("PUT", "/_logging?logLevel=trace", `{"Changes":true, "Cache":true, "HTTP":true}`), http.StatusOK)
 
 	response = rt.SendAdminRequest("GET", "/_logging", "")
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &logKeys))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &logKeys))
 	assert.Equal(t, map[string]bool{"Changes": true, "Cache": true, "HTTP": true}, logKeys)
 }
 
@@ -581,7 +564,7 @@ func TestGetStatus(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/_status", "")
 	assertStatus(t, response, 200)
 	var responseBody Status
-	err := base.JSONUnmarshal(response.Body.Bytes(), &responseBody)
+	err := json.Unmarshal(response.Body.Bytes(), &responseBody)
 	assert.NoError(t, err)
 
 	assert.Equal(t, base.LongVersionString, responseBody.Version)
@@ -660,7 +643,7 @@ func readContinuousChanges(response *TestResponse) ([]db.ChangeEntry, error) {
 		}
 		entry = bytes.TrimSpace(entry)
 		if len(entry) > 0 {
-			err := base.JSONUnmarshal(entry, &change)
+			err := json.Unmarshal(entry, &change)
 			if err != nil {
 				return changes, err
 			}
@@ -686,7 +669,7 @@ func TestRoleAPI(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_role/hipster", "")
 	assertStatus(t, response, 200)
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "hipster", body["name"])
 	assert.Equal(t, []interface{}{"fedoras", "fixies"}, body["admin_channels"])
 	assert.Equal(t, nil, body["password"])
@@ -707,7 +690,7 @@ func TestRoleAPI(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_role/hipster", "")
 	assertStatus(t, response, 200)
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "hipster", body["name"])
 	assertStatus(t, rt.SendAdminRequest("DELETE", "/db/_role/hipster", ""), 200)
 }
@@ -722,7 +705,7 @@ func TestGuestUser(t *testing.T) {
 	response := rt.SendAdminRequest(http.MethodGet, guestUserEndpoint, "")
 	assertStatus(t, response, http.StatusOK)
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, base.GuestUsername, body["name"])
 	// This ain't no admin-party, this ain't no nightclub, this ain't no fooling around:
 	assert.Nil(t, body["admin_channels"])
@@ -734,7 +717,7 @@ func TestGuestUser(t *testing.T) {
 	// Get guest user and verify it is now disabled:
 	response = rt.SendAdminRequest(http.MethodGet, guestUserEndpoint, "")
 	assertStatus(t, response, http.StatusOK)
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, base.GuestUsername, body["name"])
 	assert.True(t, body["disabled"].(bool))
 
@@ -780,7 +763,7 @@ func TestSessionTtlGreaterThan30Days(t *testing.T) {
 	layout := "2006-01-02T15:04:05"
 
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 
 	log.Printf("expires %s", body["expires"].(string))
 	expires, err := time.Parse(layout, body["expires"].(string)[:19])
@@ -791,7 +774,7 @@ func TestSessionTtlGreaterThan30Days(t *testing.T) {
 	assertStatus(t, response, 200)
 
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	log.Printf("expires2 %s", body["expires"].(string))
 	expires2, err := time.Parse(layout, body["expires"].(string)[:19])
 	assert.NoError(t, err)
@@ -968,14 +951,14 @@ func TestDBOfflineSingle(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	response = rt.SendAdminRequest("POST", "/db/_offline", "")
 	assertStatus(t, response, 200)
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 }
 
@@ -990,7 +973,7 @@ func TestDBOfflineConcurrent(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	// Take DB offline concurrently using two goroutines
@@ -1018,7 +1001,7 @@ func TestDBOfflineConcurrent(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 }
@@ -1032,14 +1015,14 @@ func TestStartDBOffline(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	response = rt.SendAdminRequest("POST", "/db/_offline", "")
 	assertStatus(t, response, 200)
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 }
 
@@ -1053,7 +1036,7 @@ func TestDBOffline503Response(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	response = rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1061,7 +1044,7 @@ func TestDBOffline503Response(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	assertStatus(t, rt.SendRequest("GET", "/db/doc1", ""), 503)
@@ -1076,7 +1059,7 @@ func TestDBOfflinePutDbConfig(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	response = rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1084,7 +1067,7 @@ func TestDBOfflinePutDbConfig(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	assertStatus(t, rt.SendRequest("PUT", "/db/_config", ""), 404)
@@ -1101,14 +1084,14 @@ func TestDBGetConfigNames(t *testing.T) {
 
 	rt.DatabaseConfig = &DatabaseConfig{DbConfig: DbConfig{
 		Users: map[string]*db.PrincipalConfig{
-			"alice": &db.PrincipalConfig{Password: &p},
-			"bob":   &db.PrincipalConfig{Password: &p},
+			"alice": {Password: &p},
+			"bob":   {Password: &p},
 		},
 	}}
 
 	response := rt.SendAdminRequest("GET", "/db/_config?include_runtime=true", "")
 	var body DbConfig
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 
 	assert.Equal(t, len(rt.DatabaseConfig.Users), len(body.Users))
 
@@ -1131,7 +1114,7 @@ func TestDBOfflinePostResync(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	response = rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1139,7 +1122,7 @@ func TestDBOfflinePostResync(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	assertStatus(t, rt.SendAdminRequest("POST", "/db/_resync?action=start", ""), 200)
@@ -1176,7 +1159,7 @@ func TestDBOfflineSingleResync(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	response = rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1184,7 +1167,7 @@ func TestDBOfflineSingleResync(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	response = rt.SendAdminRequest("POST", "/db/_resync?action=start", "")
@@ -1631,7 +1614,7 @@ func TestResyncRegenerateSequences(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_resync", "")
 	assertStatus(t, response, http.StatusOK)
 	var resyncStatus db.ResyncManagerResponse
-	err = base.JSONUnmarshal(response.BodyBytes(), &resyncStatus)
+	err = json.Unmarshal(response.BodyBytes(), &resyncStatus)
 	assert.NoError(t, err)
 	assert.Equal(t, 12, resyncStatus.DocsChanged)
 	assert.Equal(t, 12, resyncStatus.DocsProcessed)
@@ -1665,7 +1648,7 @@ func TestDBOnlineSingle(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1673,7 +1656,7 @@ func TestDBOnlineSingle(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	rt.SendAdminRequest("POST", "/db/_online", "")
@@ -1683,7 +1666,7 @@ func TestDBOnlineSingle(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 }
 
@@ -1698,7 +1681,7 @@ func TestDBOnlineConcurrent(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1706,7 +1689,7 @@ func TestDBOnlineConcurrent(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	var wg sync.WaitGroup
@@ -1750,7 +1733,7 @@ func TestSingleDBOnlineWithDelay(t *testing.T) {
 	log.Printf("Taking DB offline")
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1758,7 +1741,7 @@ func TestSingleDBOnlineWithDelay(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	rt.SendAdminRequest("POST", "/db/_online", "{\"delay\":1}")
@@ -1766,7 +1749,7 @@ func TestSingleDBOnlineWithDelay(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	// Wait until after the 1 second delay, since the online request explicitly asked for a delay
@@ -1841,7 +1824,7 @@ func TestDBOnlineWithTwoDelays(t *testing.T) {
 
 	response := rt.SendAdminRequest("GET", "/db/", "")
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	rt.SendAdminRequest("POST", "/db/_offline", "")
@@ -1849,7 +1832,7 @@ func TestDBOnlineWithTwoDelays(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	// Bring DB online with delay of one seconds
@@ -1862,21 +1845,21 @@ func TestDBOnlineWithTwoDelays(t *testing.T) {
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Offline")
 
 	time.Sleep(1500 * time.Millisecond)
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 
 	time.Sleep(600 * time.Millisecond)
 
 	response = rt.SendAdminRequest("GET", "/db/", "")
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.True(t, body["state"].(string) == "Online")
 }
 
@@ -1886,7 +1869,7 @@ func (rt *RestTester) createSession(t *testing.T, username string) string {
 	assertStatus(t, response, 200)
 
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	sessionId := body["session_id"].(string)
 
 	return sessionId
@@ -1910,7 +1893,7 @@ func TestPurgeWithNonArrayRevisionList(t *testing.T) {
 	assertStatus(t, response, 200)
 
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{}}, body)
 }
 
@@ -1923,7 +1906,7 @@ func TestPurgeWithEmptyRevisionList(t *testing.T) {
 	assertStatus(t, response, 200)
 
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{}}, body)
 }
 
@@ -1936,7 +1919,7 @@ func TestPurgeWithGreaterThanOneRevision(t *testing.T) {
 	assertStatus(t, response, 200)
 
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{}}, body)
 }
 
@@ -1949,7 +1932,7 @@ func TestPurgeWithNonStarRevision(t *testing.T) {
 	assertStatus(t, response, 200)
 
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{}}, body)
 }
 
@@ -1962,7 +1945,7 @@ func TestPurgeWithStarRevision(t *testing.T) {
 	response := rt.SendAdminRequest("POST", "/db/_purge", `{"doc1":["*"]}`)
 	assertStatus(t, response, 200)
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{"doc1": []interface{}{"*"}}}, body)
 
 	// Create new versions of the doc1 without conflicts
@@ -1980,7 +1963,7 @@ func TestPurgeWithMultipleValidDocs(t *testing.T) {
 	assertStatus(t, response, 200)
 
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{"doc1": []interface{}{"*"}, "doc2": []interface{}{"*"}}}, body)
 
 	// Create new versions of the docs without conflicts
@@ -2006,7 +1989,7 @@ func TestPurgeWithChannelCache(t *testing.T) {
 	resp := rt.SendAdminRequest("POST", "/db/_purge", `{"doc1":["*"]}`)
 	assertStatus(t, resp, http.StatusOK)
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{"doc1": []interface{}{"*"}}}, body)
 
 	changes, err = rt.WaitForChanges(1, "/db/_changes?filter=sync_gateway/bychannel&channels=abc,def", "", true)
@@ -2025,7 +2008,7 @@ func TestPurgeWithSomeInvalidDocs(t *testing.T) {
 	response := rt.SendAdminRequest("POST", "/db/_purge", `{"doc1":["*"],"doc2":["1-123"]}`)
 	assertStatus(t, response, 200)
 	var body map[string]interface{}
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{"purged": map[string]interface{}{"doc1": []interface{}{"*"}}}, body)
 
 	// Create new versions of the doc1 without conflicts
@@ -2045,7 +2028,7 @@ func TestRawRedaction(t *testing.T) {
 	// Test redact being disabled by default
 	res = rt.SendAdminRequest("GET", "/db/_raw/testdoc", ``)
 	var body map[string]interface{}
-	err := base.JSONUnmarshal(res.Body.Bytes(), &body)
+	err := json.Unmarshal(res.Body.Bytes(), &body)
 	assert.NoError(t, err)
 	syncData := body[base.SyncPropertyName]
 	assert.Equal(t, map[string]interface{}{"achannel": nil}, syncData.(map[string]interface{})["channels"])
@@ -2054,7 +2037,7 @@ func TestRawRedaction(t *testing.T) {
 	// Test redacted
 	body = map[string]interface{}{}
 	res = rt.SendAdminRequest("GET", "/db/_raw/testdoc?redact=true&include_doc=false", ``)
-	err = base.JSONUnmarshal(res.Body.Bytes(), &body)
+	err = json.Unmarshal(res.Body.Bytes(), &body)
 	assert.NoError(t, err)
 	syncData = body[base.SyncPropertyName]
 	require.NotNil(t, syncData)
@@ -2069,7 +2052,7 @@ func TestRawRedaction(t *testing.T) {
 	// Test doc is returned by default
 	body = map[string]interface{}{}
 	res = rt.SendAdminRequest("GET", "/db/_raw/testdoc", ``)
-	err = base.JSONUnmarshal(res.Body.Bytes(), &body)
+	err = json.Unmarshal(res.Body.Bytes(), &body)
 	assert.NoError(t, err)
 	assert.Equal(t, body["foo"], "bar")
 
@@ -2133,7 +2116,7 @@ func TestHandleCreateDB(t *testing.T) {
 	dbConfig := &DbConfig{BucketConfig: bucketConfig, SGReplicateEnabled: base.BoolPtr(false)}
 	var respBody db.Body
 
-	reqBody, err := base.JSONMarshal(dbConfig)
+	reqBody, err := json.Marshal(dbConfig)
 	assert.NoError(t, err, "Error unmarshalling changes response")
 
 	resp := rt.SendAdminRequest(http.MethodPut, resource, string(reqBody))
@@ -2215,7 +2198,7 @@ func TestHandleDBConfig(t *testing.T) {
 		UseViews:           base.BoolPtr(base.TestsDisableGSI()),
 		SGReplicateEnabled: base.BoolPtr(false),
 	}
-	reqBody, err := base.JSONMarshal(dbConfig)
+	reqBody, err := json.Marshal(dbConfig)
 	assert.NoError(t, err, "Error unmarshalling changes response")
 	resp = rt.SendAdminRequest(http.MethodPut, resource, string(reqBody))
 	assertStatus(t, resp, http.StatusCreated)
@@ -2301,7 +2284,7 @@ func TestHandleGetConfig(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 
 	var respBody StartupConfig
-	assert.NoError(t, base.JSONUnmarshal([]byte(resp.Body.String()), &respBody))
+	assert.NoError(t, json.Unmarshal([]byte(resp.Body.String()), &respBody))
 
 	assert.Equal(t, "127.0.0.1:4985", respBody.API.AdminInterface)
 }
@@ -2364,7 +2347,7 @@ func TestSessionExpirationDateTimeFormat(t *testing.T) {
 	response := rt.SendAdminRequest(http.MethodPost, "/db/_session", `{"name":"alice"}`)
 	assertStatus(t, response, http.StatusOK)
 
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	expires, err := time.Parse(time.RFC3339, body["expires"].(string))
 	assert.NoError(t, err, "Couldn't parse session expiration datetime")
 	assert.True(t, expires.Sub(time.Now()).Hours() <= 24, "Couldn't validate session expiration")
@@ -2374,7 +2357,7 @@ func TestSessionExpirationDateTimeFormat(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, fmt.Sprintf("/db/_session/%s", sessionId), "")
 	assertStatus(t, response, http.StatusOK)
 
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	expires, err = time.Parse(time.RFC3339, body["expires"].(string))
 	assert.NoError(t, err, "Couldn't parse session expiration datetime")
 	assert.True(t, expires.Sub(time.Now()).Hours() <= 24, "Couldn't validate session expiration")
@@ -2390,14 +2373,14 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 	response := rt.SendAdminRequest(http.MethodPut, "/db/_user/christopher", "")
 	assert.Equal(t, http.StatusBadRequest, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody))
 
 	// Create a user 'charles' through POST request with empty request body.
 	body = `{"email":"charles@couchbase.com","password":"cGFzc3dvcmQ=","admin_channels":["foo", "bar"]}`
 	response = rt.SendAdminRequest(http.MethodPost, "/db/_user/charles", "")
 	assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody))
 
 	// Create a user 'alice' through PUT request.
 	body = `{"email":"alice@couchbase.com","password":"cGFzc3dvcmQ=","admin_channels":["foo", "bar"]}`
@@ -2415,14 +2398,14 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_user/alice", "")
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody))
 
 	// Get the list of users through GET request.
 	var users []string
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_user/", "")
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &users))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &users))
 	assert.Subset(t, []string{"alice", "bob"}, users)
 
 	// Check whether the /db/_user/bob resource exist on the server.
@@ -2460,7 +2443,7 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodPost, "/db/_session", `{"name":"eve"}`)
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody))
 	sessionId, _ := responseBody["session_id"].(string)
 	require.NotEmpty(t, sessionId, "Couldn't parse sessionID from response body")
 
@@ -2472,7 +2455,7 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 	// Create user session to check delete session request.
 	response = rt.SendAdminRequest(http.MethodPost, "/db/_session", `{"name":"eve"}`)
 	assert.Equal(t, http.StatusOK, response.Code)
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody))
 
 	// Delete user session using /db/_user/eve/_session request.
 	response = rt.SendAdminRequest(http.MethodDelete, "/db/_user/eve/_session", "")
@@ -2501,7 +2484,7 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodGet, "/db/_role/", "")
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &roles))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &roles))
 	assert.Subset(t, []string{"coder", "developer"}, roles)
 
 	// Delete role 'coder' from database.
@@ -2513,7 +2496,7 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 	response = rt.SendAdminRequest(http.MethodDelete, "/db/_role/programmer", "")
 	assert.Equal(t, http.StatusNotFound, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody))
 }
 
 func TestConfigRedaction(t *testing.T) {
@@ -2565,58 +2548,6 @@ func TestAdhocReplicationStatus(t *testing.T) {
 		return resp.Code == http.StatusNotFound
 	})
 	assert.NoError(t, stateError)
-}
-
-func TestUserXattrsRawGet(t *testing.T) {
-	if !base.TestUseXattrs() {
-		t.Skip("Test requires xattrs to be enabled")
-	}
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("test is EE only - user xattrs")
-	}
-
-	docKey := t.Name()
-	xattrKey := "xattrKey"
-
-	rt := NewRestTester(t, &RestTesterConfig{
-		DatabaseConfig: &DatabaseConfig{
-			DbConfig: DbConfig{
-				AutoImport:   true,
-				UserXattrKey: xattrKey,
-			},
-		},
-	})
-	defer rt.Close()
-
-	userXattrStore, ok := base.AsUserXattrStore(rt.Bucket())
-	if !ok {
-		t.Skip("Test requires Couchbase Bucket")
-	}
-
-	resp := rt.SendAdminRequest("PUT", "/db/"+docKey, "{}")
-	assertStatus(t, resp, http.StatusCreated)
-	require.NoError(t, rt.WaitForPendingChanges())
-
-	_, err := userXattrStore.WriteUserXattr(docKey, xattrKey, "val")
-	assert.NoError(t, err)
-
-	err = rt.WaitForCondition(func() bool {
-		return rt.GetDatabase().DbStats.SharedBucketImportStats.ImportCount.Value() == 1
-	})
-
-	resp = rt.SendAdminRequest("GET", "/db/_raw/"+docKey, "")
-	assertStatus(t, resp, http.StatusOK)
-
-	var RawReturn struct {
-		Meta struct {
-			Xattrs map[string]interface{} `json:"xattrs"`
-		} `json:"_meta"`
-	}
-
-	err = json.Unmarshal(resp.BodyBytes(), &RawReturn)
-
-	assert.Equal(t, "val", RawReturn.Meta.Xattrs[xattrKey])
 }
 
 func TestRolePurge(t *testing.T) {
@@ -3254,368 +3185,6 @@ func TestIncludeRuntimeStartupConfig(t *testing.T) {
 
 }
 
-func TestPersistentConfigConcurrency(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Get config
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	eTag := resp.Header.Get("ETag")
-	assert.NotEqual(t, "", eTag)
-
-	resp = bootstrapAdminRequestWithHeaders(t, http.MethodPost, "/db/_config", "{}", map[string]string{"If-Match": eTag})
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_config", "{}")
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	putETag := resp.Header.Get("ETag")
-	assert.NotEqual(t, "", putETag)
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	getETag := resp.Header.Get("ETag")
-	assert.Equal(t, putETag, getETag)
-
-	resp = bootstrapAdminRequestWithHeaders(t, http.MethodPost, "/db/_config", "{}", map[string]string{"If-Match": "x"})
-	assert.Equal(t, http.StatusPreconditionFailed, resp.StatusCode)
-}
-
-func TestDbConfigCredentials(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	var dbConfig DatabaseConfig
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-
-	err = base.JSONUnmarshal(body, &dbConfig)
-	require.NoError(t, err)
-
-	// non-runtime config, we don't expect to see any credentials present
-	assert.Equal(t, "", dbConfig.Username)
-	assert.Equal(t, "", dbConfig.Password)
-	assert.Equal(t, "", dbConfig.CACertPath)
-	assert.Equal(t, "", dbConfig.CertPath)
-	assert.Equal(t, "", dbConfig.KeyPath)
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config?include_runtime=true", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-
-	err = base.JSONUnmarshal(body, &dbConfig)
-	require.NoError(t, err)
-
-	// runtime config, we expect to see the credentials used by the database (either bootstrap or per-db - but in this case, bootstrap)
-	assert.Equal(t, base.TestClusterUsername(), dbConfig.Username)
-	assert.Equal(t, base.RedactedStr, dbConfig.Password)
-	assert.Equal(t, "", dbConfig.CACertPath)
-	assert.Equal(t, "", dbConfig.CertPath)
-	assert.Equal(t, "", dbConfig.KeyPath)
-}
-
-func TestInvalidDBConfig(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Put db config with invalid sync fn
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config", `{"sync": "function(){"}`)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	body, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.True(t, strings.Contains(string(body), "invalid javascript syntax"))
-
-	// Put invalid sync fn via sync specific endpoint
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config/sync", `function(){`)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	body, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.True(t, strings.Contains(string(body), "invalid javascript syntax"))
-
-	// Put invalid import fn via import specific endpoint
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config/import_filter", `function(){`)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	body, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.True(t, strings.Contains(string(body), "invalid javascript syntax"))
-}
-
-func TestCreateDbOnNonExistentBucket(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/", `{"bucket": "nonexistentbucket"}`)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	body, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-	assert.Contains(t, string(body), "auth failure accessing provided bucket: nonexistentbucket")
-
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/nonexistentbucket/", `{}`)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	body, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-	assert.Contains(t, string(body), "auth failure accessing provided bucket: nonexistentbucket")
-}
-
-func TestPutDbConfigChangeName(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config", `{"name": "test"}`)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-}
-
-func TestPutDBConfigOIDC(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Attempt to update the config with an invalid OIDC issuer - should fail
-	invalidOIDCConfig := fmt.Sprintf(
-		`{
-			"bucket": "%s",
-			"num_index_replicas": 0,
-			"enable_shared_bucket_access": %t,
-			"use_views": %t,
-			"oidc": {
-				"providers": {
-					"test": {
-						"issuer": "https://test.invalid",
-						"client_id": "test"
-					}
-				}
-			}
-		}`,
-		tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-	)
-
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config", invalidOIDCConfig)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-
-	// Now pass the parameter to skip the validation
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config?disable_oidc_validation=true", invalidOIDCConfig)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Now check with a valid OIDC issuer
-	validOIDCConfig := fmt.Sprintf(
-		`{
-			"bucket": "%s",
-			"num_index_replicas": 0,
-			"enable_shared_bucket_access": %t,
-			"use_views": %t,
-			"unsupported": {
-				"oidc_test_provider": {
-					"enabled": true
-				}
-			},
-			"oidc": {
-				"providers": {
-					"test": {
-						"issuer": "http://localhost:%d/db/_oidc_testing",
-						"client_id": "sync_gateway"
-					}
-				}
-			}
-		}`,
-		tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(), 4984+bootstrapTestPortOffset,
-	)
-
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config", validOIDCConfig)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-}
-
 func TestNotExistentDBRequest(t *testing.T) {
 	if base.UnitTestUrlIsWalrus() {
 		t.Skip("Test requires Couchbase Server")
@@ -3637,157 +3206,6 @@ func TestNotExistentDBRequest(t *testing.T) {
 	// Request to non-existent db with invalid credentials
 	resp = rt.SendAdminRequestWithAuth("PUT", "/dbx/_config", "", "random", "passwordx")
 	assertStatus(t, resp, http.StatusUnauthorized)
-}
-
-func TestConfigsIncludeDefaults(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.RequireNumTestBuckets(t, 2)
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	var dbConfig DatabaseConfig
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config?include_runtime=true", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-
-	err = base.JSONUnmarshal(body, &dbConfig)
-	assert.NoError(t, err)
-
-	// Validate a few default values to ensure they are set
-	assert.Equal(t, channels.DefaultSyncFunction, *dbConfig.Sync)
-	assert.Equal(t, db.DefaultChannelCacheMaxNumber, *dbConfig.CacheConfig.ChannelCacheConfig.MaxNumber)
-	assert.Equal(t, base.DefaultOldRevExpirySeconds, *dbConfig.OldRevExpirySeconds)
-	assert.Equal(t, false, *dbConfig.StartOffline)
-	assert.Equal(t, db.DefaultCompactInterval, uint32(*dbConfig.CompactIntervalDays))
-
-	var runtimeServerConfigResponse RunTimeServerConfigResponse
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/_config?include_runtime=true", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err = ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-
-	err = base.JSONUnmarshal(body, &runtimeServerConfigResponse)
-	assert.NoError(t, err)
-
-	require.Contains(t, runtimeServerConfigResponse.Databases, "db")
-	runtimeServerConfigDatabase := runtimeServerConfigResponse.Databases["db"]
-	assert.Equal(t, channels.DefaultSyncFunction, *runtimeServerConfigDatabase.Sync)
-	assert.Equal(t, db.DefaultChannelCacheMaxNumber, *runtimeServerConfigDatabase.CacheConfig.ChannelCacheConfig.MaxNumber)
-	assert.Equal(t, base.DefaultOldRevExpirySeconds, *runtimeServerConfigDatabase.OldRevExpirySeconds)
-	assert.Equal(t, false, *runtimeServerConfigDatabase.StartOffline)
-	assert.Equal(t, db.DefaultCompactInterval, uint32(*runtimeServerConfigDatabase.CompactIntervalDays))
-
-	// Test unsupported options
-	tb2 := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket 2")
-		tb2.Close()
-	}()
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db2/",
-		`{"bucket": "`+tb2.GetName()+`", "num_index_replicas": 0, "unsupported": {"disable_clean_skipped_query": true}}`,
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/_config?include_runtime=true", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err = ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.NoError(t, resp.Body.Close())
-
-	err = base.JSONUnmarshal(body, &runtimeServerConfigResponse)
-	assert.NoError(t, err)
-
-	require.Contains(t, runtimeServerConfigResponse.Databases, "db2")
-	runtimeServerConfigDatabase = runtimeServerConfigResponse.Databases["db2"]
-	assert.True(t, runtimeServerConfigDatabase.Unsupported.DisableCleanSkippedQuery)
-}
-
-func TestLegacyCredentialInheritance(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, false)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() { tb.Close() }()
-
-	// No credentials should fail
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db1/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-
-	// Wrong credentials should fail
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db2/",
-		`{"bucket": "`+tb.GetName()+`", "username": "test", "password": "invalid_password"}`,
-	)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-
-	// Proper credentials should pass
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db3/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t, "username": "%s", "password": "%s"}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(), base.TestClusterUsername(), base.TestClusterPassword(),
-		),
-	)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 }
 
 func TestDbOfflineConfigLegacy(t *testing.T) {
@@ -3825,409 +3243,6 @@ func TestDbOfflineConfigLegacy(t *testing.T) {
 	assert.Equal(t, dbConfigBeforeOffline, string(resp.BodyBytes()))
 }
 
-func TestDbOfflineConfigPersistent(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() { tb.Close() }()
-
-	importFilter := "function(doc) { return true }"
-	syncFunc := "function(doc){ channel(doc.channels); }"
-
-	dbConfig := `{
-	"bucket": "%s",
-	"name": "db",
-	"sync": "%s",
-	"import_filter": "%s",
-	"import_docs": false,
-	"offline": false,
-	"enable_shared_bucket_access": %t,
-	"use_views": %t,
-	"num_index_replicas": 0 }`
-	dbConfig = fmt.Sprintf(dbConfig, tb.GetName(), syncFunc, importFilter, base.TestUseXattrs(), base.TestsDisableGSI())
-
-	// Persist config
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/", dbConfig)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Get config values before taking db offline
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	dbConfigBeforeOffline, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/import_filter", "")
-	assertResp(t, resp, http.StatusOK, importFilter)
-	require.NoError(t, resp.Body.Close())
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/sync", "")
-	assertResp(t, resp, http.StatusOK, syncFunc)
-	require.NoError(t, resp.Body.Close())
-
-	// Take DB offline
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_offline", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Check offline config matches online config
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config", "")
-	assertResp(t, resp, http.StatusOK, string(dbConfigBeforeOffline))
-	require.NoError(t, resp.Body.Close())
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/import_filter", "")
-	assertResp(t, resp, http.StatusOK, importFilter)
-	require.NoError(t, resp.Body.Close())
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/sync", "")
-	assertResp(t, resp, http.StatusOK, syncFunc)
-	require.NoError(t, resp.Body.Close())
-}
-
-func TestDeleteFunctionsWhileDbOffline(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	// Start SG with bootstrap credentials filled
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	serverErr := make(chan error, 0)
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() { tb.Close() }()
-
-	// Initial DB config
-	dbConfig := `{
-	"bucket": "` + tb.GetName() + `",
-	"name": "db",
-	"sync": "function(doc){ throw({forbidden : \"Rejected document\"}) }",
-	"offline": false,
-	"import_filter": "function(doc) { return false }",
-	"import_docs": ` + strconv.FormatBool(base.TestUseXattrs()) + `,
-	"enable_shared_bucket_access": ` + strconv.FormatBool(base.TestUseXattrs()) + `,
-	"use_views": ` + strconv.FormatBool(base.TestsDisableGSI()) + `,
-	"num_index_replicas": 0 }`
-
-	// Create initial database
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/", dbConfig)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Make sure import and sync fail
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/TestSyncDoc", "{}")
-	require.Equal(t, http.StatusForbidden, resp.StatusCode)
-
-	// Take DB offline
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_offline", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodDelete, "/db/_config/sync", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Take DB online
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_online", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/sync", "")
-	assertResp(t, resp, http.StatusOK, "")
-	require.NoError(t, resp.Body.Close())
-
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/TestSyncDoc", "{}")
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	if base.TestUseXattrs() {
-		add, err := tb.Add("TestImportDoc", 0, db.Document{ID: "TestImportDoc", RevID: "1-abc"})
-		require.NoError(t, err)
-		require.Equal(t, true, add)
-
-		// On-demand import - rejected doc
-		resp = bootstrapAdminRequest(t, http.MethodGet, "/db/TestImportDoc", "")
-		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-		// Persist configs
-		resp = bootstrapAdminRequest(t, http.MethodDelete, "/db/_config/import_filter", "")
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-
-		// Check configs match
-		resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/import_filter", "")
-		assertResp(t, resp, http.StatusOK, "")
-		require.NoError(t, resp.Body.Close())
-
-		// On-demand import - allowed doc after restored default import filter
-		resp = bootstrapAdminRequest(t, http.MethodGet, "/db/TestImportDoc", "")
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-	}
-}
-
-func TestSetFunctionsWhileDbOffline(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	// Start SG with bootstrap credentials filled
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	serverErr := make(chan error, 0)
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() { tb.Close() }()
-
-	importFilter := "function(doc){ return true; }"
-	syncFunc := "function(doc){ channel(doc.channels); }"
-
-	// Initial DB config
-	dbConfig := `{
-	"bucket": "` + tb.GetName() + `",
-	"name": "db",
-	"offline": false,
-	"enable_shared_bucket_access": ` + strconv.FormatBool(base.TestUseXattrs()) + `,
-	"use_views": ` + strconv.FormatBool(base.TestsDisableGSI()) + `,
-	"num_index_replicas": 0 }`
-
-	// Create initial database
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/", dbConfig)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Take DB offline
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_offline", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Persist configs
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config/import_filter", importFilter)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config/sync", syncFunc)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Take DB online
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_online", "")
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Check configs match
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/import_filter", "")
-	assertResp(t, resp, http.StatusOK, importFilter)
-	require.NoError(t, resp.Body.Close())
-
-	resp = bootstrapAdminRequest(t, http.MethodGet, "/db/_config/sync", "")
-	assertResp(t, resp, http.StatusOK, syncFunc)
-	require.NoError(t, resp.Body.Close())
-}
-
-func TestEmptyStringJavascriptFunctions(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-
-	serverErr := make(chan error, 0)
-
-	// Start SG with no databases
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-
-	// db put with empty sync func and import filter
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db/",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t, "sync": "", "import_filter": ""}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// db config put with empty sync func and import filter
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db/_config",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t, "sync": "", "import_filter": ""}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// db config post, with empty sync func and import filter
-	resp = bootstrapAdminRequest(t, http.MethodPost, "/db/_config",
-		fmt.Sprintf(
-			`{"bucket": "%s", "num_index_replicas": 0, "enable_shared_bucket_access": %t, "use_views": %t, "sync": "", "import_filter": ""}`,
-			tb.GetName(), base.TestUseXattrs(), base.TestsDisableGSI(),
-		),
-	)
-	assert.NoError(t, resp.Body.Close())
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-}
-
-// Tests replications to make sure they are namespaced by group ID
-func TestGroupIDReplications(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() || !base.TestUseXattrs() {
-		t.Skip("This test only works against Couchbase Server with xattrs enabled")
-	}
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
-
-	// Create test buckets to replicate between
-	passiveBucket := base.GetTestBucket(t)
-	defer passiveBucket.Close()
-
-	activeBucket := base.GetTestBucket(t)
-	defer activeBucket.Close()
-
-	// Set up passive bucket RT
-	rt := NewRestTester(t, &RestTesterConfig{TestBucket: passiveBucket})
-	defer rt.Close()
-
-	// Make rt listen on an actual HTTP port, so it can receive replications
-	srv := httptest.NewServer(rt.TestAdminHandler())
-	defer srv.Close()
-	passiveDBURL, err := url.Parse(srv.URL + "/db")
-	require.NoError(t, err)
-
-	// Start SG nodes for default group, group A and group B
-	groupIDs := []string{"", "GroupA", "GroupB"}
-	var adminHosts []string
-	var serverContexts []*ServerContext
-	for i, group := range groupIDs {
-		serverErr := make(chan error, 0)
-
-		config := bootstrapStartupConfigForTest(t)
-		portOffset := i * 10
-		adminInterface := fmt.Sprintf("127.0.0.1:%d", 4985+bootstrapTestPortOffset+portOffset)
-		adminHosts = append(adminHosts, "http://"+adminInterface)
-		config.API.PublicInterface = fmt.Sprintf("127.0.0.1:%d", 4984+bootstrapTestPortOffset+portOffset)
-		config.API.AdminInterface = adminInterface
-		config.API.MetricsInterface = fmt.Sprintf("127.0.0.1:%d", 4986+bootstrapTestPortOffset+portOffset)
-		config.Bootstrap.ConfigGroupID = group
-		if group == "" {
-			config.Bootstrap.ConfigGroupID = persistentConfigDefaultGroupID
-		}
-
-		sc, err := setupServerContext(&config, true)
-		require.NoError(t, err)
-		serverContexts = append(serverContexts, sc)
-		defer func() {
-			sc.Close()
-			require.NoError(t, <-serverErr)
-		}()
-		go func() {
-			serverErr <- startServer(&config, sc)
-		}()
-		require.NoError(t, sc.waitForRESTAPIs())
-
-		// Set up db config
-		resp := bootstrapAdminRequestCustomHost(t, http.MethodPut, adminHosts[i], "/db/",
-			fmt.Sprintf(
-				`{"bucket": "%s", "num_index_replicas": 0, "use_views": %t, "import_docs": true, "sync":"%s"}`,
-				activeBucket.GetName(), base.TestsDisableGSI(), channels.DefaultSyncFunction,
-			),
-		)
-		require.Equal(t, http.StatusCreated, resp.StatusCode)
-	}
-
-	// Start replicators
-	for i, group := range groupIDs {
-		channelFilter := []string{"chan" + group}
-		replicationConfig := db.ReplicationConfig{
-			ID:                     "repl",
-			Remote:                 passiveDBURL.String(),
-			Direction:              db.ActiveReplicatorTypePush,
-			Filter:                 base.ByChannelFilter,
-			QueryParams:            map[string]interface{}{"channels": channelFilter},
-			Continuous:             true,
-			InitialState:           db.ReplicationStateRunning,
-			ConflictResolutionType: db.ConflictResolverDefault,
-		}
-		resp := bootstrapAdminRequestCustomHost(t, http.MethodPost, adminHosts[i], "/db/_replication/", marshalConfig(t, replicationConfig))
-		require.Equal(t, http.StatusCreated, resp.StatusCode)
-	}
-
-	for groupNum, group := range groupIDs {
-		channel := "chan" + group
-		key := "doc" + group
-		body := fmt.Sprintf(`{"channels":["%s"]}`, channel)
-		added, err := activeBucket.Add(key, 0, []byte(body))
-		require.NoError(t, err)
-		require.True(t, added)
-
-		// Force on-demand import and cache
-		for _, host := range adminHosts {
-			resp := bootstrapAdminRequestCustomHost(t, http.MethodGet, host, "/db/"+key, "")
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-		}
-
-		for scNum, sc := range serverContexts {
-			var expectedPushed int64 = 0
-			// If replicated doc to db already (including this loop iteration) then expect 1
-			if scNum <= groupNum {
-				expectedPushed = 1
-			}
-
-			dbContext, err := sc.GetDatabase("db")
-			require.NoError(t, err)
-			actualPushed, _ := base.WaitForStat(dbContext.DbStats.DBReplicatorStats("repl").NumDocPushed.Value, expectedPushed)
-			assert.Equal(t, expectedPushed, actualPushed)
-		}
-	}
-}
-
 // CBG-1790: Deleting a database that targets the same bucket as another causes a panic in legacy
 func TestDeleteDatabasePointingAtSameBucket(t *testing.T) {
 	if base.UnitTestUrlIsWalrus() || !base.TestUseXattrs() {
@@ -4247,56 +3262,6 @@ func TestDeleteDatabasePointingAtSameBucket(t *testing.T) {
 		"use_views": %t,
 		"num_index_replicas": 0
 	}`, tb.GetName(), base.TestClusterUsername(), base.TestClusterPassword(), base.TestsDisableGSI()))
-}
-
-func TestDeleteDatabasePointingAtSameBucketPersistent(t *testing.T) {
-	if base.UnitTestUrlIsWalrus() {
-		t.Skip("This test only works against Couchbase Server")
-	}
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
-	// Start SG with no databases in bucket(s)
-	config := bootstrapStartupConfigForTest(t)
-	sc, err := setupServerContext(&config, true)
-	require.NoError(t, err)
-	serverErr := make(chan error, 0)
-	defer func() {
-		sc.Close()
-		require.NoError(t, <-serverErr)
-	}()
-	go func() {
-		serverErr <- startServer(&config, sc)
-	}()
-	require.NoError(t, sc.waitForRESTAPIs())
-	// Get a test bucket, and use it to create the database.
-	tb := base.GetTestBucket(t)
-	defer func() {
-		fmt.Println("closing test bucket")
-		tb.Close()
-	}()
-
-	dbConfig := `{
-   "bucket": "` + tb.GetName() + `",
-   "name": "%s",
-   "import_docs": true,
-   "enable_shared_bucket_access": ` + strconv.FormatBool(base.TestUseXattrs()) + `,
-   "use_views": ` + strconv.FormatBool(base.TestsDisableGSI()) + `,
-   "num_index_replicas": 0 }`
-
-	resp := bootstrapAdminRequest(t, http.MethodPut, "/db1/", fmt.Sprintf(dbConfig, "db1"))
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	resp = bootstrapAdminRequest(t, http.MethodDelete, "/db1/", "")
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Make another database that uses import in-order to trigger the panic instantly instead of having to time.Sleep
-	resp = bootstrapAdminRequest(t, http.MethodPut, "/db2/", fmt.Sprintf(dbConfig, "db2"))
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Validate that deleted database is no longer in dest factory set
-	_, fetchDb1DestErr := base.FetchDestFactory(base.ImportDestKey("db1"))
-	assert.Equal(t, base.ErrNotFound, fetchDb1DestErr)
-	_, fetchDb2DestErr := base.FetchDestFactory(base.ImportDestKey("db2"))
-	assert.NoError(t, fetchDb2DestErr)
 }
 
 // CBG-1046: Add ability to specify user for active peer in sg-replicate2

@@ -9,6 +9,7 @@
 package db
 
 import (
+	"encoding/json"
 	"sync/atomic"
 	"time"
 
@@ -66,7 +67,7 @@ func (t *TombstoneCompactionManager) GetProcessStatus(backgroundManagerStatus Ba
 		DocsPurged:              atomic.LoadInt64(&t.PurgedDocCount),
 	}
 
-	statusJSON, err := base.JSONMarshal(retStatus)
+	statusJSON, err := json.Marshal(retStatus)
 	return statusJSON, nil, err
 }
 

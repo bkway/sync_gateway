@@ -63,7 +63,7 @@ func TestBlipPushRevisionInspectChanges(t *testing.T) {
 	assert.Equal(t, changesRequest.SerialNumber(), changesResponse.SerialNumber())
 	body, err := changesResponse.Body()
 	assert.NoError(t, err, "Error reading changes response body")
-	err = base.JSONUnmarshal(body, &changeList)
+	err = json.Unmarshal(body, &changeList)
 	assert.NoError(t, err, "Error unmarshalling response body")
 	assert.Equal(t, 1, len(changeList)) // Should be 1 row, corresponding to the single doc that was queried in changes
 	changeRow := changeList[0]
@@ -92,7 +92,7 @@ func TestBlipPushRevisionInspectChanges(t *testing.T) {
 	assert.Equal(t, changesRequest2.SerialNumber(), changesResponse2.SerialNumber())
 	body2, err := changesResponse2.Body()
 	assert.NoError(t, err, "Error reading changes response body")
-	err = base.JSONUnmarshal(body2, &changeList2)
+	err = json.Unmarshal(body2, &changeList2)
 	assert.NoError(t, err, "Error unmarshalling response body")
 	assert.Equal(t, 1, len(changeList2)) // Should be 1 row, corresponding to the single doc that was queried in changes
 	changeRow2 := changeList2[0]
@@ -113,7 +113,7 @@ func TestBlipPushRevisionInspectChanges(t *testing.T) {
 
 			// Expected changes body: [[1,"foo","1-abc"]]
 			changeListReceived := [][]interface{}{}
-			err = base.JSONUnmarshal(body, &changeListReceived)
+			err = json.Unmarshal(body, &changeListReceived)
 			assert.NoError(t, err, "Error unmarshalling changes received")
 			assert.Equal(t, 1, len(changeListReceived))
 			change := changeListReceived[0] // [1,"foo","1-abc"]
@@ -128,7 +128,7 @@ func TestBlipPushRevisionInspectChanges(t *testing.T) {
 			// Send an empty response to avoid the Sync: Invalid response to 'changes' message
 			response := request.Response()
 			emptyResponseVal := []interface{}{}
-			emptyResponseValBytes, err := base.JSONMarshal(emptyResponseVal)
+			emptyResponseValBytes, err := json.Marshal(emptyResponseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(emptyResponseValBytes)
 		}
@@ -185,7 +185,7 @@ func TestContinuousChangesSubscription(t *testing.T) {
 
 			// Expected changes body: [[1,"foo","1-abc"]]
 			changeListReceived := [][]interface{}{}
-			err = base.JSONUnmarshal(body, &changeListReceived)
+			err = json.Unmarshal(body, &changeListReceived)
 			assert.NoError(t, err, "Error unmarshalling changes received")
 
 			for _, change := range changeListReceived {
@@ -221,7 +221,7 @@ func TestContinuousChangesSubscription(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 			response := request.Response()
 			emptyResponseVal := []interface{}{}
-			emptyResponseValBytes, err := base.JSONMarshal(emptyResponseVal)
+			emptyResponseValBytes, err := json.Marshal(emptyResponseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(emptyResponseValBytes)
 		}
@@ -307,7 +307,7 @@ func TestBlipOneShotChangesSubscription(t *testing.T) {
 
 			// Expected changes body: [[1,"foo","1-abc"]]
 			changeListReceived := [][]interface{}{}
-			err = base.JSONUnmarshal(body, &changeListReceived)
+			err = json.Unmarshal(body, &changeListReceived)
 			assert.NoError(t, err, "Error unmarshalling changes received")
 
 			for _, change := range changeListReceived {
@@ -344,7 +344,7 @@ func TestBlipOneShotChangesSubscription(t *testing.T) {
 			// Send an empty response to avoid the Sync: Invalid response to 'changes' message
 			response := request.Response()
 			emptyResponseVal := []interface{}{}
-			emptyResponseValBytes, err := base.JSONMarshal(emptyResponseVal)
+			emptyResponseValBytes, err := json.Marshal(emptyResponseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(emptyResponseValBytes)
 		}
@@ -357,7 +357,7 @@ func TestBlipOneShotChangesSubscription(t *testing.T) {
 	cacheWaiter := bt.DatabaseContext().NewDCPCachingCountWaiter(t)
 	cacheWaiter.Add(len(docIdsReceived))
 	// Add documents
-	for docID, _ := range docIdsReceived {
+	for docID := range docIdsReceived {
 		// // Add a change: Send an unsolicited doc revision in a rev request
 		_, _, revResponse, err := bt.SendRev(
 			docID,
@@ -472,7 +472,7 @@ func TestBlipSubChangesDocIDFilter(t *testing.T) {
 
 			// Expected changes body: [[1,"foo","1-abc"]]
 			changeListReceived := [][]interface{}{}
-			err = base.JSONUnmarshal(body, &changeListReceived)
+			err = json.Unmarshal(body, &changeListReceived)
 			assert.NoError(t, err, "Error unmarshalling changes received")
 
 			for _, change := range changeListReceived {
@@ -519,7 +519,7 @@ func TestBlipSubChangesDocIDFilter(t *testing.T) {
 			// Send an empty response to avoid the Sync: Invalid response to 'changes' message
 			response := request.Response()
 			emptyResponseVal := []interface{}{}
-			emptyResponseValBytes, err := base.JSONMarshal(emptyResponseVal)
+			emptyResponseValBytes, err := json.Marshal(emptyResponseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(emptyResponseValBytes)
 		}
@@ -560,7 +560,7 @@ func TestBlipSubChangesDocIDFilter(t *testing.T) {
 	subChangesRequest.SetCompressed(false)
 
 	body := db.SubChangesBody{DocIDs: docIDsExpected}
-	bodyBytes, err := base.JSONMarshal(body)
+	bodyBytes, err := json.Marshal(body)
 	assert.NoError(t, err, "Error marshalling subChanges body.")
 
 	subChangesRequest.SetBody(bodyBytes)
@@ -629,7 +629,7 @@ func TestProposedChangesNoConflictsMode(t *testing.T) {
 	assert.NoError(t, err, "Error getting changes response body")
 
 	var changeList [][]interface{}
-	err = base.JSONUnmarshal(body, &changeList)
+	err = json.Unmarshal(body, &changeList)
 	assert.NoError(t, err, "Error getting changes response body")
 
 	// The common case of an empty array response tells the sender to send all of the proposed revisions,
@@ -679,37 +679,37 @@ func TestProposedChangesIncludeConflictingRev(t *testing.T) {
 	}
 
 	proposeChangesCases := []proposeChangesCase{
-		proposeChangesCase{
+		{
 			key:           "conflictingInsert",
 			revID:         "1-abc",
 			parentRevID:   "",
 			expectedValue: map[string]interface{}{"status": float64(db.ProposedRev_Conflict), "rev": conflictingInsertRev},
 		},
-		proposeChangesCase{
+		{
 			key:           "newInsert",
 			revID:         "1-abc",
 			parentRevID:   "",
 			expectedValue: float64(db.ProposedRev_OK),
 		},
-		proposeChangesCase{
+		{
 			key:           "matchingInsert",
 			revID:         matchingInsertRev,
 			parentRevID:   "",
 			expectedValue: float64(db.ProposedRev_Exists),
 		},
-		proposeChangesCase{
+		{
 			key:           "conflictingUpdate",
 			revID:         "2-abc",
 			parentRevID:   conflictingUpdateRev1,
 			expectedValue: map[string]interface{}{"status": float64(db.ProposedRev_Conflict), "rev": conflictingUpdateRev2},
 		},
-		proposeChangesCase{
+		{
 			key:           "newUpdate",
 			revID:         "2-abc",
 			parentRevID:   newUpdateRev1,
 			expectedValue: float64(db.ProposedRev_OK),
 		},
-		proposeChangesCase{
+		{
 			key:           "matchingUpdate",
 			revID:         matchingUpdateRev2,
 			parentRevID:   matchingUpdateRev1,
@@ -745,7 +745,7 @@ func TestProposedChangesIncludeConflictingRev(t *testing.T) {
 	assert.NoError(t, err, "Error getting changes response body reader")
 
 	var changeList []interface{}
-	decoder := base.JSONDecoder(bodyReader)
+	decoder := json.NewDecoder(bodyReader)
 	decodeErr := decoder.Decode(&changeList)
 	require.NoError(t, decodeErr)
 
@@ -921,7 +921,7 @@ function(doc, oldDoc) {
 
 			// Expected changes body: [[1,"foo","1-abc"]]
 			changeListReceived := [][]interface{}{}
-			err = base.JSONUnmarshal(body, &changeListReceived)
+			err = json.Unmarshal(body, &changeListReceived)
 			assert.NoError(t, err, "Error unmarshalling changes received")
 
 			for _, change := range changeListReceived {
@@ -951,7 +951,7 @@ function(doc, oldDoc) {
 		if !request.NoReply() {
 			// Send an empty response to avoid the Sync: Invalid response to 'changes' message
 			response := request.Response()
-			responseValBytes, err := base.JSONMarshal(responseVal)
+			responseValBytes, err := json.Marshal(responseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(responseValBytes)
 		}
@@ -964,7 +964,7 @@ function(doc, oldDoc) {
 		body, err := request.Body()
 
 		var doc RestDocument
-		err = base.JSONUnmarshal(body, &doc)
+		err = json.Unmarshal(body, &doc)
 		if err != nil {
 			panic(fmt.Sprintf("Unexpected err: %v", err))
 		}
@@ -1047,7 +1047,7 @@ function(doc, oldDoc) {
 
 			// Expected changes body: [[1,"foo","1-abc"]]
 			changeListReceived := [][]interface{}{}
-			err = base.JSONUnmarshal(body, &changeListReceived)
+			err = json.Unmarshal(body, &changeListReceived)
 			assert.NoError(t, err, "Error unmarshalling changes received")
 
 			for _, change := range changeListReceived {
@@ -1080,7 +1080,7 @@ function(doc, oldDoc) {
 			// between the sendBatchOfChanges request and the response
 			time.Sleep(10 * time.Millisecond)
 			response := request.Response()
-			responseValBytes, err := base.JSONMarshal(responseVal)
+			responseValBytes, err := json.Marshal(responseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(responseValBytes)
 		}
@@ -1093,7 +1093,7 @@ function(doc, oldDoc) {
 		body, err := request.Body()
 
 		var doc RestDocument
-		err = base.JSONUnmarshal(body, &doc)
+		err = json.Unmarshal(body, &doc)
 		if err != nil {
 			panic(fmt.Sprintf("Unexpected err: %v", err))
 		}
@@ -1171,7 +1171,7 @@ func TestBlipSendAndGetRev(t *testing.T) {
 	response := bt.restTester.SendAdminRequest("GET", "/db/sendAndGetRev?rev=1-abc", "")
 	assertStatus(t, response, 200)
 	var responseBody RestDocument
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody), "Error unmarshalling GET doc response")
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody), "Error unmarshalling GET doc response")
 	_, ok := responseBody[db.BodyDeleted]
 	assert.False(t, ok)
 
@@ -1186,7 +1186,7 @@ func TestBlipSendAndGetRev(t *testing.T) {
 	response = bt.restTester.SendAdminRequest("GET", "/db/sendAndGetRev?rev=2-bcd", "")
 	assertStatus(t, response, 200)
 	responseBody = RestDocument{}
-	assert.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &responseBody), "Error unmarshalling GET doc response")
+	assert.NoError(t, json.Unmarshal(response.Body.Bytes(), &responseBody), "Error unmarshalling GET doc response")
 	deletedValue, deletedOK := responseBody[db.BodyDeleted].(bool)
 	assert.True(t, deletedOK)
 	assert.True(t, deletedValue)
@@ -1278,7 +1278,7 @@ func TestBlipSetCheckpoint(t *testing.T) {
 	response := rt.SendAdminRequest("GET", "/db/_local/checkpoint%252Ftestclient", "")
 	assertStatus(t, response, 200)
 	var responseBody map[string]interface{}
-	err = base.JSONUnmarshal(response.Body.Bytes(), &responseBody)
+	err = json.Unmarshal(response.Body.Bytes(), &responseBody)
 	assert.Equal(t, "1000", responseBody["client_seq"])
 
 	// Attempt to update the checkpoint with previous rev
@@ -1998,7 +1998,7 @@ func TestBlipDeltaSyncPull(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
 
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
 			DeltaSync: &DeltaSyncConfig{
@@ -2043,105 +2043,20 @@ func TestBlipDeltaSyncPull(t *testing.T) {
 	msg, ok := client.WaitForBlipRevMessage("doc1", "2-26359894b20d89c97638e71c40482f28")
 	assert.True(t, ok)
 
-	// Check EE is delta, and CE is full-body replication
-	if base.IsEnterpriseEdition() {
-		// Check the request was sent with the correct deltaSrc property
-		assert.Equal(t, "1-0335a345b6ffed05707ccc4cbc1b67f4", msg.Properties[db.RevMessageDeltaSrc])
-		// Check the request body was the actual delta
-		msgBody, err := msg.Body()
-		assert.NoError(t, err)
-		assert.Equal(t, `{"greetings":{"2-":[{"howdy":12345678901234567890}]}}`, string(msgBody))
-		assert.Equal(t, deltaSentCount+1, rt.GetDatabase().DbStats.DeltaSync().DeltasSent.Value())
-	} else {
-		// Check the request was NOT sent with a deltaSrc property
-		assert.Equal(t, "", msg.Properties[db.RevMessageDeltaSrc])
-		// Check the request body was NOT the delta
-		msgBody, err := msg.Body()
-		assert.NoError(t, err)
-		assert.NotEqual(t, `{"greetings":{"2-":[{"howdy":12345678901234567890}]}}`, string(msgBody))
-		assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"},{"howdy":12345678901234567890}]}`, string(msgBody))
-
-		var afterDeltaSyncCount int64
-		if rt.GetDatabase().DbStats.DeltaSync() != nil {
-			afterDeltaSyncCount = rt.GetDatabase().DbStats.DeltaSync().DeltasSent.Value()
-		}
-
-		assert.Equal(t, deltaSentCount, afterDeltaSyncCount)
-	}
-}
-
-// TestBlipDeltaSyncPullResend tests that a simple pull replication that uses a delta a client rejects will resend the revision in full.
-func TestBlipDeltaSyncPullResend(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skip("Enterprise-only test for delta sync")
-	}
-
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
-
-	rtConfig := RestTesterConfig{
-		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			DeltaSync: &DeltaSyncConfig{
-				Enabled: base.BoolPtr(true),
-			},
-		}},
-		guestEnabled: true,
-	}
-	rt := NewRestTester(t, &rtConfig)
-	defer rt.Close()
-
-	// create doc1 rev 1
-	resp := rt.SendAdminRequest(http.MethodPut, "/db/doc1", `{"greetings": [{"hello": "world!"}, {"hi": "alice"}]}`)
-	assert.Equal(t, http.StatusCreated, resp.Code)
-	rev1ID := respRevID(t, resp)
-
-	deltaSentCount := rt.GetDatabase().DbStats.DeltaSync().DeltasSent.Value()
-
-	client, err := NewBlipTesterClientOptsWithRT(t, rt, nil)
-	require.NoError(t, err)
-	defer client.Close()
-
-	// reject deltas built ontop of rev 1
-	client.rejectDeltasForSrcRev = rev1ID
-
-	client.ClientDeltas = true
-	err = client.StartPull()
-	assert.NoError(t, err)
-
-	data, ok := client.WaitForRev("doc1", rev1ID)
-	assert.True(t, ok)
-	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"}]}`, string(data))
-
-	// create doc1 rev 2
-	resp = rt.SendAdminRequest(http.MethodPut, "/db/doc1?rev="+rev1ID, `{"greetings": [{"hello": "world!"}, {"hi": "alice"}, {"howdy": 12345678901234567890}]}`)
-	assert.Equal(t, http.StatusCreated, resp.Code)
-	rev2ID := respRevID(t, resp)
-
-	data, ok = client.WaitForRev("doc1", rev2ID)
-	assert.True(t, ok)
-	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"},{"howdy":12345678901234567890}]}`, string(data))
-
-	msg, ok := client.pullReplication.WaitForMessage(5)
-	assert.True(t, ok)
-
-	// Check the request was initially sent with the correct deltaSrc property
-	assert.Equal(t, rev1ID, msg.Properties[db.RevMessageDeltaSrc])
-	// Check the request body was the actual delta
-	msgBody, err := msg.Body()
-	assert.NoError(t, err)
-	assert.Equal(t, `{"greetings":{"2-":[{"howdy":12345678901234567890}]}}`, string(msgBody))
-	assert.Equal(t, deltaSentCount+1, rt.GetDatabase().DbStats.DeltaSync().DeltasSent.Value())
-
-	msg, ok = client.WaitForBlipRevMessage("doc1", "2-26359894b20d89c97638e71c40482f28")
-	assert.True(t, ok)
-
-	// Check the resent request was NOT sent with a deltaSrc property
+	// Check the request was NOT sent with a deltaSrc property
 	assert.Equal(t, "", msg.Properties[db.RevMessageDeltaSrc])
 	// Check the request body was NOT the delta
-	msgBody, err = msg.Body()
+	msgBody, err := msg.Body()
 	assert.NoError(t, err)
 	assert.NotEqual(t, `{"greetings":{"2-":[{"howdy":12345678901234567890}]}}`, string(msgBody))
 	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"},{"howdy":12345678901234567890}]}`, string(msgBody))
+
+	var afterDeltaSyncCount int64
+	if rt.GetDatabase().DbStats.DeltaSync() != nil {
+		afterDeltaSyncCount = rt.GetDatabase().DbStats.DeltaSync().DeltasSent.Value()
+	}
+
+	assert.Equal(t, deltaSentCount, afterDeltaSyncCount)
 }
 
 // TestBlipDeltaSyncPullRemoved tests a simple pull replication that drops a document out of the user's channel.
@@ -2149,7 +2064,7 @@ func TestBlipDeltaSyncPullRemoved(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
 
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{DeltaSync: &DeltaSyncConfig{Enabled: &sgUseDeltas}}}}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
@@ -2204,7 +2119,7 @@ func TestBlipDeltaSyncPullTombstoned(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
 
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{DeltaSync: &DeltaSyncConfig{Enabled: &sgUseDeltas}}}}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
@@ -2299,7 +2214,7 @@ func TestBlipDeltaSyncPullTombstonedStarChan(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeyCache, base.KeySync, base.KeySyncMsg)
 
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{DeltaSync: &DeltaSyncConfig{Enabled: &sgUseDeltas}}}}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
@@ -2432,7 +2347,7 @@ func TestBlipPullRevMessageHistory(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
 
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
 			DeltaSync: &DeltaSyncConfig{
@@ -2473,109 +2388,12 @@ func TestBlipPullRevMessageHistory(t *testing.T) {
 	assert.Equal(t, "1-0335a345b6ffed05707ccc4cbc1b67f4", msg.Properties[db.RevMessageHistory])
 }
 
-// TestBlipDeltaSyncPullRevCache tests that a simple pull replication uses deltas in EE,
-// Second pull validates use of rev cache for previously generated deltas.
-func TestBlipDeltaSyncPullRevCache(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("Skipping enterprise-only delta sync test.")
-	}
-
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
-
-	sgUseDeltas := base.IsEnterpriseEdition()
-	rtConfig := RestTesterConfig{
-		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			DeltaSync: &DeltaSyncConfig{
-				Enabled: &sgUseDeltas,
-			},
-		}},
-		guestEnabled: true,
-	}
-	rt := NewRestTester(t, &rtConfig)
-	defer rt.Close()
-
-	client, err := NewBlipTesterClientOptsWithRT(t, rt, nil)
-	require.NoError(t, err)
-	defer client.Close()
-
-	client.ClientDeltas = true
-	err = client.StartPull()
-	assert.NoError(t, err)
-
-	// create doc1 rev 1-0335a345b6ffed05707ccc4cbc1b67f4
-	resp := rt.SendAdminRequest(http.MethodPut, "/db/doc1", `{"greetings": [{"hello": "world!"}, {"hi": "alice"}]}`)
-	assert.Equal(t, http.StatusCreated, resp.Code)
-
-	data, ok := client.WaitForRev("doc1", "1-0335a345b6ffed05707ccc4cbc1b67f4")
-	assert.True(t, ok)
-	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"}]}`, string(data))
-
-	// Perform a one-shot pull as client 2 to pull down the first revision
-
-	client2, err := NewBlipTesterClientOptsWithRT(t, rt, nil)
-	require.NoError(t, err)
-	defer client2.Close()
-
-	client2.ClientDeltas = true
-	err = client2.StartOneshotPull()
-	assert.NoError(t, err)
-
-	data, ok = client2.WaitForRev("doc1", "1-0335a345b6ffed05707ccc4cbc1b67f4")
-	assert.True(t, ok)
-	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"}]}`, string(data))
-
-	// create doc1 rev 2-959f0e9ad32d84ff652fb91d8d0caa7e
-	resp = rt.SendAdminRequest(http.MethodPut, "/db/doc1?rev=1-0335a345b6ffed05707ccc4cbc1b67f4", `{"greetings": [{"hello": "world!"}, {"hi": "alice"}, {"howdy": "bob"}]}`)
-	assert.Equal(t, http.StatusCreated, resp.Code)
-
-	data, ok = client.WaitForRev("doc1", "2-959f0e9ad32d84ff652fb91d8d0caa7e")
-	assert.True(t, ok)
-	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"},{"howdy":"bob"}]}`, string(data))
-
-	msg, ok := client.WaitForBlipRevMessage("doc1", "2-959f0e9ad32d84ff652fb91d8d0caa7e")
-	assert.True(t, ok)
-
-	// Check EE is delta
-	// Check the request was sent with the correct deltaSrc property
-	assert.Equal(t, "1-0335a345b6ffed05707ccc4cbc1b67f4", msg.Properties[db.RevMessageDeltaSrc])
-	// Check the request body was the actual delta
-	msgBody, err := msg.Body()
-	assert.NoError(t, err)
-	assert.Equal(t, `{"greetings":{"2-":[{"howdy":"bob"}]}}`, string(msgBody))
-
-	deltaCacheHits := rt.GetDatabase().DbStats.DeltaSync().DeltaCacheHit.Value()
-	deltaCacheMisses := rt.GetDatabase().DbStats.DeltaSync().DeltaCacheMiss.Value()
-
-	// Run another one shot pull to get the 2nd revision - validate it comes as delta, and uses cached version
-	client2.ClientDeltas = true
-	err = client2.StartOneshotPull()
-	assert.NoError(t, err)
-
-	msg2, ok := client2.WaitForBlipRevMessage("doc1", "2-959f0e9ad32d84ff652fb91d8d0caa7e")
-	assert.True(t, ok)
-
-	// Check the request was sent with the correct deltaSrc property
-	assert.Equal(t, "1-0335a345b6ffed05707ccc4cbc1b67f4", msg2.Properties[db.RevMessageDeltaSrc])
-	// Check the request body was the actual delta
-	msgBody2, err := msg2.Body()
-	assert.NoError(t, err)
-	assert.Equal(t, `{"greetings":{"2-":[{"howdy":"bob"}]}}`, string(msgBody2))
-
-	updatedDeltaCacheHits := rt.GetDatabase().DbStats.DeltaSync().DeltaCacheHit.Value()
-	updatedDeltaCacheMisses := rt.GetDatabase().DbStats.DeltaSync().DeltaCacheMiss.Value()
-
-	assert.Equal(t, deltaCacheHits+1, updatedDeltaCacheHits)
-	assert.Equal(t, deltaCacheMisses, updatedDeltaCacheMisses)
-
-}
-
 // TestBlipDeltaSyncPush tests that a simple push replication handles deltas in EE,
 // and checks that full body replication is still supported in CE.
 func TestBlipDeltaSyncPush(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
 			DeltaSync: &DeltaSyncConfig{
@@ -2612,32 +2430,18 @@ func TestBlipDeltaSyncPush(t *testing.T) {
 	msg, ok := client.pushReplication.WaitForMessage(2)
 	assert.True(t, ok)
 
-	if base.IsEnterpriseEdition() {
-		// Check the request was sent with the correct deltaSrc property
-		assert.Equal(t, "1-0335a345b6ffed05707ccc4cbc1b67f4", msg.Properties[db.RevMessageDeltaSrc])
-		// Check the request body was the actual delta
-		msgBody, err := msg.Body()
-		assert.NoError(t, err)
-		assert.Equal(t, `{"greetings":{"2-":[{"howdy":"bob"}]}}`, string(msgBody))
-
-		// Validate that generation of a delta didn't mutate the revision body in the revision cache
-		docRev, cacheErr := rt.GetDatabase().GetRevisionCacheForTest().Get(base.TestCtx(t), "doc1", "1-0335a345b6ffed05707ccc4cbc1b67f4", db.RevCacheOmitBody, db.RevCacheOmitDelta)
-		assert.NoError(t, cacheErr)
-		assert.NotContains(t, docRev.BodyBytes, "bob")
-	} else {
-		// Check the request was NOT sent with a deltaSrc property
-		assert.Equal(t, "", msg.Properties[db.RevMessageDeltaSrc])
-		// Check the request body was NOT the delta
-		msgBody, err := msg.Body()
-		assert.NoError(t, err)
-		assert.NotEqual(t, `{"greetings":{"2-":[{"howdy":"bob"}]}}`, string(msgBody))
-		assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"},{"howdy":"bob"}]}`, string(msgBody))
-	}
+	// Check the request was NOT sent with a deltaSrc property
+	assert.Equal(t, "", msg.Properties[db.RevMessageDeltaSrc])
+	// Check the request body was NOT the delta
+	msgBody, err := msg.Body()
+	assert.NoError(t, err)
+	assert.NotEqual(t, `{"greetings":{"2-":[{"howdy":"bob"}]}}`, string(msgBody))
+	assert.Equal(t, `{"greetings":[{"hello":"world!"},{"hi":"alice"},{"howdy":"bob"}]}`, string(msgBody))
 
 	resp = rt.SendAdminRequest(http.MethodGet, "/db/doc1?rev="+newRev, "")
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
+	assert.NoError(t, json.Unmarshal(resp.Body.Bytes(), &respBody))
 	assert.Equal(t, "doc1", respBody[db.BodyId])
 	assert.Equal(t, "2-abc", respBody[db.BodyRev])
 	greetings := respBody["greetings"].([]interface{})
@@ -2661,18 +2465,10 @@ func TestBlipDeltaSyncPush(t *testing.T) {
 	}
 	revID, err := client.PushRev("doc1", "3-fcc2db8cdbf1831799b7a39bb57edd71", []byte(`{"undelete":true}`))
 
-	if base.IsEnterpriseEdition() {
-		// Now make the client push up a delta that has the parent of the tombstone.
-		// This is not a valid scenario, and is actively prevented on the CBL side.
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Can't use delta. Found tombstone for doc")
-		assert.Equal(t, "", revID)
-	} else {
-		// Pushing a full body revision on top of a tombstone is valid.
-		// CBL clients should fall back to this. The test client doesn't.
-		assert.NoError(t, err)
-		assert.Equal(t, "4-abc", revID)
-	}
+	// Pushing a full body revision on top of a tombstone is valid.
+	// CBL clients should fall back to this. The test client doesn't.
+	assert.NoError(t, err)
+	assert.Equal(t, "4-abc", revID)
 
 	var deltaPushDocCountEnd int64
 
@@ -2686,7 +2482,7 @@ func TestBlipDeltaSyncPush(t *testing.T) {
 func TestBlipNonDeltaSyncPush(t *testing.T) {
 
 	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
 			DeltaSync: &DeltaSyncConfig{
@@ -2741,7 +2537,7 @@ func TestBlipNonDeltaSyncPush(t *testing.T) {
 func TestBlipDeltaSyncNewAttachmentPull(t *testing.T) {
 	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
 
-	sgUseDeltas := base.IsEnterpriseEdition()
+	sgUseDeltas := false // TODO remove // base.IsEnterpriseEdition()
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
 			DeltaSync: &DeltaSyncConfig{
@@ -2777,7 +2573,7 @@ func TestBlipDeltaSyncNewAttachmentPull(t *testing.T) {
 	data, ok = client.WaitForRev("doc1", "2-10000d5ec533b29b117e60274b1e3653")
 	assert.True(t, ok)
 	var dataMap map[string]interface{}
-	assert.NoError(t, base.JSONUnmarshal(data, &dataMap))
+	assert.NoError(t, json.Unmarshal(data, &dataMap))
 	atts, ok := dataMap[db.BodyAttachments].(map[string]interface{})
 	require.True(t, ok)
 	assert.Len(t, atts, 1)
@@ -2798,28 +2594,19 @@ func TestBlipDeltaSyncNewAttachmentPull(t *testing.T) {
 	msg, ok = client.WaitForBlipRevMessage("doc1", "2-10000d5ec533b29b117e60274b1e3653")
 	assert.True(t, ok)
 
-	if base.IsEnterpriseEdition() {
-		// Check the request was sent with the correct deltaSrc property
-		assert.Equal(t, "1-0335a345b6ffed05707ccc4cbc1b67f4", msg.Properties[db.RevMessageDeltaSrc])
-		// Check the request body was the actual delta
-		msgBody, err := msg.Body()
-		assert.NoError(t, err)
-		assert.Equal(t, `{"_attachments":[{"hello.txt":{"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0=","length":11,"revpos":2,"stub":true}}]}`, string(msgBody))
-	} else {
-		// Check the request was NOT sent with a deltaSrc property
-		assert.Equal(t, "", msg.Properties[db.RevMessageDeltaSrc])
-		// Check the request body was NOT the delta
-		msgBody, err := msg.Body()
-		assert.NoError(t, err)
-		assert.NotEqual(t, `{"_attachments":[{"hello.txt":{"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0=","length":11,"revpos":2,"stub":true}}]}`, string(msgBody))
-		assert.Contains(t, string(msgBody), `"_attachments":{"hello.txt":{"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0=","length":11,"revpos":2,"stub":true}}`)
-		assert.Contains(t, string(msgBody), `"greetings":[{"hello":"world!"},{"hi":"alice"}]`)
-	}
+	// Check the request was NOT sent with a deltaSrc property
+	assert.Equal(t, "", msg.Properties[db.RevMessageDeltaSrc])
+	// Check the request body was NOT the delta
+	msgBody, err := msg.Body()
+	assert.NoError(t, err)
+	assert.NotEqual(t, `{"_attachments":[{"hello.txt":{"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0=","length":11,"revpos":2,"stub":true}}]}`, string(msgBody))
+	assert.Contains(t, string(msgBody), `"_attachments":{"hello.txt":{"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0=","length":11,"revpos":2,"stub":true}}`)
+	assert.Contains(t, string(msgBody), `"greetings":[{"hello":"world!"},{"hi":"alice"}]`)
 
 	resp = rt.SendAdminRequest(http.MethodGet, "/db/doc1?rev=2-10000d5ec533b29b117e60274b1e3653", "")
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
+	assert.NoError(t, json.Unmarshal(resp.Body.Bytes(), &respBody))
 	assert.Equal(t, "doc1", respBody[db.BodyId])
 	assert.Equal(t, "2-10000d5ec533b29b117e60274b1e3653", respBody[db.BodyRev])
 	greetings := respBody["greetings"].([]interface{})
@@ -2853,7 +2640,7 @@ func TestActiveOnlyContinuous(t *testing.T) {
 	var docResp struct {
 		Rev string `json:"rev"`
 	}
-	require.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &docResp))
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &docResp))
 
 	// start an initial pull
 	require.NoError(t, btc.StartPullSince("true", "0", "true"))
@@ -2865,7 +2652,7 @@ func TestActiveOnlyContinuous(t *testing.T) {
 	// delete the doc and make sure the client still gets the tombstone replicated
 	resp = rt.SendAdminRequest(http.MethodDelete, "/db/doc1?rev="+docResp.Rev, ``)
 	assertStatus(t, resp, http.StatusOK)
-	require.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &docResp))
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &docResp))
 
 	rev, found = btc.WaitForRev("doc1", docResp.Rev)
 	assert.True(t, found)
@@ -2918,148 +2705,6 @@ func TestNoRevSetSeq(t *testing.T) {
 	norevMsg.SetSeq(db.SequenceID{Seq: 60})
 	assert.Equal(t, "60", norevMsg.Properties[db.NorevMessageSeq])
 
-}
-
-// TestBlipDeltaSyncPushAttachment tests updating a doc that has an attachment with a delta that doesn't modify the attachment.
-func TestBlipDeltaSyncPushAttachment(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
-
-	if !base.IsEnterpriseEdition() {
-		t.Skip("Delta test requires EE")
-	}
-
-	const docID = "pushAttachmentDoc"
-
-	rt := NewRestTester(t, &RestTesterConfig{
-		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			DeltaSync: &DeltaSyncConfig{
-				Enabled: base.BoolPtr(true),
-			},
-		}},
-		guestEnabled: true,
-	})
-	defer rt.Close()
-
-	btc, err := NewBlipTesterClientOptsWithRT(t, rt, nil)
-	require.NoError(t, err)
-	defer btc.Close()
-
-	// Push first rev
-	revID, err := btc.PushRev(docID, "", []byte(`{"key":"val"}`))
-	require.NoError(t, err)
-
-	// Push second rev with an attachment (no delta yet)
-	attData := base64.StdEncoding.EncodeToString([]byte("attach"))
-	revID, err = btc.PushRev(docID, revID, []byte(`{"key":"val","_attachments":{"myAttachment":{"data":"`+attData+`"}}}`))
-	require.NoError(t, err)
-
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), docID)
-	require.NoError(t, err)
-
-	assert.Len(t, syncData.Attachments, 1)
-	_, found := syncData.Attachments["myAttachment"]
-	assert.True(t, found)
-
-	// Turn deltas on
-	btc.ClientDeltas = true
-
-	// Get existing body with the stub attachment, insert a new property and push as delta.
-	body, found := btc.GetRev(docID, revID)
-	require.True(t, found)
-	newBody, err := base.InjectJSONPropertiesFromBytes(body, base.KVPairBytes{Key: "update", Val: []byte(`true`)})
-	require.NoError(t, err)
-	revID, err = btc.PushRev(docID, revID, newBody)
-	require.NoError(t, err)
-
-	syncData, err = rt.GetDatabase().GetDocSyncData(base.TestCtx(t), docID)
-	require.NoError(t, err)
-
-	assert.Len(t, syncData.Attachments, 1)
-	_, found = syncData.Attachments["myAttachment"]
-	assert.True(t, found)
-}
-
-// Test pushing and pulling new attachments through delta sync
-// 1. Create test client that have deltas enabled
-// 2. Start continuous push and pull replication in client
-// 3. Make sure that sync gateway is running with delta sync on, in enterprise edition
-// 4. Create doc with attachment in SGW
-// 5. Update doc in the test client by adding another attachment
-// 6. Have that update pushed using delta sync via the continuous replication started in step 2
-func TestBlipDeltaSyncPushPullNewAttachment(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
-	if !base.IsEnterpriseEdition() {
-		t.Skip("Delta test requires EE")
-	}
-	rtConfig := RestTesterConfig{
-		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			DeltaSync: &DeltaSyncConfig{
-				Enabled: base.BoolPtr(true),
-			},
-		}},
-		guestEnabled: true,
-	}
-	rt := NewRestTester(t, &rtConfig)
-	defer rt.Close()
-
-	btc, err := NewBlipTesterClientOptsWithRT(t, rt, nil)
-	require.NoError(t, err)
-	defer btc.Close()
-
-	btc.ClientDeltas = true
-	err = btc.StartPull()
-	assert.NoError(t, err)
-	const docId = "doc1"
-
-	// Create doc1 rev 1-77d9041e49931ceef58a1eef5fd032e8 on SG with an attachment
-	bodyText := `{"greetings":[{"hi": "alice"}],"_attachments":{"hello.txt":{"data":"aGVsbG8gd29ybGQ="}}}`
-	response := rt.SendAdminRequest(http.MethodPut, "/db/"+docId, bodyText)
-	assert.Equal(t, http.StatusCreated, response.Code)
-
-	// Wait for the document to be replicated at the client
-	revId := respRevID(t, response)
-	data, ok := btc.WaitForRev(docId, revId)
-	assert.True(t, ok)
-	bodyTextExpected := `{"greetings":[{"hi":"alice"}],"_attachments":{"hello.txt":{"revpos":1,"length":11,"stub":true,"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0="}}}`
-	require.JSONEq(t, bodyTextExpected, string(data))
-
-	// Update the replicated doc at client by adding another attachment.
-	bodyText = `{"greetings":[{"hi":"alice"}],"_attachments":{"hello.txt":{"revpos":1,"length":11,"stub":true,"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0="},"world.txt":{"data":"bGVsbG8gd29ybGQ="}}}`
-	revId, err = btc.PushRev(docId, revId, []byte(bodyText))
-	require.NoError(t, err)
-	assert.Equal(t, "2-abc", revId)
-
-	// Wait for the document to be replicated at SG
-	_, ok = btc.pushReplication.WaitForMessage(2)
-	assert.True(t, ok)
-
-	resp := rt.SendAdminRequest(http.MethodGet, "/db/"+docId+"?rev="+revId, "")
-	assert.Equal(t, http.StatusOK, resp.Code)
-	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
-
-	assert.Equal(t, docId, respBody[db.BodyId])
-	assert.Equal(t, "2-abc", respBody[db.BodyRev])
-	greetings := respBody["greetings"].([]interface{})
-	assert.Len(t, greetings, 1)
-	assert.Equal(t, map[string]interface{}{"hi": "alice"}, greetings[0])
-
-	attachments, ok := respBody[db.BodyAttachments].(map[string]interface{})
-	require.True(t, ok)
-	assert.Len(t, attachments, 2)
-	hello, ok := attachments["hello.txt"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0=", hello["digest"])
-	assert.Equal(t, float64(11), hello["length"])
-	assert.Equal(t, float64(1), hello["revpos"])
-	assert.Equal(t, true, hello["stub"])
-
-	world, ok := attachments["world.txt"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "sha1-qiF39gVoGPFzpRQkNYcY9u3wx9Y=", world["digest"])
-	assert.Equal(t, float64(11), world["length"])
-	assert.Equal(t, float64(2), world["revpos"])
-	assert.Equal(t, true, world["stub"])
 }
 
 // Test pushing and pulling v2 attachments with v2 client
@@ -3118,7 +2763,7 @@ func TestBlipPushPullV2AttachmentV2Client(t *testing.T) {
 	resp := rt.SendAdminRequest(http.MethodGet, "/db/"+docId+"?rev="+revId, "")
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
+	assert.NoError(t, json.Unmarshal(resp.Body.Bytes(), &respBody))
 
 	assert.Equal(t, docId, respBody[db.BodyId])
 	assert.Equal(t, "2-abc", respBody[db.BodyRev])
@@ -3194,7 +2839,7 @@ func TestBlipPushPullV2AttachmentV3Client(t *testing.T) {
 	resp := rt.SendAdminRequest(http.MethodGet, "/db/"+docId+"?rev="+revId, "")
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
+	assert.NoError(t, json.Unmarshal(resp.Body.Bytes(), &respBody))
 
 	assert.Equal(t, docId, respBody[db.BodyId])
 	assert.Equal(t, "2-abc", respBody[db.BodyRev])
@@ -3689,7 +3334,7 @@ func TestBlipPushPullNewAttachmentCommonAncestor(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 
 	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
+	assert.NoError(t, json.Unmarshal(resp.Body.Bytes(), &respBody))
 
 	assert.Equal(t, docId, respBody[db.BodyId])
 	assert.Equal(t, "4-abc", respBody[db.BodyRev])
@@ -3749,7 +3394,7 @@ func TestBlipPushPullNewAttachmentNoCommonAncestor(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 
 	var respBody db.Body
-	assert.NoError(t, base.JSONUnmarshal(resp.Body.Bytes(), &respBody))
+	assert.NoError(t, json.Unmarshal(resp.Body.Bytes(), &respBody))
 
 	assert.Equal(t, docId, respBody[db.BodyId])
 	assert.Equal(t, "4-abc", respBody[db.BodyRev])
@@ -3835,7 +3480,7 @@ func TestMultipleOutstandingChangesSubscriptions(t *testing.T) {
 			// Send an empty response to avoid the Sync: Invalid response to 'changes' message
 			response := request.Response()
 			emptyResponseVal := []interface{}{}
-			emptyResponseValBytes, err := base.JSONMarshal(emptyResponseVal)
+			emptyResponseValBytes, err := json.Marshal(emptyResponseVal)
 			assert.NoError(t, err, "Error marshalling response")
 			response.SetBody(emptyResponseValBytes)
 		}

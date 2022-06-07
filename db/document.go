@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -203,7 +204,7 @@ func (doc *Document) MarshalBodyAndSync() (retBytes []byte, err error) {
 	if doc._rawBody != nil {
 		return base.InjectJSONProperties(doc._rawBody, base.KVPair{Key: base.SyncPropertyName, Val: doc.SyncData})
 	} else {
-		return base.JSONMarshal(doc)
+		return json.Marshal(doc)
 	}
 }
 
@@ -277,7 +278,7 @@ func (doc *Document) GetDeepMutableBody() (Body, error) {
 			return nil, fmt.Errorf("Unable to get document body due to an empty raw body and body in the document")
 		}
 		var err error
-		doc._rawBody, err = base.JSONMarshal(doc._body)
+		doc._rawBody, err = json.Marshal(doc._body)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to marshal document body into raw body : %w", err)
 		}
@@ -317,7 +318,7 @@ func (doc *Document) BodyBytes() ([]byte, error) {
 		return nil, nil
 	}
 
-	bodyBytes, err := base.JSONMarshal(doc._body)
+	bodyBytes, err := json.Marshal(doc._body)
 	if err != nil {
 		return nil, pkgerrors.Wrapf(err, "Error marshalling document body")
 	}
@@ -335,7 +336,7 @@ func (doc *Document) GetMetaMap(userXattrKey string) (map[string]interface{}, er
 		var userXattr interface{}
 
 		if len(doc.rawUserXattr) > 0 {
-			err := base.JSONUnmarshal(doc.rawUserXattr, &userXattr)
+			err := json.Unmarshal(doc.rawUserXattr, &userXattr)
 			if err != nil {
 				return nil, err
 			}
@@ -365,7 +366,7 @@ func userXattrCrc32cHash(userXattr []byte) string {
 func unmarshalDocument(docid string, data []byte) (*Document, error) {
 	doc := NewDocument(docid)
 	if len(data) > 0 {
-		decoder := base.JSONDecoder(bytes.NewReader(data))
+		decoder := json.NewDecoder(bytes.NewReader(data))
 		decoder.UseNumber()
 		if err := decoder.Decode(doc); err != nil {
 			return nil, pkgerrors.Wrapf(err, "Error unmarshalling doc.")
@@ -407,7 +408,7 @@ func UnmarshalDocumentSyncData(data []byte, needHistory bool) (*SyncData, error)
 	if needHistory {
 		root.SyncData = &SyncData{History: make(RevTree)}
 	}
-	if err := base.JSONUnmarshal(data, &root); err != nil {
+	if err := json.Unmarshal(data, &root); err != nil {
 		return nil, err
 	}
 	if root.SyncData != nil && root.SyncData.Deleted_OLD {
@@ -442,7 +443,7 @@ func UnmarshalDocumentSyncDataFromFeed(data []byte, dataType uint8, userXattrKey
 			if needHistory {
 				result.History = make(RevTree)
 			}
-			err = base.JSONUnmarshal(syncXattr, result)
+			err = json.Unmarshal(syncXattr, result)
 			if err != nil {
 				return nil, nil, nil, nil, err
 			}
@@ -1007,7 +1008,7 @@ func (doc *Document) IsChannelRemoval(revID string) (bodyBytes []byte, history R
 	activeChannels := make(base.Set)
 	// Add active channels to the channel set if the the revision is available in the revision tree.
 	if revInfo, ok := doc.History[revID]; ok {
-		for channel, _ := range revInfo.Channels {
+		for channel := range revInfo.Channels {
 			activeChannels[channel] = struct{}{}
 		}
 	}
@@ -1073,7 +1074,7 @@ func (doc *Document) UnmarshalJSON(data []byte) error {
 
 	// Unmarshal only sync data (into a typed struct)
 	syncData := documentRoot{SyncData: &SyncData{History: make(RevTree)}}
-	err := base.JSONUnmarshal(data, &syncData)
+	err := json.Unmarshal(data, &syncData)
 	if err != nil {
 		return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalJSON() doc with id: %s.  Error: %v", base.UD(doc.ID), err))
 	}
@@ -1103,7 +1104,7 @@ func (doc *Document) MarshalJSON() (data []byte, err error) {
 			body = Body{}
 		}
 		body[base.SyncPropertyName] = &doc.SyncData
-		data, err = base.JSONMarshal(body)
+		data, err = json.Marshal(body)
 		delete(body, base.SyncPropertyName)
 		if err != nil {
 			err = pkgerrors.WithStack(base.RedactErrorf("Failed to MarshalJSON() doc with id: %s.  Error: %v", base.UD(doc.ID), err))
@@ -1126,7 +1127,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 	case DocUnmarshalAll, DocUnmarshalSync:
 		// Unmarshal full document and/or sync metadata
 		doc.SyncData = SyncData{History: make(RevTree)}
-		unmarshalErr := base.JSONUnmarshal(xdata, &doc.SyncData)
+		unmarshalErr := json.Unmarshal(xdata, &doc.SyncData)
 		if unmarshalErr != nil {
 			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalAll/Sync).  Error: %v", base.UD(doc.ID), unmarshalErr))
 		}
@@ -1139,7 +1140,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 	case DocUnmarshalNoHistory:
 		// Unmarshal sync metadata only, excluding history
 		doc.SyncData = SyncData{}
-		unmarshalErr := base.JSONUnmarshal(xdata, &doc.SyncData)
+		unmarshalErr := json.Unmarshal(xdata, &doc.SyncData)
 		if unmarshalErr != nil {
 			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalNoHistory).  Error: %v", base.UD(doc.ID), unmarshalErr))
 		}
@@ -1147,7 +1148,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 	case DocUnmarshalRev:
 		// Unmarshal only rev and cas from sync metadata
 		var revOnlyMeta revOnlySyncData
-		unmarshalErr := base.JSONUnmarshal(xdata, &revOnlyMeta)
+		unmarshalErr := json.Unmarshal(xdata, &revOnlyMeta)
 		if unmarshalErr != nil {
 			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalRev).  Error: %v", base.UD(doc.ID), unmarshalErr))
 		}
@@ -1159,7 +1160,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 	case DocUnmarshalCAS:
 		// Unmarshal only cas from sync metadata
 		var casOnlyMeta casOnlySyncData
-		unmarshalErr := base.JSONUnmarshal(xdata, &casOnlyMeta)
+		unmarshalErr := json.Unmarshal(xdata, &casOnlyMeta)
 		if unmarshalErr != nil {
 			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalCAS).  Error: %v", base.UD(doc.ID), unmarshalErr))
 		}
@@ -1193,7 +1194,7 @@ func (doc *Document) MarshalWithXattr() (data []byte, xdata []byte, err error) {
 			//       when running 'TestGetRemovedAndDeleted' and 'TestNoConflictsMode' for some reason...
 			deleted, _ := body[BodyDeleted].(bool)
 			if !deleted {
-				data, err = base.JSONMarshal(body)
+				data, err = json.Marshal(body)
 				if err != nil {
 					return nil, nil, pkgerrors.WithStack(base.RedactErrorf("Failed to MarshalWithXattr() doc body with id: %s.  Error: %v", base.UD(doc.ID), err))
 				}
@@ -1201,7 +1202,7 @@ func (doc *Document) MarshalWithXattr() (data []byte, xdata []byte, err error) {
 		}
 	}
 
-	xdata, err = base.JSONMarshal(doc.SyncData)
+	xdata, err = json.Marshal(doc.SyncData)
 	if err != nil {
 		return nil, nil, pkgerrors.WithStack(base.RedactErrorf("Failed to MarshalWithXattr() doc SyncData with id: %s.  Error: %v", base.UD(doc.ID), err))
 	}

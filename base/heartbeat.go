@@ -12,6 +12,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -482,7 +483,7 @@ func (dh *documentBackedListener) loadNodeIDs() error {
 	}
 
 	// Update the in-memory list and cas
-	if unmarshalErr := JSONUnmarshal(docBytes, &dh.nodeIDs); unmarshalErr != nil {
+	if unmarshalErr := json.Unmarshal(docBytes, &dh.nodeIDs); unmarshalErr != nil {
 		return unmarshalErr
 	}
 	dh.cas = cas

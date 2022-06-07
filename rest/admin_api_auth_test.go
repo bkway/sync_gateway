@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -211,7 +212,7 @@ func TestCheckPermissionsWithX509(t *testing.T) {
 	eps, httpClient, err := ctx.ObtainManagementEndpointsAndHTTPClient()
 	assert.NoError(t, err)
 
-	statusCode, _, err := CheckPermissions(httpClient, eps, "", base.TestClusterUsername(), base.TestClusterPassword(), []Permission{Permission{"!admin", false}}, nil)
+	statusCode, _, err := CheckPermissions(httpClient, eps, "", base.TestClusterUsername(), base.TestClusterPassword(), []Permission{{"!admin", false}}, nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, statusCode)
@@ -528,7 +529,7 @@ func TestAdminAPIAuth(t *testing.T) {
 	// init RT bucket so we can get the config
 	_ = rt.Bucket()
 	dbConfig := rt.DatabaseConfig
-	dbConfigRaw, err := base.JSONMarshal(dbConfig)
+	dbConfigRaw, err := json.Marshal(dbConfig)
 	require.NoError(t, err)
 
 	endPoints := []struct {

@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -120,7 +121,7 @@ func (h *handler) updateChangesOptionsFromQuery(feed *string, options *db.Change
 		docidsParam := h.getQuery("doc_ids")
 		if docidsParam != "" {
 			var querydocidKeys []string
-			err := base.JSONUnmarshal([]byte(docidsParam), &querydocidKeys)
+			err := json.Unmarshal([]byte(docidsParam), &querydocidKeys)
 			if err == nil {
 				if len(querydocidKeys) > 0 {
 					docIdsArray = querydocidKeys
@@ -189,7 +190,7 @@ func (h *handler) handleChanges() error {
 		docidsParam := h.getQuery("doc_ids")
 		if docidsParam != "" {
 			var docidKeys []string
-			err := base.JSONUnmarshal([]byte(docidsParam), &docidKeys)
+			err := json.Unmarshal([]byte(docidsParam), &docidKeys)
 			if err == nil {
 				if len(docidKeys) > 0 {
 					docIdsArray = docidKeys
@@ -384,7 +385,7 @@ func (h *handler) sendSimpleChanges(channels base.Set, options db.ChangesOptions
 			base.InfofCtx(h.db.Ctx, base.KeyChanges, "simple changes cannot get Close Notifier from ResponseWriter")
 		}
 
-		encoder := base.JSONEncoderCanonical(h.response)
+		encoder := json.NewEncoder(h.response)
 	loop:
 		for {
 			select {
@@ -463,7 +464,7 @@ func (h *handler) sendContinuousChangesByHTTP(inChannels base.Set, options db.Ch
 		var err error
 		if changes != nil {
 			for _, change := range changes {
-				data, _ := base.JSONMarshal(change)
+				data, _ := json.Marshal(change)
 				if _, err = h.response.Write(data); err != nil {
 					break
 				}
@@ -524,10 +525,10 @@ func (h *handler) sendContinuousChangesByWebSocket(inChannels base.Set, options 
 		_, forceClose = h.generateContinuousChanges(inChannels, wsoptions, func(changes []*db.ChangeEntry) error {
 			var data []byte
 			if changes != nil {
-				data, _ = base.JSONMarshal(changes)
+				data, _ = json.Marshal(changes)
 			} else if !caughtUp {
 				caughtUp = true
-				data, _ = base.JSONMarshal([]*db.ChangeEntry{})
+				data, _ = json.Marshal([]*db.ChangeEntry{})
 			} else {
 				data = []byte{}
 			}
@@ -578,7 +579,7 @@ func (h *handler) readChangesOptionsFromJSON(jsonData []byte) (feed string, opti
 		input.Since = h.db.CreateZeroSinceValue()
 	}
 
-	if err = base.JSONUnmarshal(jsonData, &input); err != nil {
+	if err = json.Unmarshal(jsonData, &input); err != nil {
 		return
 	}
 	feed = input.Feed

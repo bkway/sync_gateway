@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -63,7 +64,7 @@ func (b *Body) Unmarshal(data []byte) error {
 	}
 
 	// Use decoder for unmarshalling to preserve large numbers
-	decoder := base.JSONDecoder(bytes.NewReader(data))
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	if err := decoder.Decode(b); err != nil {
 		return err
@@ -341,7 +342,7 @@ func (body Body) FixJSONNumbers() {
 func CreateRevID(generation int, parentRevID string, body Body) (string, error) {
 	// This should produce the same results as TouchDB.
 	strippedBody, _ := stripInternalProperties(body)
-	encoding, err := base.JSONMarshalCanonical(strippedBody)
+	encoding, err := json.Marshal(strippedBody)
 	if err != nil {
 		return "", err
 	}

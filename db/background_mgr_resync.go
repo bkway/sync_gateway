@@ -9,6 +9,7 @@
 package db
 
 import (
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 
@@ -82,6 +83,6 @@ func (r *ResyncManager) GetProcessStatus(backgroundManagerStatus BackgroundManag
 		DocsProcessed:           r.DocsProcessed,
 	}
 
-	statusJSON, err := base.JSONMarshal(retStatus)
+	statusJSON, err := json.Marshal(retStatus)
 	return statusJSON, nil, err
 }

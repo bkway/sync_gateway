@@ -12,6 +12,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -81,7 +82,7 @@ func (db *Database) ImportDoc(docid string, existingDoc *Document, isDelete bool
 		existingBucketDoc.Xattr = nil
 	} else {
 		if existingDoc.Deleted {
-			existingBucketDoc.Xattr, err = base.JSONMarshal(existingDoc.SyncData)
+			existingBucketDoc.Xattr, err = json.Marshal(existingDoc.SyncData)
 		} else {
 			existingBucketDoc.Body, existingBucketDoc.Xattr, err = existingDoc.MarshalWithXattr()
 		}
@@ -263,7 +264,7 @@ func (db *Database) importDoc(docid string, body Body, expiry *uint32, isDelete 
 		} else {
 			var bodyWithoutInternalProps Body
 			bodyWithoutInternalProps, wasStripped = stripInternalProperties(body)
-			rawBodyForRevID, err = base.JSONMarshalCanonical(bodyWithoutInternalProps)
+			rawBodyForRevID, err = json.Marshal(bodyWithoutInternalProps)
 			if err != nil {
 				return nil, nil, false, nil, err
 			}

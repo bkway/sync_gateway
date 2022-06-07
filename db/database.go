@@ -10,6 +10,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -24,7 +25,6 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
-	pkgerrors "github.com/pkg/errors"
 )
 
 const (
@@ -380,16 +380,7 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 
 	// Initialize sg cluster config.  Required even if import and sgreplicate are disabled
 	// on this node, to support replication REST API calls
-	if base.IsEnterpriseEdition() {
-		sgCfg, err := base.NewCfgSG(dbContext.Bucket, dbContext.Options.GroupID)
-		if err != nil {
-			return nil, err
-		}
-		dbContext.changeCache.cfgEventCallback = sgCfg.FireEvent
-		dbContext.CfgSG = sgCfg
-	} else {
-		dbContext.CfgSG = cbgt.NewCfgMem()
-	}
+	dbContext.CfgSG = cbgt.NewCfgMem()
 
 	// Initialize sg-replicate manager
 	dbContext.SGReplicateMgr, err = NewSGReplicateManager(dbContext, dbContext.CfgSG)
@@ -399,29 +390,6 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 
 	importEnabled := dbContext.UseXattrs() && dbContext.autoImport
 	sgReplicateEnabled := dbContext.Options.SGReplicateOptions.Enabled
-
-	// Initialize node heartbeater in EE mode if sg-replicate or import enabled on the node.  This node must start
-	// sending heartbeats before registering itself to the cfg, to avoid triggering immediate removal by other active nodes.
-	if base.IsEnterpriseEdition() && (importEnabled || sgReplicateEnabled) {
-		// Create heartbeater
-		heartbeaterPrefix := base.SyncPrefix
-		if dbContext.Options.GroupID != "" {
-			heartbeaterPrefix = heartbeaterPrefix + dbContext.Options.GroupID + ":"
-		}
-		heartbeater, err := base.NewCouchbaseHeartbeater(bucket, heartbeaterPrefix, dbContext.UUID)
-		if err != nil {
-			return nil, pkgerrors.Wrapf(err, "Error starting heartbeater for bucket %s", base.MD(bucket.GetName()).Redact())
-		}
-		err = heartbeater.StartSendingHeartbeats()
-		if err != nil {
-			return nil, err
-		}
-		dbContext.Heartbeater = heartbeater
-
-		cleanupFunctions = append(cleanupFunctions, func() {
-			dbContext.Heartbeater.Stop()
-		})
-	}
 
 	// If sgreplicate is enabled on this node, register this node to accept notifications
 	if sgReplicateEnabled {
@@ -1253,14 +1221,14 @@ func (dbCtx *DatabaseContext) UpdateSyncFun(syncFun string) (changed bool, err e
 	_, err = dbCtx.Bucket.Update(base.SyncDataKeyWithGroupID(dbCtx.Options.GroupID), 0, func(currentValue []byte) ([]byte, *uint32, bool, error) {
 		// The first time opening a new db, currentValue will be nil. Don't treat this as a change.
 		if currentValue != nil {
-			parseErr := base.JSONUnmarshal(currentValue, &syncData)
+			parseErr := json.Unmarshal(currentValue, &syncData)
 			if parseErr != nil || syncData.Sync != syncFun {
 				changed = true
 			}
 		}
 		if changed || currentValue == nil {
 			syncData.Sync = syncFun
-			bytes, err := base.JSONMarshal(syncData)
+			bytes, err := json.Marshal(syncData)
 			return bytes, nil, false, err
 		} else {
 			return nil, nil, false, base.ErrUpdateCancel // value unchanged, no need to save
@@ -1438,7 +1406,7 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 							updatedDoc.UpdateExpiry(*updatedExpiry)
 						}
 
-						updatedBytes, marshalErr := base.JSONMarshal(updatedDoc)
+						updatedBytes, marshalErr := json.Marshal(updatedDoc)
 						return updatedBytes, updatedExpiry, false, marshalErr
 					} else {
 						return nil, nil, false, base.ErrUpdateCancel

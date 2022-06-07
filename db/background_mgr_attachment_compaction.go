@@ -9,6 +9,7 @@
 package db
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -66,7 +67,7 @@ func (a *AttachmentCompactionManager) Init(options map[string]interface{}, clust
 
 	if clusterStatus != nil {
 		var statusDoc AttachmentManagerStatusDoc
-		err := base.JSONUnmarshal(clusterStatus, &statusDoc)
+		err := json.Unmarshal(clusterStatus, &statusDoc)
 
 		reset, ok := options["reset"].(bool)
 		if reset && ok {
@@ -184,12 +185,12 @@ func (a *AttachmentCompactionManager) GetProcessStatus(status BackgroundManagerS
 		VBUUIDs: a.VBUUIDs,
 	}
 
-	statusJSON, err := base.JSONMarshal(response)
+	statusJSON, err := json.Marshal(response)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	metaJSON, err := base.JSONMarshal(meta)
+	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		return nil, nil, err
 	}

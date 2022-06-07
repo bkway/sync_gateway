@@ -66,9 +66,7 @@ func setupTestDBForBucketWithOptions(t testing.TB, tBucket base.Bucket, dbcOptio
 
 func setupTestDBWithOptionsAndImport(t testing.TB, dbcOptions DatabaseContextOptions) *Database {
 	AddOptionsFromEnvironmentVariables(&dbcOptions)
-	if dbcOptions.GroupID == "" && base.IsEnterpriseEdition() {
-		dbcOptions.GroupID = t.Name()
-	}
+
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), true, dbcOptions)
 	require.NoError(t, err, "Couldn't create context for database 'db'")
 	db, err := CreateDatabase(context)
@@ -2459,7 +2457,7 @@ func TestTombstoneCompactionStopWithManager(t *testing.T) {
 	var tombstoneCompactionStatus TombstoneManagerResponse
 	status, err := db.TombstoneCompactionManager.GetStatus()
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal(status, &tombstoneCompactionStatus)
+	err = json.Unmarshal(status, &tombstoneCompactionStatus)
 	assert.NoError(t, err)
 
 	// Ensure only 250 docs have been purged which is one iteration of querying - Means stop did terminate the compaction

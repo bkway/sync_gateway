@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"encoding/json"
+
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
@@ -41,7 +43,7 @@ func (dbc *DatabaseConfig) Redacted() (*DatabaseConfig, error) {
 }
 
 func GenerateDatabaseConfigVersionID(previousRevID string, dbConfig *DbConfig) (string, error) {
-	encodedBody, err := base.JSONMarshalCanonical(dbConfig)
+	encodedBody, err := json.Marshal(dbConfig)
 	if err != nil {
 		return "", err
 	}

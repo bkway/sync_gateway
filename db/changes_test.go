@@ -10,6 +10,7 @@ package db
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"testing"
@@ -231,7 +232,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 
 	// Unmarshall into nested maps
 	var x map[string]interface{}
-	assert.NoError(t, base.JSONUnmarshal(rv, &x))
+	assert.NoError(t, json.Unmarshal(rv, &x))
 
 	sync := x[base.SyncXattrName].(map[string]interface{})
 	sync["sequence"] = 3
@@ -248,7 +249,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 	history["channels"] = []base.Set{base.SetOf("A", "B"), base.SetOf("B"), base.SetOf("B")}
 
 	// Marshall back to JSON
-	b, err := base.JSONMarshal(x)
+	b, err := json.Marshal(x)
 
 	// Update raw document in the bucket
 	assert.NoError(t, db.Bucket.SetRaw("alpha", 0, nil, b))
@@ -317,7 +318,7 @@ func TestDocDeletionFromChannelCoalesced(t *testing.T) {
 
 	// Unmarshall into nested maps
 	var x map[string]interface{}
-	assert.NoError(t, base.JSONUnmarshal(rv, &x))
+	assert.NoError(t, json.Unmarshal(rv, &x))
 
 	sync := x[base.SyncXattrName].(map[string]interface{})
 	sync["sequence"] = 3
@@ -330,7 +331,7 @@ func TestDocDeletionFromChannelCoalesced(t *testing.T) {
 	history["channels"] = []base.Set{base.SetOf("A", "B"), base.SetOf("A", "B"), base.SetOf("A", "B")}
 
 	// Marshall back to JSON
-	b, err := base.JSONMarshal(x)
+	b, err := json.Marshal(x)
 
 	// Update raw document in the bucket
 	require.NoError(t, db.Bucket.SetRaw("alpha", 0, nil, b))

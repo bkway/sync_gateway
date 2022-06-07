@@ -530,7 +530,7 @@ func (bh *blipHandler) handleChanges(rq *blip.Message) error {
 	}
 	output := bytes.NewBuffer(make([]byte, 0, 100*len(changeList)))
 	output.Write([]byte("["))
-	jsonOutput := base.JSONEncoder(output)
+	jsonOutput := json.NewEncoder(output)
 	nWritten := 0
 	nRequested := 0
 
@@ -684,7 +684,7 @@ func (bh *blipHandler) handleProposeChanges(rq *blip.Message) error {
 			}
 			if includeConflictRev && status == ProposedRev_Conflict {
 				revEntry := IncludeConflictRevEntry{Status: status, Rev: currentRev}
-				entryBytes, marshalErr := base.JSONMarshal(revEntry)
+				entryBytes, marshalErr := json.Marshal(revEntry)
 				if marshalErr != nil {
 					base.WarnfCtx(bh.loggingCtx, "Unable to marshal proposeChangesEntry as includeConflictRev - falling back to status-only entry.  Error: %v", marshalErr)
 					output.Write([]byte(strconv.FormatInt(int64(status), 10)))
@@ -889,13 +889,15 @@ func (bh *blipHandler) processRev(rq *blip.Message, stats *processRevStats) (err
 		}
 
 		deltaSrcMap := map[string]interface{}(deltaSrcBody)
-		err = base.Patch(&deltaSrcMap, newDoc.Body())
-		// err should only ever be a FleeceDeltaError here - but to be defensive, handle other errors too (e.g. somehow reaching this code in a CE build)
-		if err != nil {
-			// Something went wrong in the diffing library. We want to know about this!
-			base.WarnfCtx(bh.loggingCtx, "Error patching deltaSrc %s with %s for doc %s with delta - err: %v", deltaSrcRevID, revID, base.UD(docID), err)
-			return base.HTTPErrorf(http.StatusUnprocessableEntity, "Error patching deltaSrc with delta: %s", err)
-		}
+
+		// TODO this was removed because of EE, verify this function still called?
+		// err = base.Patch(&deltaSrcMap, newDoc.Body())
+		// // err should only ever be a FleeceDeltaError here - but to be defensive, handle other errors too (e.g. somehow reaching this code in a CE build)
+		// if err != nil {
+		// 	// Something went wrong in the diffing library. We want to know about this!
+		// 	base.WarnfCtx(bh.loggingCtx, "Error patching deltaSrc %s with %s for doc %s with delta - err: %v", deltaSrcRevID, revID, base.UD(docID), err)
+		// 	return base.HTTPErrorf(http.StatusUnprocessableEntity, "Error patching deltaSrc with delta: %s", err)
+		// }
 
 		newDoc.UpdateBody(deltaSrcMap)
 		base.TracefCtx(bh.loggingCtx, base.KeySync, "docID: %s - body after patching: %v", base.UD(docID), base.UD(deltaSrcMap))

@@ -41,7 +41,7 @@ func DefaultStartupConfig(defaultLogFilePath string) StartupConfig {
 			IdleTimeout:                               base.NewConfigDuration(base.DefaultIdleTimeout),
 			AdminInterfaceAuthentication:              base.BoolPtr(true),
 			MetricsInterfaceAuthentication:            base.BoolPtr(true),
-			EnableAdminAuthenticationPermissionsCheck: base.BoolPtr(base.IsEnterpriseEdition()),
+			EnableAdminAuthenticationPermissionsCheck: base.BoolPtr(false), // TODO remove, was only for EE
 		},
 		Logging: base.LoggingConfig{
 			LogFilePath:    defaultLogFilePath,

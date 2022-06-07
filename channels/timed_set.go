@@ -9,6 +9,7 @@
 package channels
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -256,11 +257,11 @@ func (set TimedSet) CompareKeys(other TimedSet) ChangedKeys {
 func (setPtr *TimedSet) UnmarshalJSON(data []byte) error {
 
 	var normalForm map[string]VbSequence
-	if err := base.JSONUnmarshal(data, &normalForm); err != nil {
+	if err := json.Unmarshal(data, &normalForm); err != nil {
 		var sequenceOnlyForm map[string]uint64
-		if err := base.JSONUnmarshal(data, &sequenceOnlyForm); err != nil {
+		if err := json.Unmarshal(data, &sequenceOnlyForm); err != nil {
 			var altForm []string
-			if err2 := base.JSONUnmarshal(data, &altForm); err2 == nil {
+			if err2 := json.Unmarshal(data, &altForm); err2 == nil {
 				set, err := SetFromArray(altForm, KeepStar)
 				if err == nil {
 					*setPtr = AtSequence(set, 0)
@@ -292,11 +293,11 @@ func (set TimedSet) MarshalJSON() ([]byte, error) {
 		// Marshals entries as "ABC":{"vb":5,"seq":1} or "CBS":{"seq":1}, depending on whether VbSequence.VbNo is nil
 		var plainMap map[string]VbSequence
 		plainMap = set
-		return base.JSONMarshal(plainMap)
+		return json.Marshal(plainMap)
 	} else {
 		// Sequence-only form.
 		// Marshals entries as "ABC":1, "CBS":1  - backwards compatibility when vbuckets aren't present.
-		return base.JSONMarshal(set.SequenceOnlySet())
+		return json.Marshal(set.SequenceOnlySet())
 	}
 }
 

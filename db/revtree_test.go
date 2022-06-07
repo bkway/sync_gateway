@@ -9,6 +9,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -95,7 +96,7 @@ func getMultiBranchTestRevtree1(unconflictedBranchNumRevs, winningBranchNumRevs 
 		}`
 
 	revTree := RevTree{}
-	if err := base.JSONUnmarshal([]byte(testJSON), &revTree); err != nil {
+	if err := json.Unmarshal([]byte(testJSON), &revTree); err != nil {
 		panic(fmt.Sprintf("Error: %v", err))
 	}
 
@@ -173,7 +174,7 @@ func getMultiBranchTestRevtree1(unconflictedBranchNumRevs, winningBranchNumRevs 
 
 func testUnmarshal(t *testing.T, jsonString string) RevTree {
 	gotmap := RevTree{}
-	assert.NoError(t, base.JSONUnmarshal([]byte(jsonString), &gotmap), "Couldn't parse RevTree from JSON")
+	assert.NoError(t, json.Unmarshal([]byte(jsonString), &gotmap), "Couldn't parse RevTree from JSON")
 	assert.Equal(t, testmap, gotmap)
 	return gotmap
 }
@@ -216,12 +217,12 @@ func TestRevTreeUnmarshal(t *testing.T) {
 func TestRevTreeUnmarshalRevChannelCountMismatch(t *testing.T) {
 	const testJSON = `{"revs": ["3-three", "2-two", "1-one"], "parents": [1, 2, -1], "bodymap": {"0":"{}"}, "channels": [null, ["ABC", "CBS"]]}`
 	gotmap := RevTree{}
-	err := base.JSONUnmarshal([]byte(testJSON), &gotmap)
+	err := json.Unmarshal([]byte(testJSON), &gotmap)
 	assert.Errorf(t, err, "revtreelist data is invalid, revs/parents/channels counts are inconsistent")
 }
 
 func TestRevTreeMarshal(t *testing.T) {
-	bytes, err := base.JSONMarshal(testmap)
+	bytes, err := json.Marshal(testmap)
 	assert.NoError(t, err, "Couldn't write RevTree to JSON")
 	fmt.Printf("Marshaled RevTree as %s\n", string(bytes))
 	testUnmarshal(t, string(bytes))
@@ -1071,23 +1072,23 @@ func BenchmarkRevtreeUnmarshal(b *testing.B) {
 	doc := Document{
 		ID: "docid",
 	}
-	err := base.JSONUnmarshal([]byte(largeRevTree), &doc)
+	err := json.Unmarshal([]byte(largeRevTree), &doc)
 	assert.NoError(b, err)
-	treeJson, err := base.JSONMarshal(doc.History)
+	treeJson, err := json.Marshal(doc.History)
 	assert.NoError(b, err)
 
 	b.ResetTimer()
 	b.Run("Marshal into revTree", func(b *testing.B) {
 		revTree := RevTree{}
 		for i := 0; i < b.N; i++ {
-			_ = base.JSONUnmarshal(treeJson, &revTree)
+			_ = json.Unmarshal(treeJson, &revTree)
 		}
 	})
 
 	b.Run("Marshal into revTreeList", func(b *testing.B) {
 		revTree := revTreeList{}
 		for i := 0; i < b.N; i++ {
-			_ = base.JSONUnmarshal(treeJson, &revTree)
+			_ = json.Unmarshal(treeJson, &revTree)
 		}
 	})
 }
@@ -1096,7 +1097,7 @@ func addRevs(revTree RevTree, startingParentRevId string, numRevs int, revDigest
 
 	docSizeBytes := 1024 * 5
 	body := createBodyContentAsMapWithSize(docSizeBytes)
-	bodyBytes, err := base.JSONMarshal(body)
+	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		panic(fmt.Sprintf("Error: %v", err))
 	}

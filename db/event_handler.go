@@ -13,6 +13,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -111,7 +112,7 @@ func (wh *Webhook) HandleEvent(event Event) bool {
 		//	"reason":"DB started from config”,
 		//	“state”:"online"
 		//}
-		jsonOut, err := base.JSONMarshal(event.Doc)
+		jsonOut, err := json.Marshal(event.Doc)
 		if err != nil {
 			base.WarnfCtx(logCtx, "Error marshalling doc for webhook post")
 			return false

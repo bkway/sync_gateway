@@ -11,10 +11,10 @@ licenses/APL2.txt.
 package rest
 
 import (
+	"encoding/json"
 	"log"
 	"testing"
 
-	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func TestDocumentUnmarshal(t *testing.T) {
 `
 
 	doc := RestDocument{}
-	err := base.JSONUnmarshal([]byte(jsonContent), &doc)
+	err := json.Unmarshal([]byte(jsonContent), &doc)
 	if err != nil {
 		log.Printf("Error: %v", err)
 	}

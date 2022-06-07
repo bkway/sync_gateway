@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -76,7 +77,7 @@ func BenchmarkReadOps_Get(b *testing.B) {
 	doc1k_putDoc := fmt.Sprintf(doc_1k_format, "")
 	response := rt.SendAdminRequest("PUT", "/db/doc1k", doc1k_putDoc)
 	var body db.Body
-	require.NoError(b, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(b, json.Unmarshal(response.Body.Bytes(), &body))
 	revid := body["rev"].(string)
 
 	// Create user
@@ -136,7 +137,7 @@ func BenchmarkReadOps_GetRevCacheMisses(b *testing.B) {
 		// revid will be the same for all docs
 		if i == 0 {
 			var body db.Body
-			require.NoError(b, base.JSONUnmarshal(response.Body.Bytes(), &body))
+			require.NoError(b, json.Unmarshal(response.Body.Bytes(), &body))
 			revid = body["rev"].(string)
 		}
 	}
@@ -204,7 +205,7 @@ func BenchmarkReadOps_Changes(b *testing.B) {
 	}
 
 	var body db.Body
-	require.NoError(b, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(b, json.Unmarshal(response.Body.Bytes(), &body))
 	revid := body["rev"].(string)
 	_, rev1_digest := db.ParseRevID(revid)
 	response = rt.SendAdminRequest("PUT", fmt.Sprintf("/db/doc1k?rev=%s", revid), doc1k_putDoc)

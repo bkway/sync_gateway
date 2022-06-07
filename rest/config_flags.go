@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"reflect"
@@ -196,7 +197,7 @@ func fillConfigWithFlags(fs *flag.FlagSet, flags map[string]configFlag) error {
 			case *PerDatabaseCredentialsConfig:
 				str := *val.flagValue.(*string)
 				var dbCredentials PerDatabaseCredentialsConfig
-				d := base.JSONDecoder(strings.NewReader(str))
+				d := json.NewDecoder(strings.NewReader(str))
 				d.DisallowUnknownFields()
 				err := d.Decode(&dbCredentials)
 				if err != nil {

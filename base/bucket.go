@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -517,7 +518,7 @@ func getMaxTTL(store CouchbaseStore) (int, error) {
 		return -1, err
 	}
 
-	if err := JSONUnmarshal(respBytes, &bucketResponseWithMaxTTL); err != nil {
+	if err := json.Unmarshal(respBytes, &bucketResponseWithMaxTTL); err != nil {
 		return -1, err
 	}
 
@@ -542,7 +543,7 @@ func getServerUUID(store CouchbaseStore) (uuid string, err error) {
 		ServerUUID string `json:"uuid"`
 	}
 
-	if err := JSONUnmarshal(respBytes, &responseJson); err != nil {
+	if err := json.Unmarshal(respBytes, &responseJson); err != nil {
 		return "", err
 	}
 
@@ -599,7 +600,7 @@ func retrievePurgeInterval(bucket CouchbaseStore, uri string) (time.Duration, er
 		return 0, err
 	}
 
-	if err := JSONUnmarshal(respBytes, &purgeResponse); err != nil {
+	if err := json.Unmarshal(respBytes, &purgeResponse); err != nil {
 		return 0, err
 	}
 

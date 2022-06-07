@@ -11,6 +11,7 @@ package base
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -1154,13 +1155,13 @@ func (bucket *CouchbaseBucketGoCB) GetDDocs() (ddocs map[string]sgbucket.DesignD
 		result[ddoc.Name] = ddoc
 	}
 
-	resultBytes, err := JSONMarshal(result)
+	resultBytes, err := json.Marshal(result)
 	if err != nil {
 		return nil, err
 	}
 
 	// Deserialize []byte into "into" empty interface
-	if err := JSONUnmarshal(resultBytes, &ddocs); err != nil {
+	if err := json.Unmarshal(resultBytes, &ddocs); err != nil {
 		return nil, err
 	}
 
@@ -1186,12 +1187,12 @@ func (bucket *CouchbaseBucketGoCB) GetDDoc(docname string) (ddoc sgbucket.Design
 	}
 
 	// Serialize/deserialize to convert to sgbucket.DesignDoc
-	designDocBytes, err := JSONMarshal(designDocPointer)
+	designDocBytes, err := json.Marshal(designDocPointer)
 	if err != nil {
 		return ddoc, err
 	}
 
-	err = JSONUnmarshal(designDocBytes, &ddoc)
+	err = json.Unmarshal(designDocBytes, &ddoc)
 	return ddoc, err
 
 }
@@ -1267,7 +1268,7 @@ func (bucket *CouchbaseBucketGoCB) putDDocForTombstones(ddoc *gocb.DesignDocumen
 		DesignDocument:         ddoc,
 		IndexXattrOnTombstones: true,
 	}
-	data, err := JSONMarshal(&xattrEnabledDesignDoc)
+	data, err := json.Marshal(&xattrEnabledDesignDoc)
 	if err != nil {
 		return err
 	}
@@ -1642,7 +1643,7 @@ func (bucket *CouchbaseBucketGoCB) APIBucketItemCount() (itemCount int, err erro
 	}
 
 	respJson := map[string]interface{}{}
-	decoder := JSONDecoder(resp.Body)
+	decoder := json.NewDecoder(resp.Body)
 	if err := decoder.Decode(&respJson); err != nil {
 		return -1, err
 	}

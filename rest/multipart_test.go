@@ -13,6 +13,7 @@ package rest
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -23,7 +24,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
 	"github.com/stretchr/testify/assert"
 )
@@ -144,7 +144,7 @@ Content-Disposition: attachment; filename=att.txt
 	assertStatus(t, response, http.StatusOK)
 
 	var body db.Body
-	assert.NoError(t, base.JSONUnmarshal(response.BodyBytes(), &body))
+	assert.NoError(t, json.Unmarshal(response.BodyBytes(), &body))
 	log.Printf("body: %v", body)
 	assert.Equal(t, "doc1", body["_id"])
 	assert.Equal(t, "foo", body["key"])
@@ -172,7 +172,7 @@ func TestWriteJSONPart(t *testing.T) {
 	log.Printf("body: %v", body)
 	buffer := &bytes.Buffer{}
 	writer := multipart.NewWriter(buffer)
-	bytes, _ := base.JSONMarshalCanonical(body)
+	bytes, _ := json.Marshal(body)
 	log.Printf("len(bytes): %v", len(bytes))
 	assert.NoError(t, writeJSONPart(writer, "application/json", body, true))
 	assert.NoError(t, writeJSONPart(writer, "application/json", body, false))

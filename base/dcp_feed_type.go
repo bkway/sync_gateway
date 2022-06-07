@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"github.com/couchbase/cbgt"
@@ -68,7 +69,7 @@ func cbgtFeedParams(spec BucketSpec, dbName string) (string, error) {
 		feedParams.IncludeXAttrs = true
 	}
 
-	paramBytes, err := JSONMarshal(feedParams)
+	paramBytes, err := json.Marshal(feedParams)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +82,7 @@ func cbgtIndexParams(destKey string) (string, error) {
 	indexParams := &SGFeedIndexParams{}
 	indexParams.DestKey = destKey
 
-	paramBytes, err := JSONMarshal(indexParams)
+	paramBytes, err := json.Marshal(indexParams)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +139,7 @@ func addCbgtAuthToDCPParams(dcpParams string) string {
 
 	var sgSourceParams SGFeedSourceParams
 
-	unmarshalErr := JSONUnmarshal([]byte(dcpParams), &sgSourceParams)
+	unmarshalErr := json.Unmarshal([]byte(dcpParams), &sgSourceParams)
 	if unmarshalErr != nil {
 		WarnfCtx(context.Background(), "Unable to unmarshal params provided by cbgt as sgSourceParams: %v", unmarshalErr)
 		return dcpParams
@@ -157,7 +158,7 @@ func addCbgtAuthToDCPParams(dcpParams string) string {
 	}
 
 	var feedParamsWithAuth cbgt.DCPFeedParams
-	unmarshalDCPErr := JSONUnmarshal([]byte(dcpParams), &feedParamsWithAuth)
+	unmarshalDCPErr := json.Unmarshal([]byte(dcpParams), &feedParamsWithAuth)
 	if unmarshalDCPErr != nil {
 		WarnfCtx(context.Background(), "Unable to unmarshal params provided by cbgt as dcpFeedParams: %v", unmarshalDCPErr)
 	}
@@ -166,7 +167,7 @@ func addCbgtAuthToDCPParams(dcpParams string) string {
 	feedParamsWithAuth.AuthUser = username
 	feedParamsWithAuth.AuthPassword = password
 
-	marshalledParamsWithAuth, marshalErr := JSONMarshal(feedParamsWithAuth)
+	marshalledParamsWithAuth, marshalErr := json.Marshal(feedParamsWithAuth)
 	if marshalErr != nil {
 		WarnfCtx(context.Background(), "Unable to marshal updated cbgt dcp params: %v", marshalErr)
 		return dcpParams

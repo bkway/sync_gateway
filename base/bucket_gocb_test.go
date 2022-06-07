@@ -539,7 +539,7 @@ func TestXattrWriteCasSimple(t *testing.T) {
 		val := make(map[string]interface{})
 		val["body_field"] = "1234"
 
-		valBytes, marshalErr := JSONMarshal(val)
+		valBytes, marshalErr := json.Marshal(val)
 		assert.NoError(t, marshalErr, "Error marshalling document body")
 
 		xattrVal := make(map[string]interface{})
@@ -731,12 +731,12 @@ func TestXattrWriteCasRaw(t *testing.T) {
 		xattrName := SyncXattrName
 		val := make(map[string]interface{})
 		val["body_field"] = "1234"
-		valRaw, _ := JSONMarshal(val)
+		valRaw, _ := json.Marshal(val)
 
 		xattrVal := make(map[string]interface{})
 		xattrVal["seq"] = float64(123)
 		xattrVal["rev"] = "1-1234"
-		xattrValRaw, _ := JSONMarshal(xattrVal)
+		xattrValRaw, _ := json.Marshal(xattrVal)
 
 		var existsVal map[string]interface{}
 		_, err := bucket.Get(key, existsVal)
@@ -959,7 +959,7 @@ func TestXattrWriteUpdateXattr(t *testing.T) {
 			var xattrMap map[string]interface{}
 			// Marshal the doc
 			if len(doc) > 0 {
-				err = JSONUnmarshal(doc, &docMap)
+				err = json.Unmarshal(doc, &docMap)
 				if err != nil {
 					return nil, nil, false, nil, pkgerrors.Wrapf(err, "Unable to unmarshal incoming doc")
 				}
@@ -970,7 +970,7 @@ func TestXattrWriteUpdateXattr(t *testing.T) {
 
 			// Marshal the xattr
 			if len(xattr) > 0 {
-				err = JSONUnmarshal(xattr, &xattrMap)
+				err = json.Unmarshal(xattr, &xattrMap)
 				if err != nil {
 					return nil, nil, false, nil, pkgerrors.Wrapf(err, "Unable to unmarshal incoming xattr")
 				}
@@ -995,8 +995,8 @@ func TestXattrWriteUpdateXattr(t *testing.T) {
 				xattrMap["seq"] = float64(1)
 			}
 
-			updatedDoc, _ = JSONMarshal(docMap)
-			updatedXattr, _ = JSONMarshal(xattrMap)
+			updatedDoc, _ = json.Marshal(docMap)
+			updatedXattr, _ = json.Marshal(xattrMap)
 			return updatedDoc, updatedXattr, false, nil, nil
 		}
 
@@ -1048,7 +1048,7 @@ func TestWriteUpdateWithXattrUserXattr(t *testing.T) {
 			var xattrMap map[string]interface{}
 
 			if len(doc) > 0 {
-				err = JSONUnmarshal(xattr, &docMap)
+				err = json.Unmarshal(xattr, &docMap)
 				if err != nil {
 					return nil, nil, false, nil, err
 				}
@@ -1057,7 +1057,7 @@ func TestWriteUpdateWithXattrUserXattr(t *testing.T) {
 			}
 
 			if len(xattr) > 0 {
-				err = JSONUnmarshal(xattr, &xattrMap)
+				err = json.Unmarshal(xattr, &xattrMap)
 				if err != nil {
 					return nil, nil, false, nil, err
 				}
@@ -1067,7 +1067,7 @@ func TestWriteUpdateWithXattrUserXattr(t *testing.T) {
 
 			var userXattrMap map[string]interface{}
 			if len(userXattr) > 0 {
-				err = JSONUnmarshal(userXattr, &userXattrMap)
+				err = json.Unmarshal(userXattr, &userXattrMap)
 				if err != nil {
 					return nil, nil, false, nil, err
 				}
@@ -1077,8 +1077,8 @@ func TestWriteUpdateWithXattrUserXattr(t *testing.T) {
 
 			docMap["userXattrVal"] = userXattrMap
 
-			updatedDoc, _ = JSONMarshal(docMap)
-			updatedXattr, _ = JSONMarshal(xattrMap)
+			updatedDoc, _ = json.Marshal(docMap)
+			updatedXattr, _ = json.Marshal(xattrMap)
 
 			return updatedDoc, updatedXattr, false, nil, nil
 		}

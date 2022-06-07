@@ -673,7 +673,7 @@ func (h *handler) getIntQuery(query string, defaultValue uint64) (value uint64) 
 func (h *handler) getJSONQuery(query string) (value interface{}, err error) {
 	valueJSON := h.getQuery(query)
 	if valueJSON != "" {
-		err = base.JSONUnmarshal([]byte(valueJSON), &value)
+		err = json.Unmarshal([]byte(valueJSON), &value)
 	}
 	return
 }
@@ -682,7 +682,7 @@ func (h *handler) getJSONStringArrayQuery(param string) ([]string, error) {
 	var strings []string
 	value := h.getQuery(param)
 	if value != "" {
-		if err := base.JSONUnmarshal([]byte(value), &strings); err != nil {
+		if err := json.Unmarshal([]byte(value), &strings); err != nil {
 			return nil, base.HTTPErrorf(http.StatusBadRequest, "%s URL param is not a JSON string array", param)
 		}
 	}
@@ -736,7 +736,7 @@ func (h *handler) readSanitizeJSON(val interface{}) error {
 	content = base.ConvertBackQuotedStrings(content)
 
 	// Decode the body bytes into target structure.
-	decoder := base.JSONDecoder(bytes.NewReader(content))
+	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.DisallowUnknownFields()
 	decoder.UseNumber()
 	err = decoder.Decode(&val)
@@ -921,7 +921,7 @@ func (h *handler) writeJSONStatus(status int, value interface{}) {
 		return
 	}
 
-	jsonOut, err := base.JSONMarshalCanonical(value)
+	jsonOut, err := json.Marshal(value)
 	if err != nil {
 		base.WarnfCtx(h.ctx(), "Couldn't serialize JSON for %v : %s", base.UD(value), err)
 		h.writeStatus(http.StatusInternalServerError, "JSON serialization failed")
@@ -987,7 +987,7 @@ func (h *handler) writeWithMimetypeStatus(status int, value []byte, mimetype str
 }
 
 func (h *handler) addJSON(value interface{}) error {
-	encoder := base.JSONEncoderCanonical(h.response)
+	encoder := json.NewEncoder(h.response)
 	err := encoder.Encode(value)
 	if err != nil {
 		brokenPipeError := strings.Contains(err.Error(), "write: broken pipe")

@@ -15,6 +15,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -63,7 +64,7 @@ func TestChangesAccessNotifyInteger(t *testing.T) {
 		}
 		changesJSON := `{"style":"all_docs", "heartbeat":300000, "feed":"longpoll", "limit":50, "since":"0"}`
 		changesResponse := rt.Send(requestByUser("POST", "/db/_changes", changesJSON, "bernard"))
-		err = base.JSONUnmarshal(changesResponse.Body.Bytes(), &changes)
+		err = json.Unmarshal(changesResponse.Body.Bytes(), &changes)
 		assert.Equal(t, 3, len(changes.Results))
 	}()
 
@@ -130,7 +131,7 @@ func TestChangesNotifyChannelFilter(t *testing.T) {
 					 "channels":"ABC,PBS"}`
 	sinceZeroJSON := fmt.Sprintf(changesJSON, "0")
 	changesResponse := rt.Send(requestByUser("POST", "/db/_changes", sinceZeroJSON, "bernard"))
-	err := base.JSONUnmarshal(changesResponse.Body.Bytes(), &initialChanges)
+	err := json.Unmarshal(changesResponse.Body.Bytes(), &initialChanges)
 	assert.NoError(t, err, "Unexpected error unmarshalling initialChanges")
 	lastSeq := initialChanges.Last_Seq.String()
 	assert.Equal(t, "1", lastSeq)
@@ -148,7 +149,7 @@ func TestChangesNotifyChannelFilter(t *testing.T) {
 		}
 		sinceLastJSON := fmt.Sprintf(changesJSON, lastSeq)
 		changesResponse := rt.Send(requestByUser("POST", "/db/_changes", sinceLastJSON, "bernard"))
-		err = base.JSONUnmarshal(changesResponse.Body.Bytes(), &changes)
+		err = json.Unmarshal(changesResponse.Body.Bytes(), &changes)
 		assert.Equal(t, 1, len(changes.Results))
 	}()
 

@@ -12,6 +12,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -154,9 +155,9 @@ func (sw *StatWaiter) Wait() {
 }
 
 func AssertEqualBodies(t *testing.T, expected, actual Body) {
-	expectedCanonical, err := base.JSONMarshalCanonical(expected)
+	expectedCanonical, err := json.Marshal(expected)
 	assert.NoError(t, err)
-	actualCanonical, err := base.JSONMarshalCanonical(actual)
+	actualCanonical, err := json.Marshal(actual)
 	assert.NoError(t, err)
 	assert.Equal(t, string(expectedCanonical), string(actualCanonical))
 }
@@ -330,7 +331,7 @@ func viewBucketReadier(ctx context.Context, b base.Bucket, tbp *base.TestBucketP
 		return err
 	}
 
-	for ddocName, _ := range ddocs {
+	for ddocName := range ddocs {
 		tbp.Logf(ctx, "removing existing view: %s", ddocName)
 		if err := b.DeleteDDoc(ddocName); err != nil {
 			return err

@@ -30,6 +30,8 @@ const (
 	DefaultCouchbaseAdministrator = "Administrator"
 	DefaultCouchbasePassword      = "password"
 
+	DefaultAutoImport = true // Whether Sync Gateway should auto-import docs, if not specified in the config
+
 	// Couchbase 5.x notes:
 	// For every bucket that the tests will create (DefaultTestBucketname, DefaultTestIndexBucketname):
 	//   1. Create an RBAC user with username equal to the bucket name

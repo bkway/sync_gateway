@@ -156,7 +156,7 @@ func FixJSONNumbers(value interface{}) interface{} {
 // "thing" -> "thing"
 func ConvertJSONString(s string) string {
 	var jsonString string
-	err := JSONUnmarshal([]byte(s), &jsonString)
+	err := json.Unmarshal([]byte(s), &jsonString)
 	if err != nil {
 		return s
 	} else {
@@ -166,7 +166,7 @@ func ConvertJSONString(s string) string {
 
 // ConvertToJSONString takes a string, and returns a JSON string, with any illegal characters escaped.
 func ConvertToJSONString(s string) string {
-	b, _ := JSONMarshal(s)
+	b, _ := json.Marshal(s)
 	return string(b)
 }
 
@@ -1349,7 +1349,7 @@ func InjectJSONProperties(b []byte, kvPairs ...KVPair) (new []byte, err error) {
 		case bool:
 			valBytes = []byte(strconv.FormatBool(v))
 		default:
-			valBytes, err = JSONMarshal(kv.Val)
+			valBytes, err = json.Marshal(kv.Val)
 		}
 		if err != nil {
 			return nil, err
@@ -1629,7 +1629,7 @@ func (d ConfigDuration) MarshalJSON() ([]byte, error) {
 
 func (d *ConfigDuration) UnmarshalJSON(b []byte) error {
 	var v interface{}
-	if err := JSONUnmarshal(b, &v); err != nil {
+	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}
 

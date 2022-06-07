@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -103,7 +104,7 @@ func TestAttachmentCompactionRun(t *testing.T) {
 		docID := fmt.Sprintf("testDoc-%d", i)
 		attID := fmt.Sprintf("testAtt-%d", i)
 		attBody := map[string]interface{}{"value": strconv.Itoa(i)}
-		attJSONBody, err := base.JSONMarshal(attBody)
+		attJSONBody, err := json.Marshal(attBody)
 		assert.NoError(t, err)
 		CreateLegacyAttachmentDoc(t, &db.Database{DatabaseContext: rt.GetDatabase()}, docID, []byte("{}"), attID, attJSONBody)
 	}

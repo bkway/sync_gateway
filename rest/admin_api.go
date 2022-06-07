@@ -10,6 +10,7 @@ package rest
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -142,7 +143,7 @@ func getAuthScopeHandleCreateDB(bodyJSON []byte) (string, error) {
 	var body struct {
 		Bucket string `json:"bucket"`
 	}
-	err := base.JSONUnmarshal(bodyJSON, &body)
+	err := json.Unmarshal(bodyJSON, &body)
 	if err != nil {
 		return "", err
 	}
@@ -179,7 +180,7 @@ func (h *handler) handleDbOnline() error {
 
 	input.Delay = kDefaultDBOnlineDelay
 
-	_ = base.JSONUnmarshal(body, &input)
+	_ = json.Unmarshal(body, &input)
 
 	base.InfofCtx(h.ctx(), base.KeyCRUD, "Taking Database : %v, online in %v seconds", base.MD(h.db.Name), input.Delay)
 	go func() {
@@ -463,7 +464,7 @@ func (h *handler) handlePutDbConfig() (err error) {
 		}
 
 		unknownFileKeys := make([]string, 0)
-		for key, _ := range mapDbConfig {
+		for key := range mapDbConfig {
 			if key == "sync" && hasSyncPerm || key == "guest" && hasAuthPerm {
 				continue
 			}
@@ -520,7 +521,7 @@ func (h *handler) handlePutDbConfig() (err error) {
 		bucket, h.server.config.Bootstrap.ConfigGroupID,
 		func(rawBucketConfig []byte) (newConfig []byte, err error) {
 			var bucketDbConfig DatabaseConfig
-			if err := base.JSONUnmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
+			if err := json.Unmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
 				return nil, err
 			}
 
@@ -569,7 +570,7 @@ func (h *handler) handlePutDbConfig() (err error) {
 				return nil, err
 			}
 
-			return base.JSONMarshal(bucketDbConfig)
+			return json.Marshal(bucketDbConfig)
 		})
 	if err != nil {
 		base.WarnfCtx(h.rq.Context(), "Couldn't update config for database - rolling back: %v", err)
@@ -630,7 +631,7 @@ func (h *handler) handleDeleteDbConfigSync() error {
 		bucket, h.server.config.Bootstrap.ConfigGroupID,
 		func(rawBucketConfig []byte) (newConfig []byte, err error) {
 			var bucketDbConfig DatabaseConfig
-			if err := base.JSONUnmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
+			if err := json.Unmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
 				return nil, err
 			}
 
@@ -646,7 +647,7 @@ func (h *handler) handleDeleteDbConfigSync() error {
 			}
 
 			updatedDbConfig = &bucketDbConfig
-			return base.JSONMarshal(bucketDbConfig)
+			return json.Marshal(bucketDbConfig)
 		})
 	if err != nil {
 		return err
@@ -689,7 +690,7 @@ func (h *handler) handlePutDbConfigSync() error {
 		bucket, h.server.config.Bootstrap.ConfigGroupID,
 		func(rawBucketConfig []byte) (newConfig []byte, err error) {
 			var bucketDbConfig DatabaseConfig
-			if err := base.JSONUnmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
+			if err := json.Unmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
 				return nil, err
 			}
 
@@ -711,7 +712,7 @@ func (h *handler) handlePutDbConfigSync() error {
 			}
 
 			updatedDbConfig = &bucketDbConfig
-			return base.JSONMarshal(bucketDbConfig)
+			return json.Marshal(bucketDbConfig)
 		})
 	if err != nil {
 		return err
@@ -777,7 +778,7 @@ func (h *handler) handleDeleteDbConfigImportFilter() error {
 		bucket, h.server.config.Bootstrap.ConfigGroupID,
 		func(rawBucketConfig []byte) (newConfig []byte, err error) {
 			var bucketDbConfig DatabaseConfig
-			if err := base.JSONUnmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
+			if err := json.Unmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
 				return nil, err
 			}
 
@@ -793,7 +794,7 @@ func (h *handler) handleDeleteDbConfigImportFilter() error {
 			}
 
 			updatedDbConfig = &bucketDbConfig
-			return base.JSONMarshal(bucketDbConfig)
+			return json.Marshal(bucketDbConfig)
 		})
 	if err != nil {
 		return err
@@ -837,7 +838,7 @@ func (h *handler) handlePutDbConfigImportFilter() error {
 		bucket, h.server.config.Bootstrap.ConfigGroupID,
 		func(rawBucketConfig []byte) (newConfig []byte, err error) {
 			var bucketDbConfig DatabaseConfig
-			if err := base.JSONUnmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
+			if err := json.Unmarshal(rawBucketConfig, &bucketDbConfig); err != nil {
 				return nil, err
 			}
 
@@ -858,7 +859,7 @@ func (h *handler) handlePutDbConfigImportFilter() error {
 			}
 
 			updatedDbConfig = &bucketDbConfig
-			return base.JSONMarshal(bucketDbConfig)
+			return json.Marshal(bucketDbConfig)
 		})
 	if err != nil {
 		return err
@@ -1090,11 +1091,11 @@ func (h *handler) handleSetLogging() error {
 	}
 
 	var keys map[string]bool
-	if err := base.JSONUnmarshal(body, &keys); err != nil {
+	if err := json.Unmarshal(body, &keys); err != nil {
 
 		// return a better error if a user is setting log level inside the body
 		var logLevel map[string]string
-		if err := base.JSONUnmarshal(body, &logLevel); err == nil {
+		if err := json.Unmarshal(body, &logLevel); err == nil {
 			if _, ok := logLevel["logLevel"]; ok {
 				return base.HTTPErrorf(http.StatusBadRequest, "Can't set log level in body, please use \"logLevel\" query parameter instead.")
 			}
@@ -1134,7 +1135,7 @@ func (h *handler) handleSGCollect() error {
 	}
 
 	var params sgCollectOptions
-	if err = base.JSONUnmarshal(body, &params); err != nil {
+	if err = json.Unmarshal(body, &params); err != nil {
 		return base.HTTPErrorf(http.StatusBadRequest, "Unable to parse request body: %v", err)
 	}
 
@@ -1193,7 +1194,7 @@ func marshalPrincipal(princ auth.Principal, includeDynamicGrantInfo bool) ([]byt
 			info.Channels = princ.Channels().AsSet()
 		}
 	}
-	return base.JSONMarshal(info)
+	return json.Marshal(info)
 }
 
 // Handles PUT and POST for a user or a role.
@@ -1203,7 +1204,7 @@ func (h *handler) updatePrincipal(name string, isUser bool) error {
 	body, _ := h.readBody()
 	var newInfo db.PrincipalConfig
 	var err error
-	if err = base.JSONUnmarshal(body, &newInfo); err != nil {
+	if err = json.Unmarshal(body, &newInfo); err != nil {
 		return err
 	}
 
@@ -1328,7 +1329,7 @@ func (h *handler) getUsers() error {
 		if err != nil {
 			return err
 		}
-		bytes, marshalErr = base.JSONMarshal(users)
+		bytes, marshalErr = json.Marshal(users)
 	} else {
 		if h.db.Options.UseViews {
 			return base.HTTPErrorf(http.StatusBadRequest, fmt.Sprintf("Use of %s=false not supported when database has use_views=true", paramNameOnly))
@@ -1337,7 +1338,7 @@ func (h *handler) getUsers() error {
 		if err != nil {
 			return err
 		}
-		bytes, marshalErr = base.JSONMarshal(users)
+		bytes, marshalErr = json.Marshal(users)
 	}
 
 	if marshalErr != nil {
@@ -1352,7 +1353,7 @@ func (h *handler) getRoles() error {
 	if err != nil {
 		return err
 	}
-	bytes, err := base.JSONMarshal(roles)
+	bytes, err := json.Marshal(roles)
 	h.writeRawJSON(bytes)
 	return err
 }
@@ -1474,7 +1475,7 @@ func (h *handler) putReplication() error {
 	body = base.ConvertBackQuotedStrings(body)
 
 	replicationConfig := &db.ReplicationUpsertConfig{}
-	if err := base.JSONUnmarshal(body, replicationConfig); err != nil {
+	if err := json.Unmarshal(body, replicationConfig); err != nil {
 		return err
 	}
 

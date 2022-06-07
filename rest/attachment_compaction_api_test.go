@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -27,7 +28,7 @@ func TestAttachmentCompactionAPI(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 
 	var response db.AttachmentManagerResponse
-	err := base.JSONUnmarshal(resp.BodyBytes(), &response)
+	err := json.Unmarshal(resp.BodyBytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, db.BackgroundProcessStateCompleted, response.State)
 	assert.Equal(t, int64(0), response.MarkedAttachments)
@@ -50,7 +51,7 @@ func TestAttachmentCompactionAPI(t *testing.T) {
 		assertStatus(t, resp, http.StatusOK)
 
 		var response db.AttachmentManagerResponse
-		err = base.JSONUnmarshal(resp.BodyBytes(), &response)
+		err = json.Unmarshal(resp.BodyBytes(), &response)
 		assert.NoError(t, err)
 
 		return response.State == db.BackgroundProcessStateCompleted
@@ -62,7 +63,7 @@ func TestAttachmentCompactionAPI(t *testing.T) {
 		docID := fmt.Sprintf("testDoc-%d", i)
 		attID := fmt.Sprintf("testAtt-%d", i)
 		attBody := map[string]interface{}{"value": strconv.Itoa(i)}
-		attJSONBody, err := base.JSONMarshal(attBody)
+		attJSONBody, err := json.Marshal(attBody)
 		assert.NoError(t, err)
 		CreateLegacyAttachmentDoc(t, &db.Database{DatabaseContext: rt.GetDatabase()}, docID, []byte("{}"), attID, attJSONBody)
 	}
@@ -90,7 +91,7 @@ func TestAttachmentCompactionAPI(t *testing.T) {
 		assertStatus(t, resp, http.StatusOK)
 
 		var response db.AttachmentManagerResponse
-		err = base.JSONUnmarshal(resp.BodyBytes(), &response)
+		err = json.Unmarshal(resp.BodyBytes(), &response)
 		assert.NoError(t, err)
 
 		return response.State == db.BackgroundProcessStateCompleted
@@ -101,7 +102,7 @@ func TestAttachmentCompactionAPI(t *testing.T) {
 	resp = rt.SendAdminRequest("GET", "/db/_compact?type=attachment", "")
 	assertStatus(t, resp, http.StatusOK)
 
-	err = base.JSONUnmarshal(resp.BodyBytes(), &response)
+	err = json.Unmarshal(resp.BodyBytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, db.BackgroundProcessStateCompleted, response.State)
 	assert.Equal(t, int64(20), response.MarkedAttachments)
@@ -124,7 +125,7 @@ func TestAttachmentCompactionAPI(t *testing.T) {
 		assertStatus(t, resp, http.StatusOK)
 
 		var response db.AttachmentManagerResponse
-		err = base.JSONUnmarshal(resp.BodyBytes(), &response)
+		err = json.Unmarshal(resp.BodyBytes(), &response)
 		assert.NoError(t, err)
 
 		return response.State == db.BackgroundProcessStateStopping || response.State == db.BackgroundProcessStateStopped
@@ -163,7 +164,7 @@ func TestAttachmentCompactionPersistence(t *testing.T) {
 	var rt2AttachmentStatus db.AttachmentManagerResponse
 	resp = rt2.SendAdminRequest("GET", "/db/_compact?type=attachment", "")
 	assertStatus(t, resp, http.StatusOK)
-	err := base.JSONUnmarshal(resp.BodyBytes(), &rt2AttachmentStatus)
+	err := json.Unmarshal(resp.BodyBytes(), &rt2AttachmentStatus)
 	assert.NoError(t, err)
 	assert.Equal(t, rt2AttachmentStatus.State, db.BackgroundProcessStateCompleted)
 
@@ -181,7 +182,7 @@ func TestAttachmentCompactionPersistence(t *testing.T) {
 	// Ensure aborted status is present on rt2
 	resp = rt2.SendAdminRequest("GET", "/db/_compact?type=attachment", "")
 	assertStatus(t, resp, http.StatusOK)
-	err = base.JSONUnmarshal(resp.BodyBytes(), &rt2AttachmentStatus)
+	err = json.Unmarshal(resp.BodyBytes(), &rt2AttachmentStatus)
 	assert.NoError(t, err)
 	assert.Equal(t, db.BackgroundProcessStateStopped, rt2AttachmentStatus.State)
 
@@ -263,7 +264,7 @@ func TestAttachmentCompactionReset(t *testing.T) {
 	resp = rt.SendAdminRequest("GET", "/db/_compact?type=attachment", "")
 	assertStatus(t, resp, http.StatusOK)
 	var attachmentStatus db.AttachmentManagerResponse
-	err := base.JSONUnmarshal(resp.BodyBytes(), &attachmentStatus)
+	err := json.Unmarshal(resp.BodyBytes(), &attachmentStatus)
 	assert.NoError(t, err)
 	assert.Equal(t, db.BackgroundProcessStateStopped, attachmentStatus.State)
 
@@ -367,7 +368,7 @@ func TestAttachmentCompactionAbort(t *testing.T) {
 		docID := fmt.Sprintf("testDoc-%d", i)
 		attID := fmt.Sprintf("testAtt-%d", i)
 		attBody := map[string]interface{}{"value": strconv.Itoa(i)}
-		attJSONBody, err := base.JSONMarshal(attBody)
+		attJSONBody, err := json.Marshal(attBody)
 		assert.NoError(t, err)
 		CreateLegacyAttachmentDoc(t, &db.Database{DatabaseContext: rt.GetDatabase()}, docID, []byte("{}"), attID, attJSONBody)
 	}
@@ -388,7 +389,7 @@ func (rt *RestTester) WaitForAttachmentCompactionStatus(t *testing.T, state db.B
 		resp := rt.SendAdminRequest("GET", "/db/_compact?type=attachment", "")
 		assertStatus(t, resp, http.StatusOK)
 
-		err := base.JSONUnmarshal(resp.BodyBytes(), &response)
+		err := json.Unmarshal(resp.BodyBytes(), &response)
 		assert.NoError(t, err)
 
 		return response.State == state
@@ -410,7 +411,7 @@ func CreateLegacyAttachmentDoc(t *testing.T, testDB *db.Database, docID string, 
 	require.NoError(t, err)
 
 	var unmarshalledBody db.Body
-	err = base.JSONUnmarshal(body, &unmarshalledBody)
+	err = json.Unmarshal(body, &unmarshalledBody)
 	require.NoError(t, err)
 
 	_, _, err = testDB.Put(docID, unmarshalledBody)
@@ -427,7 +428,7 @@ func CreateLegacyAttachmentDoc(t *testing.T, testDB *db.Database, docID string, 
 			},
 		}
 
-		attachmentSyncDataBytes, err := base.JSONMarshal(attachmentSyncData)
+		attachmentSyncDataBytes, err := json.Marshal(attachmentSyncData)
 		require.NoError(t, err)
 
 		xattr, err = base.InjectJSONPropertiesFromBytes(xattr, base.KVPairBytes{

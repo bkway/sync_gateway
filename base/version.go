@@ -50,8 +50,8 @@ func init() {
 		if len(versionTokens) > 1 {
 			BuildNumberString = fmt.Sprintf("%s;", versionTokens[1])
 		}
-		LongVersionString = fmt.Sprintf("%s/%s(%s%.7s) %s", buildPlaceholderServerName, BuildVersionString, BuildNumberString, buildPlaceholderVersionCommitSHA, productEditionShortName)
-		VersionString = fmt.Sprintf("%s/%s %s", buildPlaceholderServerName, BuildVersionString, productEditionShortName)
+		LongVersionString = fmt.Sprintf("%s/%s(%s%.7s)", buildPlaceholderServerName, BuildVersionString, BuildNumberString, buildPlaceholderVersionCommitSHA)
+		VersionString = fmt.Sprintf("%s/%s", buildPlaceholderServerName, BuildVersionString)
 		ProductNameString = buildPlaceholderServerName
 	} else {
 		// GitProductName is set via the build script, but may not be set when unit testing.
@@ -59,16 +59,8 @@ func init() {
 		if productName == "" {
 			productName = ProductName
 		}
-		LongVersionString = fmt.Sprintf("%s/%s(%.7s%s) %s", productName, GitBranch, GitCommit, GitDirty, productEditionShortName)
-		VersionString = fmt.Sprintf("%s/%s branch/%s commit/%.7s%s %s", productName, ProductVersionNumber, GitBranch, GitCommit, GitDirty, productEditionShortName)
+		LongVersionString = fmt.Sprintf("%s/%s(%.7s%s)", productName, GitBranch, GitCommit, GitDirty)
+		VersionString = fmt.Sprintf("%s/%s branch/%s commit/%.7s%s", productName, ProductVersionNumber, GitBranch, GitCommit, GitDirty)
 		ProductNameString = productName
 	}
-}
-
-// IsEnterpriseEdition returns true if this Sync Gateway node is enterprise edition.
-// This can be used to restrict config options, etc. at runtime. This should not be
-// used as a conditional around private/EE-only code, as CE builds will fail to compile.
-// Use the cb_sg_enterprise build tag for conditional compilation instead.
-func IsEnterpriseEdition() bool {
-	return productEditionEnterprise == true
 }

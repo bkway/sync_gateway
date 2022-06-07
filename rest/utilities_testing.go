@@ -154,7 +154,7 @@ func (rt *RestTester) Bucket() base.Bucket {
 	}
 
 	// Allow EE-only config even in CE for testing using group IDs.
-	if err := sc.validate(true); err != nil {
+	if err := sc.validate(); err != nil {
 		panic("invalid RestTester StartupConfig: " + err.Error())
 	}
 
@@ -245,7 +245,7 @@ func (rt *RestTester) ServerContext() *ServerContext {
 
 // CreateDatabase is a utility function to create a database through the REST API
 func (rt *RestTester) CreateDatabase(dbName string, config DbConfig) (*TestResponse, error) {
-	dbcJSON, err := base.JSONMarshal(config)
+	dbcJSON, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +255,7 @@ func (rt *RestTester) CreateDatabase(dbName string, config DbConfig) (*TestRespo
 
 // ReplaceDbConfig is a utility function to replace a database config through the REST API
 func (rt *RestTester) ReplaceDbConfig(dbName string, config DbConfig) (*TestResponse, error) {
-	dbcJSON, err := base.JSONMarshal(config)
+	dbcJSON, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (rt *RestTester) ReplaceDbConfig(dbName string, config DbConfig) (*TestResp
 
 // UpsertDbConfig is a utility function to upsert a database through the REST API
 func (rt *RestTester) UpsertDbConfig(dbName string, config DbConfig) (*TestResponse, error) {
-	dbcJSON, err := base.JSONMarshal(config)
+	dbcJSON, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +453,7 @@ func (rt *RestTester) CreateWaitForChangesRetryWorker(numChangesExpected int, ch
 		} else {
 			response = rt.Send(requestByUser("GET", changesUrl, "", username))
 		}
-		err = base.JSONUnmarshal(response.Body.Bytes(), &changes)
+		err = json.Unmarshal(response.Body.Bytes(), &changes)
 		if err != nil {
 			return false, err, nil
 		}
@@ -569,7 +569,7 @@ func (rt *RestTester) WaitForNViewResults(numResultsExpected int, viewUrlPath st
 			return false, fmt.Errorf("Got response code: %d from view call.  Expected 200.", response.Code), sgbucket.ViewResult{}
 		}
 		var result sgbucket.ViewResult
-		_ = base.JSONUnmarshal(response.Body.Bytes(), &result)
+		_ = json.Unmarshal(response.Body.Bytes(), &result)
 
 		if len(result.Rows) >= numResultsExpected {
 			// Got enough results, break out of retry loop
@@ -626,7 +626,7 @@ func (rt *RestTester) GetDBState() string {
 	var body db.Body
 	resp := rt.SendAdminRequest("GET", "/db/", "")
 	assertStatus(rt.tb, resp, 200)
-	require.NoError(rt.tb, base.JSONUnmarshal(resp.Body.Bytes(), &body))
+	require.NoError(rt.tb, json.Unmarshal(resp.Body.Bytes(), &body))
 	return body["state"].(string)
 }
 
@@ -704,7 +704,7 @@ func (rt *RestTester) GetDocumentSequence(key string) (sequence uint64) {
 	}
 
 	var rawResponse RawResponse
-	_ = base.JSONUnmarshal(response.BodyBytes(), &rawResponse)
+	_ = json.Unmarshal(response.BodyBytes(), &rawResponse)
 	return rawResponse.Sync.Sequence
 }
 
@@ -729,7 +729,7 @@ func (r TestResponse) DumpBody() {
 
 func (r TestResponse) GetRestDocument() RestDocument {
 	restDoc := NewRestDocument()
-	err := base.JSONUnmarshal(r.Body.Bytes(), restDoc)
+	err := json.Unmarshal(r.Body.Bytes(), restDoc)
 	if err != nil {
 		panic(fmt.Sprintf("Error parsing body into RestDocument.  Body: %s.  Err: %v", string(r.Body.Bytes()), err))
 	}
@@ -936,7 +936,7 @@ func createBlipTesterWithSpec(tb testing.TB, spec BlipTesterSpec, rt *RestTester
 		}
 
 		// serialize admin channels to json array
-		adminChannelsJson, err := base.JSONMarshal(adminChannels)
+		adminChannelsJson, err := json.Marshal(adminChannels)
 		if err != nil {
 			return nil, err
 		}
@@ -1113,7 +1113,7 @@ func (bt *BlipTester) GetDocAtRev(requestedDocID, requestedDocRev string) (resul
 			// unmarshal into json array
 			changesBatch := [][]interface{}{}
 
-			if err := base.JSONUnmarshal(body, &changesBatch); err != nil {
+			if err := json.Unmarshal(body, &changesBatch); err != nil {
 				panic(fmt.Sprintf("Error unmarshalling changes. Body: %vs.  Error: %v", string(body), err))
 			}
 
@@ -1125,7 +1125,7 @@ func (bt *BlipTester) GetDocAtRev(requestedDocID, requestedDocRev string) (resul
 			}
 
 			response := request.Response()
-			responseValBytes, err := base.JSONMarshal(responseVal)
+			responseValBytes, err := json.Marshal(responseVal)
 			log.Printf("responseValBytes: %s", responseValBytes)
 			if err != nil {
 				panic(fmt.Sprintf("Error marshalling response: %v", err))
@@ -1141,7 +1141,7 @@ func (bt *BlipTester) GetDocAtRev(requestedDocID, requestedDocRev string) (resul
 		defer revsFinishedWg.Done()
 		body, err := request.Body()
 		var doc RestDocument
-		err = base.JSONUnmarshal(body, &doc)
+		err = json.Unmarshal(body, &doc)
 		if err != nil {
 			panic(fmt.Sprintf("Unexpected err: %v", err))
 		}
@@ -1215,7 +1215,7 @@ func (bt *BlipTester) SendRevWithAttachment(input SendRevWithAttachmentInput) (s
 		input.attachmentName: &myAttachment,
 	})
 
-	docBody, err := base.JSONMarshal(doc)
+	docBody, err := json.Marshal(doc)
 	if err != nil {
 		panic(fmt.Sprintf("Error marshalling doc.  Error: %v", err))
 	}
@@ -1302,7 +1302,7 @@ func (bt *BlipTester) GetChanges() (changes [][]interface{}) {
 		// unmarshal into json array
 		changesBatch := [][]interface{}{}
 
-		if err := base.JSONUnmarshal(body, &changesBatch); err != nil {
+		if err := json.Unmarshal(body, &changesBatch); err != nil {
 			panic(fmt.Sprintf("Error unmarshalling changes. Body: %vs.  Error: %v", string(body), err))
 		}
 
@@ -1385,7 +1385,7 @@ func (bt *BlipTester) PullDocs() (docs map[string]RestDocument) {
 			// unmarshal into json array
 			changesBatch := [][]interface{}{}
 
-			if err := base.JSONUnmarshal(body, &changesBatch); err != nil {
+			if err := json.Unmarshal(body, &changesBatch); err != nil {
 				panic(fmt.Sprintf("Error unmarshalling changes. Body: %vs.  Error: %v", string(body), err))
 			}
 
@@ -1397,7 +1397,7 @@ func (bt *BlipTester) PullDocs() (docs map[string]RestDocument) {
 			}
 
 			response := request.Response()
-			responseValBytes, err := base.JSONMarshal(responseVal)
+			responseValBytes, err := json.Marshal(responseVal)
 			log.Printf("responseValBytes: %s", responseValBytes)
 			if err != nil {
 				panic(fmt.Sprintf("Error marshalling response: %v", err))
@@ -1413,7 +1413,7 @@ func (bt *BlipTester) PullDocs() (docs map[string]RestDocument) {
 		defer revsFinishedWg.Done()
 		body, err := request.Body()
 		var doc RestDocument
-		err = base.JSONUnmarshal(body, &doc)
+		err = json.Unmarshal(body, &doc)
 		if err != nil {
 			panic(fmt.Sprintf("Unexpected err: %v", err))
 		}
@@ -1499,7 +1499,7 @@ func (bt *BlipTester) SubscribeToChanges(continuous bool, changes chan<- *blip.M
 			// Send an empty response to avoid the Sync: Invalid response to 'changes' message
 			response := request.Response()
 			emptyResponseVal := []interface{}{}
-			emptyResponseValBytes, err := base.JSONMarshal(emptyResponseVal)
+			emptyResponseValBytes, err := json.Marshal(emptyResponseVal)
 			if err != nil {
 				panic(fmt.Sprintf("Error marshalling response: %v", err))
 			}
@@ -1640,12 +1640,12 @@ func (d RestDocument) GetAttachments() (db.AttachmentMap, error) {
 		for attachmentName, attachmentVal := range rawAttachmentsMap {
 
 			// marshal attachmentVal into a byte array, then unmarshal into a DocAttachment
-			attachmentValMarshalled, err := base.JSONMarshal(attachmentVal)
+			attachmentValMarshalled, err := json.Marshal(attachmentVal)
 			if err != nil {
 				return db.AttachmentMap{}, err
 			}
 			docAttachment := db.DocAttachment{}
-			if err := base.JSONUnmarshal(attachmentValMarshalled, &docAttachment); err != nil {
+			if err := json.Unmarshal(attachmentValMarshalled, &docAttachment); err != nil {
 				return db.AttachmentMap{}, err
 			}
 

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -33,7 +34,7 @@ func TestAttachmentMark(t *testing.T) {
 		docID := fmt.Sprintf("testDoc-%d", i)
 		attKey := fmt.Sprintf("att-%d", i)
 		attBody := map[string]interface{}{"value": strconv.Itoa(i)}
-		attJSONBody, err := base.JSONMarshal(attBody)
+		attJSONBody, err := json.Marshal(attBody)
 		assert.NoError(t, err)
 		attKeys = append(attKeys, CreateLegacyAttachmentDoc(t, testDb, docID, []byte("{}"), attKey, attJSONBody))
 	}
@@ -126,7 +127,7 @@ func TestAttachmentCleanup(t *testing.T) {
 	makeMultiMarkedDoc := func(docid string, compactIDs map[string]interface{}) {
 		err := testDb.Bucket.SetRaw(docid, 0, nil, []byte("{}"))
 		assert.NoError(t, err)
-		compactIDsJSON, err := base.JSONMarshal(compactIDs)
+		compactIDsJSON, err := json.Marshal(compactIDs)
 		assert.NoError(t, err)
 		_, err = testDb.Bucket.SetXattr(docid, base.AttachmentCompactionXattrName+"."+CompactionIDKey, compactIDsJSON)
 		assert.NoError(t, err)
@@ -225,7 +226,7 @@ func TestAttachmentMarkAndSweepAndCleanup(t *testing.T) {
 		docID := fmt.Sprintf("testDoc-%d", i)
 		attKey := fmt.Sprintf("att-%d", i)
 		attBody := map[string]interface{}{"value": strconv.Itoa(i)}
-		attJSONBody, err := base.JSONMarshal(attBody)
+		attJSONBody, err := json.Marshal(attBody)
 		assert.NoError(t, err)
 		attKeys = append(attKeys, CreateLegacyAttachmentDoc(t, testDb, docID, []byte("{}"), attKey, attJSONBody))
 	}
@@ -324,7 +325,7 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 		var status AttachmentManagerResponse
 		rawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		require.NoError(t, err)
 
 		if status.State == BackgroundProcessStateStopped {
@@ -338,7 +339,7 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 	var testStatus AttachmentManagerResponse
 	testRawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal(testRawStatus, &testStatus)
+	err = json.Unmarshal(testRawStatus, &testStatus)
 	require.NoError(t, err)
 	assert.True(t, testStatus.DryRun)
 
@@ -349,7 +350,7 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 		var status AttachmentManagerResponse
 		rawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		require.NoError(t, err)
 
 		if status.State == BackgroundProcessStateCompleted {
@@ -362,7 +363,7 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 
 	testRawStatus, err = testDB2.AttachmentCompactionManager.GetStatus()
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal(testRawStatus, &testStatus)
+	err = json.Unmarshal(testRawStatus, &testStatus)
 	require.NoError(t, err)
 	assert.True(t, testStatus.DryRun)
 
@@ -375,7 +376,7 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 		var status AttachmentManagerResponse
 		rawStatus, err := testDB1.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		require.NoError(t, err)
 
 		if status.State == BackgroundProcessStateStopped {
@@ -394,7 +395,7 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 		var status AttachmentManagerResponse
 		rawStatus, err := testDB1.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		require.NoError(t, err)
 
 		if status.State == BackgroundProcessStateCompleted {
@@ -413,9 +414,9 @@ func TestAttachmentCompactionRunTwice(t *testing.T) {
 	testDB2RawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 	assert.NoError(t, err)
 
-	err = base.JSONUnmarshal(testDB1RawStatus, &testDB1Status)
+	err = json.Unmarshal(testDB1RawStatus, &testDB1Status)
 	require.NoError(t, err)
-	err = base.JSONUnmarshal(testDB2RawStatus, &testDB2Status)
+	err = json.Unmarshal(testDB2RawStatus, &testDB2Status)
 	require.NoError(t, err)
 
 	assert.Equal(t, BackgroundProcessStateCompleted, testDB1Status.State)
@@ -468,7 +469,7 @@ func TestAttachmentCompactionStopImmediateStart(t *testing.T) {
 		var status AttachmentManagerResponse
 		rawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		require.NoError(t, err)
 
 		if status.State == BackgroundProcessStateStopped {
@@ -482,7 +483,7 @@ func TestAttachmentCompactionStopImmediateStart(t *testing.T) {
 	var testStatus AttachmentManagerResponse
 	testRawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal(testRawStatus, &testStatus)
+	err = json.Unmarshal(testRawStatus, &testStatus)
 	require.NoError(t, err)
 	assert.True(t, testStatus.DryRun)
 
@@ -493,7 +494,7 @@ func TestAttachmentCompactionStopImmediateStart(t *testing.T) {
 		var status AttachmentManagerResponse
 		rawStatus, err := testDB2.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		require.NoError(t, err)
 
 		if status.State == BackgroundProcessStateCompleted {
@@ -506,7 +507,7 @@ func TestAttachmentCompactionStopImmediateStart(t *testing.T) {
 
 	testRawStatus, err = testDB2.AttachmentCompactionManager.GetStatus()
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal(testRawStatus, &testStatus)
+	err = json.Unmarshal(testRawStatus, &testStatus)
 	require.NoError(t, err)
 	assert.True(t, testStatus.DryRun)
 
@@ -549,7 +550,7 @@ func TestAttachmentProcessError(t *testing.T) {
 	err = WaitForConditionWithOptions(func() bool {
 		rawStatus, err := testDB1.AttachmentCompactionManager.GetStatus()
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal(rawStatus, &status)
+		err = json.Unmarshal(rawStatus, &status)
 		assert.NoError(t, err)
 
 		if status.State == BackgroundProcessStateError {
@@ -613,7 +614,7 @@ func CreateLegacyAttachmentDoc(t *testing.T, db *Database, docID string, body []
 	require.NoError(t, err)
 
 	var unmarshalledBody Body
-	err = base.JSONUnmarshal(body, &unmarshalledBody)
+	err = json.Unmarshal(body, &unmarshalledBody)
 	require.NoError(t, err)
 
 	_, _, err = db.Put(docID, unmarshalledBody)
@@ -630,7 +631,7 @@ func CreateLegacyAttachmentDoc(t *testing.T, db *Database, docID string, body []
 			},
 		}
 
-		attachmentSyncDataBytes, err := base.JSONMarshal(attachmentSyncData)
+		attachmentSyncDataBytes, err := json.Marshal(attachmentSyncData)
 		require.NoError(t, err)
 
 		xattr, err = base.InjectJSONPropertiesFromBytes(xattr, base.KVPairBytes{
@@ -761,7 +762,7 @@ func createConflictingDocOneLeafHasAttachmentBodyKey(t *testing.T, docID string,
 
 func createDocWithInBodyAttachment(t *testing.T, docID string, docBody []byte, attID string, attBody []byte, db *Database) string {
 	var body Body
-	err := base.JSONUnmarshal(docBody, &body)
+	err := json.Unmarshal(docBody, &body)
 	assert.NoError(t, err)
 
 	_, _, err = db.Put(docID, body)
@@ -783,7 +784,7 @@ func createDocWithInBodyAttachment(t *testing.T, docID string, docBody []byte, a
 			},
 		}
 
-		attachmentSyncDataBytes, err := base.JSONMarshal(attachmentSyncData)
+		attachmentSyncDataBytes, err := json.Marshal(attachmentSyncData)
 		if err != nil {
 			return nil, base.Uint32Ptr(0), false, err
 		}
@@ -826,7 +827,7 @@ func TestAttachmentCompactIncorrectStat(t *testing.T) {
 		docID := fmt.Sprintf("testDoc-%d", i)
 		attKey := fmt.Sprintf("att-%d", i)
 		attBody := map[string]interface{}{"value": strconv.Itoa(i)}
-		attJSONBody, err := base.JSONMarshal(attBody)
+		attJSONBody, err := json.Marshal(attBody)
 		assert.NoError(t, err)
 		attKeys = append(attKeys, CreateLegacyAttachmentDoc(t, testDb, docID, []byte("{}"), attKey, attJSONBody))
 	}

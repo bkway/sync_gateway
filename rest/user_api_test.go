@@ -308,7 +308,7 @@ func TestUserAPI(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_user/snej", "")
 	assertStatus(t, response, 200)
 	var body db.Body
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "snej", body["name"])
 	assert.Equal(t, "jens@couchbase.com", body["email"])
 	assert.Equal(t, []interface{}{"bar", "foo"}, body["admin_channels"])
@@ -348,7 +348,7 @@ func TestUserAPI(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_user/snej", "")
 	assertStatus(t, response, 200)
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "snej", body["name"])
 
 	// Create a role
@@ -364,7 +364,7 @@ func TestUserAPI(t *testing.T) {
 	response = rt.SendAdminRequest("GET", "/db/_user/snej", "")
 	assertStatus(t, response, 200)
 	body = nil
-	require.NoError(t, base.JSONUnmarshal(response.Body.Bytes(), &body))
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, []interface{}{"hipster"}, body["admin_roles"])
 	assert.Equal(t, []interface{}{"!", "bar", "fedoras", "fixies", "foo"}, body["all_channels"])
 

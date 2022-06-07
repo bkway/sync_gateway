@@ -12,6 +12,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"expvar"
 	"math"
 	"strconv"
@@ -103,7 +104,7 @@ func init() {
 // This String() is to satisfy the expvar.Var interface which is used to produce the expvar endpoint output.
 func (s *SgwStats) String() string {
 	s.dbStatsMapMutex.Lock()
-	bytes, err := JSONMarshalCanonical(s)
+	bytes, err := json.Marshal(s)
 	s.dbStatsMapMutex.Unlock()
 	if err != nil {
 		ErrorfCtx(context.Background(), "Unable to Marshal SgwStats: %v", err)
@@ -1229,5 +1230,5 @@ func (g *QueryStats) MarshalJSON() ([]byte, error) {
 		ret[queryName+"_query_time"] = queryMap.QueryTime
 	}
 
-	return JSONMarshalCanonical(ret)
+	return json.Marshal(ret)
 }

@@ -11,6 +11,7 @@ licenses/APL2.txt.
 package db
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/couchbase/go-blip"
@@ -43,7 +44,7 @@ func (bh *blipHandler) handleGetRev(rq *blip.Message) error {
 		body[BodyAttachments] = rev.Attachments
 	}
 
-	bodyBytes, err := base.JSONMarshalCanonical(body)
+	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return base.HTTPErrorf(http.StatusInternalServerError, "Couldn't encode document: %s", err)
 	}

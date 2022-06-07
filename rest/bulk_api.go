@@ -246,8 +246,8 @@ func (h *handler) handleDump() error {
 		title, title)))
 	_, _ = h.response.Write([]byte("\t<tr><th>Key</th><th>Value</th><th>ID</th></tr>\n"))
 	for _, row := range result.Rows {
-		key, _ := base.JSONMarshal(row.Key)
-		value, _ := base.JSONMarshal(row.Value)
+		key, _ := json.Marshal(row.Key)
+		value, _ := json.Marshal(row.Value)
 		_, _ = h.response.Write([]byte(fmt.Sprintf("\t<tr><td>%s</td><td>%s</td><td><em>%s</em></td>",
 			html.EscapeString(string(key)), html.EscapeString(string(value)), html.EscapeString(row.ID))))
 		_, _ = h.response.Write([]byte("</tr>\n"))
@@ -277,7 +277,7 @@ func (h *handler) handleRepair() error {
 	}
 
 	repairBucketParams := db.RepairBucketParams{}
-	if err := base.JSONUnmarshal(body, &repairBucketParams); err != nil {
+	if err := json.Unmarshal(body, &repairBucketParams); err != nil {
 		return pkgerrors.Wrapf(err, "Error unmarshalling %v into RepairJobParams.", string(body))
 	}
 
@@ -290,7 +290,7 @@ func (h *handler) handleRepair() error {
 		return err
 	}
 
-	resultMarshalled, err := base.JSONMarshal(repairBucketResult)
+	resultMarshalled, err := json.Marshal(repairBucketResult)
 	if err != nil {
 		return pkgerrors.Wrapf(err, "Error marshalling repairBucketResult: %+v", repairBucketResult)
 	}

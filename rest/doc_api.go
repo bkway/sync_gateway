@@ -9,7 +9,7 @@
 package rest
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"mime/multipart"
@@ -29,10 +29,6 @@ func (h *handler) handleGetDoc() error {
 	revid := h.getQuery("rev")
 	openRevs := h.getQuery("open_revs")
 	showExp := h.getBoolQuery("show_exp")
-
-	if replicator2, _ := h.getOptBoolQuery("replicator2", false); replicator2 {
-		return h.handleGetDocReplicator2(docid, revid)
-	}
 
 	// Check whether the caller wants a revision history, or attachment bodies, or both:
 	var revsLimit = 0
@@ -107,7 +103,7 @@ func (h *handler) handleGetDoc() error {
 			revids = doc.History.GetLeaves()
 		} else {
 			// open_revs=["id1", "id2", ...]
-			err := base.JSONUnmarshal([]byte(openRevs), &revids)
+			err := json.Unmarshal([]byte(openRevs), &revids)
 			if err != nil {
 				return base.HTTPErrorf(http.StatusBadRequest, "bad open_revs")
 			}
@@ -149,32 +145,6 @@ func (h *handler) handleGetDoc() error {
 			h.db.DbStats.Database().NumDocReadsRest.Add(1)
 		}
 	}
-	return nil
-}
-
-func (h *handler) handleGetDocReplicator2(docid, revid string) error {
-	if !base.IsEnterpriseEdition() {
-		return base.HTTPErrorf(http.StatusNotImplemented, "replicator2 endpoints are only supported in EE")
-	}
-
-	rev, err := h.db.GetRev(docid, revid, true, nil)
-	if err != nil {
-		return err
-	}
-
-	// Stamp _attachments into message to match BLIP sendRevision behaviour
-	bodyBytes := rev.BodyBytes
-	if len(rev.Attachments) > 0 {
-		bodyBytes, err = base.InjectJSONProperties(bodyBytes, base.KVPair{Key: db.BodyAttachments, Val: rev.Attachments})
-		if err != nil {
-			return err
-		}
-	}
-
-	h.setHeader("Content-Type", "application/json")
-	_, _ = h.response.Write(bodyBytes)
-	h.db.DbStats.Database().NumDocReadsRest.Add(1)
-
 	return nil
 }
 
@@ -360,10 +330,6 @@ func (h *handler) handlePutDoc() error {
 
 	roundTrip := h.getBoolQuery("roundtrip")
 
-	if replicator2, _ := h.getOptBoolQuery("replicator2", false); replicator2 {
-		return h.handlePutDocReplicator2(docid, roundTrip)
-	}
-
 	body, err := h.readDocument()
 	if err != nil {
 		return err
@@ -416,83 +382,6 @@ func (h *handler) handlePutDoc() error {
 	}
 
 	h.writeRawJSONStatus(http.StatusCreated, []byte(`{"id":`+base.ConvertToJSONString(docid)+`,"ok":true,"rev":"`+newRev+`"}`))
-	return nil
-}
-
-func (h *handler) handlePutDocReplicator2(docid string, roundTrip bool) (err error) {
-	if !base.IsEnterpriseEdition() {
-		return base.HTTPErrorf(http.StatusNotImplemented, "replicator2 endpoints are only supported in EE")
-	}
-	if h.isReadOnlyGuest() {
-		return base.HTTPErrorf(http.StatusForbidden, auth.GuestUserReadOnly)
-	}
-
-	bodyBytes, err := h.readBody()
-	if err != nil {
-		return err
-	}
-	if bodyBytes == nil || len(bodyBytes) == 0 {
-		return base.ErrEmptyDocument
-	}
-
-	newDoc := &db.Document{
-		ID: docid,
-	}
-	newDoc.UpdateBodyBytes(bodyBytes)
-
-	var parentRev string
-	if oldRev := h.getQuery("rev"); oldRev != "" {
-		parentRev = oldRev
-	} else if ifMatch := h.rq.Header.Get("If-Match"); ifMatch != "" {
-		parentRev = ifMatch
-	}
-
-	generation, _ := db.ParseRevID(parentRev)
-	generation++
-
-	deleted, _ := h.getOptBoolQuery("deleted", false)
-	newDoc.Deleted = deleted
-
-	newDoc.RevID = db.CreateRevIDWithBytes(generation, parentRev, bodyBytes)
-	history := []string{newDoc.RevID}
-
-	if parentRev != "" {
-		history = append(history, parentRev)
-	}
-
-	// Handle and pull out expiry
-	if bytes.Contains(bodyBytes, []byte(db.BodyExpiry)) {
-		body := newDoc.Body()
-		expiry, err := body.ExtractExpiry()
-		if err != nil {
-			return base.HTTPErrorf(http.StatusBadRequest, "Invalid expiry: %v", err)
-		}
-		newDoc.DocExpiry = expiry
-		newDoc.UpdateBody(body)
-	}
-
-	// Pull out attachments
-	if bytes.Contains(bodyBytes, []byte(db.BodyAttachments)) {
-		body := newDoc.Body()
-
-		newDoc.DocAttachments = db.GetBodyAttachments(body)
-		delete(body, db.BodyAttachments)
-		newDoc.UpdateBody(body)
-	}
-
-	doc, rev, err := h.db.PutExistingRev(newDoc, history, true, false, nil)
-
-	if err != nil {
-		return err
-	}
-
-	if doc != nil && roundTrip {
-		if err := h.db.WaitForSequenceNotSkipped(h.rq.Context(), doc.Sequence); err != nil {
-			return err
-		}
-	}
-
-	h.writeRawJSONStatus(http.StatusCreated, []byte(`{"id":`+base.ConvertToJSONString(docid)+`,"ok":true,"rev":"`+rev+`"}`))
 	return nil
 }
 

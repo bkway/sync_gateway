@@ -28,7 +28,7 @@ import (
 
 func unjson(j string) Body {
 	var body Body
-	err := base.JSONUnmarshal([]byte(j), &body)
+	err := json.Unmarshal([]byte(j), &body)
 	if err != nil {
 		panic(fmt.Sprintf("Invalid JSON: %v", err))
 	}
@@ -36,14 +36,14 @@ func unjson(j string) Body {
 }
 
 func tojson(obj interface{}) string {
-	j, _ := base.JSONMarshal(obj)
+	j, _ := json.Marshal(obj)
 	return string(j)
 }
 
 func TestBackupOldRevisionWithAttachments(t *testing.T) {
 	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
 
-	deltasEnabled := base.IsEnterpriseEdition()
+	deltasEnabled := false // TODO should be settable or deprecated
 	xattrsEnabled := base.TestUseXattrs()
 
 	bucket := base.GetTestBucket(t)
@@ -67,7 +67,7 @@ func TestBackupOldRevisionWithAttachments(t *testing.T) {
 	docID := "doc1"
 	var rev1Body Body
 	rev1Data := `{"test": true, "_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}}`
-	require.NoError(t, base.JSONUnmarshal([]byte(rev1Data), &rev1Body))
+	require.NoError(t, json.Unmarshal([]byte(rev1Data), &rev1Body))
 	rev1ID, _, err := db.Put(docID, rev1Body)
 	require.NoError(t, err)
 	assert.Equal(t, "1-12ff9ce1dd501524378fe092ce9aee8f", rev1ID)
@@ -85,7 +85,7 @@ func TestBackupOldRevisionWithAttachments(t *testing.T) {
 	// create rev 2 and check backups for both revs
 	var rev2Body Body
 	rev2Data := `{"test": true, "updated": true, "_attachments": {"hello.txt": {"stub": true, "revpos": 1}}}`
-	require.NoError(t, base.JSONUnmarshal([]byte(rev2Data), &rev2Body))
+	require.NoError(t, json.Unmarshal([]byte(rev2Data), &rev2Body))
 	_, _, err = db.PutExistingRevWithBody(docID, rev2Body, []string{"2-abc", rev1ID}, true)
 	require.NoError(t, err)
 	rev2ID := "2-abc"
@@ -121,7 +121,7 @@ func TestAttachments(t *testing.T) {
 	rev1input := `{"_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="},
                                     "bye.txt": {"data":"Z29vZGJ5ZSBjcnVlbCB3b3JsZA=="}}}`
 	var body Body
-	assert.NoError(t, base.JSONUnmarshal([]byte(rev1input), &body))
+	assert.NoError(t, json.Unmarshal([]byte(rev1input), &body))
 	revid, _, err := db.Put("doc1", body)
 	rev1id := revid
 	assert.NoError(t, err, "Couldn't create document")
@@ -146,7 +146,7 @@ func TestAttachments(t *testing.T) {
 	log.Printf("Create rev 2...")
 	rev2str := `{"_attachments": {"hello.txt": {"stub":true, "revpos":1}, "bye.txt": {"data": "YnllLXlh"}}}`
 	var body2 Body
-	assert.NoError(t, base.JSONUnmarshal([]byte(rev2str), &body2))
+	assert.NoError(t, json.Unmarshal([]byte(rev2str), &body2))
 	body2[BodyRev] = revid
 	revid, _, err = db.Put("doc1", body2)
 	assert.NoError(t, err, "Couldn't update document")
@@ -190,7 +190,7 @@ func TestAttachments(t *testing.T) {
 	log.Printf("Create rev 3...")
 	rev3str := `{"_attachments": {"bye.txt": {"stub":true,"revpos":2}}}`
 	var body3 Body
-	assert.NoError(t, base.JSONUnmarshal([]byte(rev3str), &body3))
+	assert.NoError(t, json.Unmarshal([]byte(rev3str), &body3))
 	body3[BodyRev] = revid
 	revid, _, err = db.Put("doc1", body3)
 	assert.NoError(t, err, "Couldn't update document")
@@ -214,7 +214,7 @@ func TestAttachments(t *testing.T) {
 	assert.NoError(t, err, "Couldn't compact old revision")
 	rev2Bstr := `{"_attachments": {"bye.txt": {"stub":true,"revpos":1,"digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}, "_rev": "2-f000"}`
 	var body2B Body
-	assert.NoError(t, base.JSONUnmarshal([]byte(rev2Bstr), &body2B))
+	assert.NoError(t, json.Unmarshal([]byte(rev2Bstr), &body2B))
 	_, _, err = db.PutExistingRevWithBody("doc1", body2B, []string{"2-f000", rev1id}, false)
 	assert.NoError(t, err, "Couldn't update document")
 }
@@ -234,7 +234,7 @@ func TestAttachmentForRejectedDocument(t *testing.T) {
 
 	docBody := `{"_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}}`
 	var body Body
-	require.NoError(t, base.JSONUnmarshal([]byte(docBody), &body))
+	require.NoError(t, json.Unmarshal([]byte(docBody), &body))
 	_, _, err = db.Put("doc1", unjson(docBody))
 	log.Printf("Got error on put doc:%v", err)
 	db.Bucket.Dump()
@@ -317,7 +317,7 @@ func TestAttachmentCASRetryAfterNewAttachment(t *testing.T) {
 			log.Printf("Creating rev 2 for key %s", key)
 			var rev2Body Body
 			rev2Data := `{"prop1":"value2", "_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}}`
-			require.NoError(t, base.JSONUnmarshal([]byte(rev2Data), &rev2Body))
+			require.NoError(t, json.Unmarshal([]byte(rev2Data), &rev2Body))
 			_, _, err := db.PutExistingRevWithBody("doc1", rev2Body, []string{"2-abc", rev1ID}, true)
 			require.NoError(t, err)
 
@@ -347,7 +347,7 @@ func TestAttachmentCASRetryAfterNewAttachment(t *testing.T) {
 	log.Printf("starting create of rev 3")
 	var rev3Body Body
 	rev3Data := `{"prop1":"value3", "_attachments": {"hello.txt": {"revpos":2,"stub":true,"digest":"sha1-Kq5sNclPz7QV2+lfQIuc6R7oRu0="}}}`
-	require.NoError(t, base.JSONUnmarshal([]byte(rev3Data), &rev3Body))
+	require.NoError(t, json.Unmarshal([]byte(rev3Data), &rev3Body))
 	_, _, err = db.PutExistingRevWithBody("doc1", rev3Body, []string{"3-abc", "2-abc", rev1ID}, true)
 	require.NoError(t, err)
 
@@ -376,7 +376,7 @@ func TestAttachmentCASRetryDuringNewAttachment(t *testing.T) {
 			log.Printf("Creating rev 2 for key %s", key)
 			var rev2Body Body
 			rev2Data := `{"prop1":"value2"}`
-			require.NoError(t, base.JSONUnmarshal([]byte(rev2Data), &rev2Body))
+			require.NoError(t, json.Unmarshal([]byte(rev2Data), &rev2Body))
 			_, _, err := db.PutExistingRevWithBody("doc1", rev2Body, []string{"2-abc", rev1ID}, true)
 			require.NoError(t, err)
 
@@ -406,7 +406,7 @@ func TestAttachmentCASRetryDuringNewAttachment(t *testing.T) {
 	log.Printf("starting create of rev 3")
 	var rev3Body Body
 	rev3Data := `{"prop1":"value3", "_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}}`
-	require.NoError(t, base.JSONUnmarshal([]byte(rev3Data), &rev3Body))
+	require.NoError(t, json.Unmarshal([]byte(rev3Data), &rev3Body))
 	_, _, err = db.PutExistingRevWithBody("doc1", rev3Body, []string{"3-abc", "2-abc", rev1ID}, true)
 	require.NoError(t, err)
 
@@ -444,14 +444,14 @@ func TestForEachStubAttachmentErrors(t *testing.T) {
 	doc := `{"_attachments": "No Attachment"}`
 	docID := "foo"
 	existingDigests := make(map[string]string)
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 1, docID, existingDigests, callback)
 	assert.Error(t, err, "It should throw 400 Invalid _attachments")
 	assert.Contains(t, err.Error(), strconv.Itoa(http.StatusBadRequest))
 
 	// Call ForEachStubAttachment with invalid attachment; simulates the error scenario.
 	doc = `{"_attachments": {"image1.jpeg": "", "image2.jpeg": ""}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 1, docID, existingDigests, callback)
 	assert.Error(t, err, "It should throw 400 Invalid _attachments")
 	assert.Contains(t, err.Error(), strconv.Itoa(http.StatusBadRequest))
@@ -459,7 +459,7 @@ func TestForEachStubAttachmentErrors(t *testing.T) {
 	// Check whether the attachment iteration is getting skipped if revpos < minRevpos
 	callbackCount = 0
 	doc = `{"_attachments": {"image.jpg": {"stub":true, "revpos":1}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 2, docID, existingDigests, callback)
 	assert.NoError(t, err, "It should not throw any error")
 	assert.Equal(t, 0, callbackCount)
@@ -468,7 +468,7 @@ func TestForEachStubAttachmentErrors(t *testing.T) {
 	callbackCount = 0
 	existingDigests["image.jpg"] = "e1a1"
 	doc = `{"_attachments": {"image.jpg": {"stub":true, "revpos":2, "digest":"e1a1"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 2, docID, existingDigests, callback)
 	assert.NoError(t, err, "It should not throw any error")
 	assert.Equal(t, 0, callbackCount)
@@ -476,20 +476,20 @@ func TestForEachStubAttachmentErrors(t *testing.T) {
 	// Verify the attachment is not getting skipped if digest doesn't match existing set
 	callbackCount = 0
 	doc = `{"_attachments": {"image.jpg": {"stub":true, "revpos":2, "digest":"e1a2"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 2, docID, existingDigests, callback)
 	assert.NoError(t, err, "It should not throw any error")
 	assert.Equal(t, 1, callbackCount)
 
 	// Check whether the attachment iteration is getting skipped if there is no revpos.
 	doc = `{"_attachments": {"image.jpg": {"stub":true}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 2, docID, existingDigests, callback)
 	assert.NoError(t, err, "It should not throw any error")
 
 	// Should throw invalid attachment error is the digest is not valid string or empty.
 	doc = `{"_attachments": {"image.jpg": {"stub":true, "revpos":1, "digest":true}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 1, docID, existingDigests, callback)
 	assert.Error(t, err, "It should throw 400 Invalid attachments")
 	assert.Contains(t, err.Error(), strconv.Itoa(http.StatusBadRequest))
@@ -497,13 +497,13 @@ func TestForEachStubAttachmentErrors(t *testing.T) {
 	// Call ForEachStubAttachment with some bad digest value. Internally it should throw a missing
 	// document error and invoke the callback function.
 	doc = `{"_attachments": {"image.jpg": {"stub":true, "revpos":1, "digest":"9304cdd066efa64f78387e9cc9240a70527271bc"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	err = db.ForEachStubAttachment(body, 1, docID, existingDigests, callback)
 	assert.NoError(t, err, "It should not throw any error")
 
 	// Simulate an error from the callback function; it should return the same error from ForEachStubAttachment.
 	doc = `{"_attachments": {"image.jpg": {"stub":true, "revpos":1, "digest":"9304cdd066efa64f78387e9cc9240a70527271bc"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(doc), &body))
+	assert.NoError(t, json.Unmarshal([]byte(doc), &body))
 	callback = func(name string, digest string, knownData []byte, meta map[string]interface{}) ([]byte, error) {
 		return nil, errors.New("Can't work with this digest value!")
 	}
@@ -603,56 +603,56 @@ func TestRetrieveAncestorAttachments(t *testing.T) {
 
 	// Create document (rev 1)
 	text := `{"key": "value", "version": "1a"}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	doc, revID, err := db.PutExistingRevWithBody("doc", body, []string{"1-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	// Add an attachment to a document (rev 2)
 	text = `{"key": "value", "version": "2a", "_attachments": {"att1.txt": {"data": "YXR0MS50eHQ="}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"2-a", "1-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	text = `{"key": "value", "version": "3a", "_attachments": {"att1.txt": {"stub":true,"revpos":2,"digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"3-a", "2-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	text = `{"key": "value", "version": "4a", "_attachments": {"att1.txt": {"stub":true,"revpos":2,"digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"4-a", "3-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	text = `{"key": "value", "version": "5a", "_attachments": {"att1.txt": {"stub":true,"revpos":2,"digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"5-a", "4-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	text = `{"key": "value", "version": "6a", "_attachments": {"att1.txt": {"stub":true,"revpos":2,"digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"6-a", "5-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	text = `{"key": "value", "version": "3b", "type": "pruned"}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"3-b", "2-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
 	log.Printf("doc: %v", doc)
 
 	text = `{"key": "value", "version": "3b", "_attachments": {"att1.txt": {"stub":true,"revpos":2,"digest":"sha1-gwwPApfQR9bzBKpqoEYwFmKp98A="}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(text), &body))
+	assert.NoError(t, json.Unmarshal([]byte(text), &body))
 	body[BodyRev] = revID
 	doc, _, err = db.PutExistingRevWithBody("doc", body, []string{"3-b", "2-a"}, false)
 	assert.NoError(t, err, "Couldn't create document")
@@ -671,7 +671,7 @@ func TestStoreAttachments(t *testing.T) {
 	// Simulate Invalid _attachments scenario; try to put a document with bad
 	// attachment metadata. It should throw "Invalid _attachments" error.
 	revText := `{"key1": "value1", "_attachments": {"att1.txt": "YXR0MS50eHQ="}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err := db.Put("doc1", revBody)
 	assert.Empty(t, revId, "The revId should be empty since the request has attachment")
 	assert.Empty(t, doc, "The doc should be empty since the request has attachment")
@@ -680,7 +680,7 @@ func TestStoreAttachments(t *testing.T) {
 
 	// Simulate illegal base64 data error while storing attachments in Couchbase database.
 	revText = `{"key1": "value1", "_attachments": {"att1.txt": {"data": "%$^&**"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err = db.Put("doc1", revBody)
 	assert.Empty(t, revId, "The revId should be empty since illegal base64 data in attachment")
 	assert.Empty(t, doc, "The doc should be empty since illegal base64 data in attachment")
@@ -690,7 +690,7 @@ func TestStoreAttachments(t *testing.T) {
 	// Simulate a valid scenario; attachment contains data, so store it in the database.
 	// Include content type, encoding, attachment length  in attachment metadata.
 	revText = `{"key1": "value1", "_attachments": {"att1.txt": {"data": "YXR0MS50eHQ=", "content_type": "text/plain", "encoding": "utf-8", "length": 12}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err = db.Put("doc1", revBody)
 	assert.NoError(t, err, "Couldn't update document")
 	assert.NotEmpty(t, revId, "Document revision id should be generated")
@@ -708,7 +708,7 @@ func TestStoreAttachments(t *testing.T) {
 	// Simulate a valid scenario; attachment contains data, so store it in the database.
 	// Include content type, encoding in attachment metadata but no attachment length.
 	revText = `{"key1": "value1", "_attachments": {"att1.txt": {"data": "YXR0MS50eHQ=", "content_type": "text/plain", "encoding": "utf-8"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err = db.Put("doc2", revBody)
 	assert.NoError(t, err, "Couldn't update document")
 	assert.NotEmpty(t, revId, "Document revision id should be generated")
@@ -727,7 +727,7 @@ func TestStoreAttachments(t *testing.T) {
 	// Include only content type in attachment metadata but no encoding and attachment length.
 	// Attachment length should be calculated automatically in this case.
 	revText = `{"key1": "value1", "_attachments": {"att1.txt": {"data": "YXR0MS50eHQ=", "content_type": "text/plain"}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err = db.Put("doc3", revBody)
 	assert.NoError(t, err, "Couldn't update document")
 	assert.NotEmpty(t, revId, "Document revision id should be generated")
@@ -745,7 +745,7 @@ func TestStoreAttachments(t *testing.T) {
 	// Simulate error scenario for attachment without data; stub is not provided; If the data is
 	// empty in attachment, the attachment must be a stub that repeats a parent attachment.
 	revText = `{"key1": "value1", "_attachments": {"att1.txt": {"revpos": 2}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err = db.Put("doc4", revBody)
 	assert.Empty(t, revId, "The revId should be empty since stub is not included in attachment")
 	assert.Empty(t, doc, "The doc should be empty since stub is not included in attachment")
@@ -755,7 +755,7 @@ func TestStoreAttachments(t *testing.T) {
 	// Simulate error scenario for attachment without data; revpos is not provided; If the data is
 	// empty in attachment, the attachment must be a stub that repeats a parent attachment.
 	revText = `{"key2": "value1", "_attachments": {"att1.txt": {"stub": true}}}`
-	assert.NoError(t, base.JSONUnmarshal([]byte(revText), &revBody))
+	assert.NoError(t, json.Unmarshal([]byte(revText), &revBody))
 	revId, doc, err = db.Put("doc5", revBody)
 	assert.Empty(t, revId, "The revId should be empty since revpos is not included in attachment")
 	assert.Empty(t, doc, "The doc should be empty since revpos is not included in attachment")
@@ -787,7 +787,7 @@ func TestMigrateBodyAttachments(t *testing.T) {
 		// Put a document with hello.txt attachment, to write attachment to the bucket
 		rev1input := `{"_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="}}}`
 		var body Body
-		assert.NoError(t, base.JSONUnmarshal([]byte(rev1input), &body))
+		assert.NoError(t, json.Unmarshal([]byte(rev1input), &body))
 		_, _, err = db.Put("doc1", body)
 		assert.NoError(t, err, "Couldn't create document")
 
@@ -856,9 +856,9 @@ func TestMigrateBodyAttachments(t *testing.T) {
 
 		var bodyVal map[string]interface{}
 		var xattrVal map[string]interface{}
-		err = base.JSONUnmarshal([]byte(bodyPre25), &bodyVal)
+		err = json.Unmarshal([]byte(bodyPre25), &bodyVal)
 		assert.NoError(t, err)
-		err = base.JSONUnmarshal([]byte(syncData), &xattrVal)
+		err = json.Unmarshal([]byte(syncData), &xattrVal)
 		assert.NoError(t, err)
 
 		if base.TestUseXattrs() {
@@ -1067,7 +1067,7 @@ func TestMigrateBodyAttachmentsMerge(t *testing.T) {
 	// Put a document 2 attachments, to write attachment to the bucket
 	rev1input := `{"_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="},"bye.txt": {"data":"Z29vZGJ5ZSBjcnVlbCB3b3JsZA=="}}}`
 	var body Body
-	assert.NoError(t, base.JSONUnmarshal([]byte(rev1input), &body))
+	assert.NoError(t, json.Unmarshal([]byte(rev1input), &body))
 	_, _, err = db.Put("doc1", body)
 	assert.NoError(t, err, "Couldn't create document")
 
@@ -1155,9 +1155,9 @@ func TestMigrateBodyAttachmentsMerge(t *testing.T) {
 
 	var bodyVal map[string]interface{}
 	var xattrVal map[string]interface{}
-	err = base.JSONUnmarshal([]byte(bodyPre25), &bodyVal)
+	err = json.Unmarshal([]byte(bodyPre25), &bodyVal)
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal([]byte(syncData), &xattrVal)
+	err = json.Unmarshal([]byte(syncData), &xattrVal)
 	assert.NoError(t, err)
 
 	if base.TestUseXattrs() {
@@ -1230,7 +1230,7 @@ func TestMigrateBodyAttachmentsMergeConflicting(t *testing.T) {
 	// Put a document with 3 attachments, to write attachments to the bucket
 	rev1input := `{"_attachments": {"hello.txt": {"data":"aGVsbG8gd29ybGQ="},"bye.txt": {"data":"Z29vZGJ5ZSBjcnVlbCB3b3JsZA=="},"new.txt": {"data":"bmV3IGRhdGE="}}}`
 	var body Body
-	assert.NoError(t, base.JSONUnmarshal([]byte(rev1input), &body))
+	assert.NoError(t, json.Unmarshal([]byte(rev1input), &body))
 	_, _, err = db.Put("doc1", body)
 	assert.NoError(t, err, "Couldn't create document")
 
@@ -1341,9 +1341,9 @@ func TestMigrateBodyAttachmentsMergeConflicting(t *testing.T) {
 
 	var bodyVal map[string]interface{}
 	var xattrVal map[string]interface{}
-	err = base.JSONUnmarshal([]byte(bodyPre25), &bodyVal)
+	err = json.Unmarshal([]byte(bodyPre25), &bodyVal)
 	assert.NoError(t, err)
-	err = base.JSONUnmarshal([]byte(syncData), &xattrVal)
+	err = json.Unmarshal([]byte(syncData), &xattrVal)
 	assert.NoError(t, err)
 
 	if base.TestUseXattrs() {

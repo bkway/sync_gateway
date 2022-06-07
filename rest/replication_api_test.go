@@ -228,11 +228,8 @@ func TestValidateReplicationAPI_CE(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			response := rt.SendAdminRequest("PUT", fmt.Sprintf("/db/_replication/%s", test.ID), marshalConfig(t, test.config))
-			if base.IsEnterpriseEdition() {
-				assertStatus(t, response, 201)
-			} else {
-				assertStatus(t, response, 400)
-			}
+			assertStatus(t, response, 400)
+
 		})
 	}
 
@@ -425,94 +422,6 @@ func marshalConfig(t *testing.T, config db.ReplicationConfig) string {
 	return string(replicationPayload)
 }
 
-// Upserts replications via config, validates using _replication response
-func TestReplicationsFromConfig(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("Requires EE for some config properties")
-	}
-	replicationConfig1String := `{
-		"replication_id": "replication1",
-		"remote": "http://remote:4985/db",
-		"direction":"pull",
-		"continuous":true,
-		"conflict_resolution_type":"` + db.ConflictResolverCustom + `",
-		"custom_conflict_resolver":"func()",
-		"purge_on_removal":true,
-		"delta_sync_enabled":true,
-		"max_backoff":100,
-		"state":"stopped",
-		"filter":"` + base.ByChannelFilter + `",
-		"query_params":["ABC"],
-		"cancel":false
-	}`
-	replicationConfig2String := `{
-		"replication_id": "replication2",
-		"remote": "http://remote:4985/db",
-		"direction":"pull",
-		"continuous":true,
-		"conflict_resolution_type":"` + db.ConflictResolverCustom + `",
-		"custom_conflict_resolver":"func()",
-		"purge_on_removal":true,
-		"delta_sync_enabled":true,
-		"max_backoff":100,
-		"state":"stopped",
-		"filter":"` + base.ByChannelFilter + `",
-		"query_params":["ABC"],
-		"cancel":false
-	}`
-
-	replicationConfig1 := &db.ReplicationConfig{}
-	err := base.JSONUnmarshal([]byte(replicationConfig1String), replicationConfig1)
-	require.NoError(t, err)
-	replicationConfig2 := &db.ReplicationConfig{}
-	err = base.JSONUnmarshal([]byte(replicationConfig2String), replicationConfig2)
-	require.NoError(t, err)
-
-	testCases := []struct {
-		name           string
-		replicationSet []*db.ReplicationConfig
-	}{
-		{
-			name:           "Single replication",
-			replicationSet: []*db.ReplicationConfig{replicationConfig1},
-		},
-		{
-			name:           "Multiple replications",
-			replicationSet: []*db.ReplicationConfig{replicationConfig1, replicationConfig2},
-		},
-	}
-
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			dbConfig := &DatabaseConfig{}
-			dbConfig.Replications = make(map[string]*db.ReplicationConfig)
-			for _, rc := range test.replicationSet {
-				dbConfig.Replications[rc.ID] = rc
-			}
-
-			rt := NewRestTester(t, &RestTesterConfig{DatabaseConfig: dbConfig})
-			defer rt.Close()
-
-			// Retrieve replications
-			response := rt.SendAdminRequest("GET", "/db/_replication/", "")
-			assertStatus(t, response, http.StatusOK)
-			var configResponse map[string]*db.ReplicationConfig
-			err := json.Unmarshal(response.BodyBytes(), &configResponse)
-			require.NoError(t, err)
-			assert.Equal(t, len(test.replicationSet), len(configResponse))
-			for _, replication := range test.replicationSet {
-				loadedReplication, ok := configResponse[replication.ID]
-				assert.True(t, ok)
-				equals, equalsErr := loadedReplication.Equals(replication)
-				assert.True(t, equals)
-				assert.NoError(t, equalsErr)
-			}
-		})
-	}
-
-}
-
 // TestPushReplicationAPI
 //   - Starts 2 RestTesters, one active, and one passive.
 //   - Creates documents on rt1.
@@ -693,187 +602,6 @@ func TestReplicationStatusActions(t *testing.T) {
 	close(doneChan)
 	statusWg.Wait()
 
-}
-
-// TestReplicationRebalancePull
-//   - Starts 2 RestTesters, one active, and one passive.
-//   - Creates documents on rt1 in two channels
-//   - Creates two continuous pull replications on rt1 via the REST API
-//   - adds another active node
-//   - Creates more documents, validates they are replicated
-func TestReplicationRebalancePull(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("test is EE only (replication rebalance)")
-	}
-
-	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
-
-	// Increase checkpoint persistence frequency for cross-node status verification
-	defer reduceTestCheckpointInterval(50 * time.Millisecond)()
-
-	// Disable sequence batching for multi-RT tests (pending CBG-1000)
-	defer db.SuspendSequenceBatching()()
-
-	activeRT, remoteRT, remoteURLString, teardown := setupSGRPeers(t)
-	defer teardown()
-
-	// Create docs on remote
-	docABC1 := t.Name() + "ABC1"
-	docDEF1 := t.Name() + "DEF1"
-	_ = remoteRT.putDoc(docABC1, `{"source":"remoteRT","channels":["ABC"]}`)
-	_ = remoteRT.putDoc(docDEF1, `{"source":"remoteRT","channels":["DEF"]}`)
-
-	// Create pull replications, verify running
-	activeRT.createReplication("rep_ABC", remoteURLString, db.ActiveReplicatorTypePull, []string{"ABC"}, true, db.ConflictResolverDefault)
-	activeRT.createReplication("rep_DEF", remoteURLString, db.ActiveReplicatorTypePull, []string{"DEF"}, true, db.ConflictResolverDefault)
-	activeRT.waitForAssignedReplications(2)
-	activeRT.waitForReplicationStatus("rep_ABC", db.ReplicationStateRunning)
-	activeRT.waitForReplicationStatus("rep_DEF", db.ReplicationStateRunning)
-
-	// wait for documents originally written to remoteRT to arrive at activeRT
-	changesResults := activeRT.RequireWaitChanges(2, "0")
-	changesResults.requireDocIDs(t, []string{docABC1, docDEF1})
-
-	// Validate doc contents
-	docABC1Body := activeRT.getDoc(docABC1)
-	assert.Equal(t, "remoteRT", docABC1Body["source"])
-	docDEF1Body := activeRT.getDoc(docDEF1)
-	assert.Equal(t, "remoteRT", docDEF1Body["source"])
-
-	// Add another node to the active cluster
-	activeRT2 := addActiveRT(t, activeRT.TestBucket)
-	defer activeRT2.Close()
-
-	// Wait for replication to be rebalanced to activeRT2
-	activeRT.waitForAssignedReplications(1)
-	activeRT2.waitForAssignedReplications(1)
-
-	log.Printf("==============replication rebalance is done================")
-
-	// Create additional docs on remoteRT
-	docABC2 := t.Name() + "ABC2"
-	_ = remoteRT.putDoc(docABC2, `{"source":"remoteRT","channels":["ABC"]}`)
-	docDEF2 := t.Name() + "DEF2"
-	_ = remoteRT.putDoc(docDEF2, `{"source":"remoteRT","channels":["DEF"]}`)
-
-	// wait for new documents to arrive at activeRT
-	changesResults = activeRT.RequireWaitChanges(2, changesResults.Last_Seq.(string))
-	changesResults.requireDocIDs(t, []string{docABC2, docDEF2})
-
-	// Validate doc contents
-	docABC2Body := activeRT.getDoc(docABC2)
-	assert.Equal(t, "remoteRT", docABC2Body["source"])
-	docDEF2Body := activeRT.getDoc(docDEF2)
-	assert.Equal(t, "remoteRT", docDEF2Body["source"])
-	docABC2Body2 := activeRT2.getDoc(docABC2)
-	assert.Equal(t, "remoteRT", docABC2Body2["source"])
-	docDEF2Body2 := activeRT2.getDoc(docDEF2)
-	assert.Equal(t, "remoteRT", docDEF2Body2["source"])
-
-	// Validate replication stats across rebalance, on both active nodes
-	waitAndAssertCondition(t, func() bool { return activeRT.GetReplicationStatus("rep_ABC").DocsRead == 2 })
-	waitAndAssertCondition(t, func() bool { return activeRT.GetReplicationStatus("rep_DEF").DocsRead == 2 })
-	waitAndAssertCondition(t, func() bool { return activeRT2.GetReplicationStatus("rep_ABC").DocsRead == 2 })
-	waitAndAssertCondition(t, func() bool { return activeRT2.GetReplicationStatus("rep_DEF").DocsRead == 2 })
-
-	// explicitly stop the SGReplicateMgrs on the active nodes, to prevent a node rebalance during test teardown.
-	activeRT.GetDatabase().SGReplicateMgr.Stop()
-	activeRT.GetDatabase().SGReplicateMgr = nil
-	activeRT2.GetDatabase().SGReplicateMgr.Stop()
-	activeRT2.GetDatabase().SGReplicateMgr = nil
-}
-
-// TestReplicationRebalancePush
-//   - Starts 2 RestTesters, one active, and one passive.
-//   - Creates documents on rt1 in two channels
-//   - Creates two continuous pull replications on rt1 via the REST API
-//   - adds another active node
-//   - Creates more documents, validates they are replicated
-func TestReplicationRebalancePush(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("test is EE only (replication rebalance)")
-	}
-
-	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
-
-	// Increase checkpoint persistence frequency for cross-node status verification
-	defer reduceTestCheckpointInterval(50 * time.Millisecond)()
-
-	// Disable sequence batching for multi-RT tests (pending CBG-1000)
-	defer db.SuspendSequenceBatching()()
-
-	activeRT, remoteRT, remoteURLString, teardown := setupSGRPeers(t)
-	defer teardown()
-
-	// Create docs on active
-	docABC1 := t.Name() + "ABC1"
-	docDEF1 := t.Name() + "DEF1"
-	_ = activeRT.putDoc(docABC1, `{"source":"activeRT","channels":["ABC"]}`)
-	_ = activeRT.putDoc(docDEF1, `{"source":"activeRT","channels":["DEF"]}`)
-
-	// Create push replications, verify running
-	activeRT.createReplication("rep_ABC", remoteURLString, db.ActiveReplicatorTypePush, []string{"ABC"}, true, db.ConflictResolverDefault)
-	activeRT.waitForReplicationStatus("rep_ABC", db.ReplicationStateRunning)
-	activeRT.createReplication("rep_DEF", remoteURLString, db.ActiveReplicatorTypePush, []string{"DEF"}, true, db.ConflictResolverDefault)
-	activeRT.waitForReplicationStatus("rep_DEF", db.ReplicationStateRunning)
-
-	// wait for documents to be pushed to remote
-	changesResults := remoteRT.RequireWaitChanges(2, "0")
-	changesResults.requireDocIDs(t, []string{docABC1, docDEF1})
-
-	// Validate doc contents
-	docABC1Body := remoteRT.getDoc(docABC1)
-	assert.Equal(t, "activeRT", docABC1Body["source"])
-	docDEF1Body := remoteRT.getDoc(docDEF1)
-	assert.Equal(t, "activeRT", docDEF1Body["source"])
-
-	// Add another node to the active cluster
-	activeRT2 := addActiveRT(t, activeRT.TestBucket)
-	defer activeRT2.Close()
-
-	// Wait for replication to be rebalanced to activeRT2
-	activeRT.waitForAssignedReplications(1)
-	activeRT2.waitForAssignedReplications(1)
-
-	// Create additional docs on local
-	docABC2 := t.Name() + "ABC2"
-	_ = activeRT.putDoc(docABC2, `{"source":"activeRT","channels":["ABC"]}`)
-	docDEF2 := t.Name() + "DEF2"
-	_ = activeRT.putDoc(docDEF2, `{"source":"activeRT","channels":["DEF"]}`)
-
-	// wait for new documents to arrive at remote
-	changesResults = remoteRT.RequireWaitChanges(2, changesResults.Last_Seq.(string))
-	changesResults.requireDocIDs(t, []string{docABC2, docDEF2})
-
-	// Validate doc contents
-	docABC2Body := remoteRT.getDoc(docABC2)
-	assert.Equal(t, "activeRT", docABC2Body["source"])
-	docDEF2Body := remoteRT.getDoc(docDEF2)
-	assert.Equal(t, "activeRT", docDEF2Body["source"])
-
-	// Validate replication stats across rebalance, on both active nodes
-	// Checking DocsCheckedPush here, as DocsWritten isn't necessarily going to be 2, due to a
-	// potential for race updating status during replication rebalance:
-	//     1. active node 1 writes document 1 to passive
-	//     2. replication is rebalanced prior to checkpoint being persisted
-	//     3. active node 2 is assigned replication, starts from zero (since checkpoint wasn't persisted)
-	//     4. active node 2 attempts to write document 1, passive already has it.  DocsCheckedPush is incremented, but not DocsWritten
-	// Note that we can't wait for checkpoint persistence prior to rebalance, as the node initiating the rebalance
-	// isn't necessarily the one running the replication.
-	waitAndAssertCondition(t, func() bool { return activeRT.GetReplicationStatus("rep_ABC").DocsCheckedPush == 2 })
-	waitAndAssertCondition(t, func() bool { return activeRT.GetReplicationStatus("rep_DEF").DocsCheckedPush == 2 })
-	waitAndAssertCondition(t, func() bool { return activeRT2.GetReplicationStatus("rep_ABC").DocsCheckedPush == 2 })
-	waitAndAssertCondition(t, func() bool { return activeRT2.GetReplicationStatus("rep_DEF").DocsCheckedPush == 2 })
-
-	// explicitly stop the SGReplicateMgrs on the active nodes, to prevent a node rebalance during test teardown.
-	activeRT.GetDatabase().SGReplicateMgr.Stop()
-	activeRT.GetDatabase().SGReplicateMgr = nil
-	activeRT2.GetDatabase().SGReplicateMgr.Stop()
-	activeRT2.GetDatabase().SGReplicateMgr = nil
 }
 
 // TestPullReplicationAPI
@@ -1119,21 +847,21 @@ func (rt *RestTester) waitForReplicationStatus(replicationID string, targetStatu
 func (rt *RestTester) GetReplications() (replications map[string]db.ReplicationCfg) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/_replication/", "")
 	assertStatus(rt.tb, rawResponse, 200)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &replications))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &replications))
 	return replications
 }
 
 func (rt *RestTester) GetReplicationStatus(replicationID string) (status db.ReplicationStatus) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/_replicationStatus/"+replicationID, "")
 	assertStatus(rt.tb, rawResponse, 200)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &status))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &status))
 	return status
 }
 
 func (rt *RestTester) GetReplicationStatuses(queryString string) (statuses []db.ReplicationStatus) {
 	rawResponse := rt.SendAdminRequest("GET", "/db/_replicationStatus/"+queryString, "")
 	assertStatus(rt.tb, rawResponse, 200)
-	require.NoError(rt.tb, base.JSONUnmarshal(rawResponse.Body.Bytes(), &statuses))
+	require.NoError(rt.tb, json.Unmarshal(rawResponse.Body.Bytes(), &statuses))
 	return statuses
 }
 
@@ -1242,7 +970,6 @@ func TestValidateReplication(t *testing.T) {
 		replicationConfig db.ReplicationConfig
 		fromConfig        bool
 		expectedErrorMsg  string
-		eeOnly            bool
 	}{
 		{
 			name: "replication config unsupported Adhoc option",
@@ -1343,51 +1070,10 @@ func TestValidateReplication(t *testing.T) {
 			},
 			expectedErrorMsg: db.ConfigErrorIDTooLong,
 		},
-		{
-			name: "custom conflict resolution without func",
-			replicationConfig: db.ReplicationConfig{
-				ID:                     "replication1",
-				Remote:                 "http://remote:4984/db",
-				Direction:              "pull",
-				Adhoc:                  true,
-				ConflictResolutionType: db.ConflictResolverCustom,
-			},
-			expectedErrorMsg: "Custom conflict resolution type has been set but no conflict resolution function has been defined",
-			eeOnly:           true,
-		},
-		{
-			name: "custom conflict resolution with func",
-			replicationConfig: db.ReplicationConfig{
-				ID:                     "replication2",
-				Remote:                 "http://remote:4984/db",
-				Direction:              "pull",
-				Adhoc:                  true,
-				ConflictResolutionType: db.ConflictResolverCustom,
-				ConflictResolutionFn:   "func(){}",
-			},
-			eeOnly: true,
-		},
-		{
-			name: "bad conflict resolution type",
-			replicationConfig: db.ReplicationConfig{
-				ID:                     "replication2",
-				Remote:                 "http://remote:4984/db",
-				Direction:              "pull",
-				Adhoc:                  true,
-				ConflictResolutionType: "random",
-				ConflictResolutionFn:   "func(){}",
-			},
-			eeOnly: true,
-			expectedErrorMsg: fmt.Sprintf(db.ConfigErrorInvalidConflictResolutionTypeFmt, db.ConflictResolverLocalWins,
-				db.ConflictResolverRemoteWins, db.ConflictResolverDefault, db.ConflictResolverCustom),
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.eeOnly && !base.IsEnterpriseEdition() {
-				return
-			}
 			err := tc.replicationConfig.ValidateReplication(tc.fromConfig)
 			if tc.expectedErrorMsg != "" {
 				expectedError := &base.HTTPError{
@@ -1527,7 +1213,7 @@ func TestRequireReplicatorStoppedBeforeUpsert(t *testing.T) {
 	assertStatus(t, response, http.StatusOK)
 
 	var body []map[string]interface{}
-	err := base.JSONUnmarshal(response.BodyBytes(), &body)
+	err := json.Unmarshal(response.BodyBytes(), &body)
 	fmt.Println(string(response.BodyBytes()))
 	assert.NoError(t, err)
 	assert.Equal(t, "running", body[0]["status"])
@@ -1635,113 +1321,4 @@ func reduceTestCheckpointInterval(interval time.Duration) func() {
 		db.DefaultCheckpointInterval = previousInterval
 	}
 
-}
-
-// TestReplicationHeartbeatRemoval
-//   - Starts 2 RestTesters, one active, and one passive.
-//   - Creates two continuous pull replications on rt1 via the REST API
-//   - adds another active RT
-//   - simulates heartbeat-based removal of first RT by second RT
-//   - validates that active RT adds itself back to the node set and is reassigned a replication
-//   - Creates more documents, validates they are replicated
-func TestReplicationHeartbeatRemoval(t *testing.T) {
-
-	if !base.IsEnterpriseEdition() {
-		t.Skipf("test is EE only (replication rebalance)")
-	}
-
-	// Increase checkpoint persistence frequency for cross-node status verification
-	defer reduceTestCheckpointInterval(50 * time.Millisecond)()
-
-	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
-
-	// Disable sequence batching for multi-RT tests (pending CBG-1000)
-	defer db.SuspendSequenceBatching()()
-
-	activeRT, remoteRT, remoteURLString, teardown := setupSGRPeers(t)
-	defer teardown()
-
-	// Create docs on remote
-	docABC1 := t.Name() + "ABC1"
-	docDEF1 := t.Name() + "DEF1"
-	_ = remoteRT.putDoc(docABC1, `{"source":"remoteRT","channels":["ABC"]}`)
-	_ = remoteRT.putDoc(docDEF1, `{"source":"remoteRT","channels":["DEF"]}`)
-
-	// Create pull replications, verify running
-	activeRT.createReplication("rep_ABC", remoteURLString, db.ActiveReplicatorTypePull, []string{"ABC"}, true, db.ConflictResolverDefault)
-	activeRT.createReplication("rep_DEF", remoteURLString, db.ActiveReplicatorTypePull, []string{"DEF"}, true, db.ConflictResolverDefault)
-	activeRT.waitForAssignedReplications(2)
-	activeRT.waitForReplicationStatus("rep_ABC", db.ReplicationStateRunning)
-	activeRT.waitForReplicationStatus("rep_DEF", db.ReplicationStateRunning)
-
-	// wait for documents originally written to remoteRT to arrive at activeRT
-	changesResults := activeRT.RequireWaitChanges(2, "0")
-	changesResults.requireDocIDs(t, []string{docABC1, docDEF1})
-
-	// Validate doc replication
-	_ = activeRT.getDoc(docABC1)
-	_ = activeRT.getDoc(docDEF1)
-
-	// Add another node to the active cluster
-	activeRT2 := addActiveRT(t, activeRT.TestBucket)
-	defer activeRT2.Close()
-
-	// Wait for replication to be rebalanced to activeRT2
-	activeRT.waitForAssignedReplications(1)
-	activeRT2.waitForAssignedReplications(1)
-
-	// Create additional docs on remoteRT
-	docABC2 := t.Name() + "ABC2"
-	_ = remoteRT.putDoc(docABC2, `{"source":"remoteRT","channels":["ABC"]}`)
-	docDEF2 := t.Name() + "DEF2"
-	_ = remoteRT.putDoc(docDEF2, `{"source":"remoteRT","channels":["DEF"]}`)
-
-	// wait for new documents to arrive at activeRT
-	changesResults = activeRT.RequireWaitChanges(2, changesResults.Last_Seq.(string))
-	changesResults.requireDocIDs(t, []string{docABC2, docDEF2})
-
-	// Validate doc contents via both active nodes
-	_ = activeRT.getDoc(docABC2)
-	_ = activeRT.getDoc(docDEF2)
-	_ = activeRT2.getDoc(docABC2)
-	_ = activeRT2.getDoc(docDEF2)
-
-	activeRTUUID := activeRT.GetDatabase().UUID
-	activeRT2UUID := activeRT2.GetDatabase().UUID
-	activeRTMgr := activeRT2.GetDatabase().SGReplicateMgr
-	activeRT2Mgr := activeRT2.GetDatabase().SGReplicateMgr
-
-	// Have each RT remove the other node (simulates behaviour on heartbeat expiry)
-	assert.NoError(t, activeRTMgr.RemoveNode(activeRT2UUID))
-	assert.NoError(t, activeRT2Mgr.RemoveNode(activeRTUUID))
-
-	// Wait for nodes to add themselves back to cluster
-	err := activeRT.WaitForCondition(func() bool {
-		clusterDef, err := activeRTMgr.GetSGRCluster()
-		if err != nil {
-			return false
-		}
-		return len(clusterDef.Nodes) == 2
-	})
-	assert.NoError(t, err, "Nodes did not re-register after removal")
-
-	// Wait and validate replications are rebalanced
-	activeRT.waitForAssignedReplications(1)
-	activeRT2.waitForAssignedReplications(1)
-
-	// Add more docs to remote, to validate rebalanced replications are running
-	docABC3 := t.Name() + "ABC3"
-	_ = remoteRT.putDoc(docABC3, `{"source":"remoteRT","channels":["ABC"]}`)
-	docDEF3 := t.Name() + "DEF3"
-	_ = remoteRT.putDoc(docDEF3, `{"source":"remoteRT","channels":["DEF"]}`)
-
-	changesResults = activeRT.RequireWaitChanges(2, changesResults.Last_Seq.(string))
-	changesResults.requireDocIDs(t, []string{docABC3, docDEF3})
-
-	// explicitly stop the SGReplicateMgrs on the active nodes, to prevent a node rebalance during test teardown.
-	activeRT.GetDatabase().SGReplicateMgr.Stop()
-	activeRT.GetDatabase().SGReplicateMgr = nil
-	activeRT2.GetDatabase().SGReplicateMgr.Stop()
-	activeRT2.GetDatabase().SGReplicateMgr = nil
 }
