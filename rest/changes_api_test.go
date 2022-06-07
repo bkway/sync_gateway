@@ -3774,12 +3774,9 @@ func TestCacheCompactDuringChangesWait(t *testing.T) {
 	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache)
 
 	numIndexReplicas := uint(0)
-	smallCacheSize := 100
 	minimumChannelCacheConfig := &DatabaseConfig{DbConfig: DbConfig{
 		CacheConfig: &CacheConfig{
-			ChannelCacheConfig: &ChannelCacheConfig{
-				MaxNumber: &smallCacheSize,
-			},
+			ChannelCacheConfig: &ChannelCacheConfig{},
 		},
 		NumIndexReplicas: &numIndexReplicas,
 	}}

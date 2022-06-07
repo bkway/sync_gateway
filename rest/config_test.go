@@ -142,21 +142,6 @@ func TestConfigValidation(t *testing.T) {
 	}
 }
 
-func TestConfigValidationDeltaSync(t *testing.T) {
-	jsonConfig := `{"databases": {"db": {"delta_sync": {"enabled": true}}}}`
-
-	buf := bytes.NewBufferString(jsonConfig)
-	config, err := readLegacyServerConfig(buf)
-	assert.NoError(t, err)
-
-	errorMessages := config.setupAndValidateDatabases()
-	require.NoError(t, errorMessages)
-
-	require.NotNil(t, config.Databases["db"])
-	require.NotNil(t, config.Databases["db"].DeltaSync)
-	assert.Nil(t, config.Databases["db"].DeltaSync.Enabled)
-}
-
 func TestConfigValidationCache(t *testing.T) {
 	jsonConfig := `{"databases": {"db": {"cache": {"rev_cache": {"size": 0}, "channel_cache": {"max_number": 100, "compact_high_watermark_pct": 95, "compact_low_watermark_pct": 25}}}}}`
 
@@ -175,12 +160,6 @@ func TestConfigValidationCache(t *testing.T) {
 	assert.Nil(t, config.Databases["db"].CacheConfig.RevCacheConfig.Size)
 
 	require.NotNil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig)
-
-	assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.MaxNumber)
-
-	assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.HighWatermarkPercent)
-
-	assert.Nil(t, config.Databases["db"].CacheConfig.ChannelCacheConfig.LowWatermarkPercent)
 }
 
 func TestConfigValidationImport(t *testing.T) {
@@ -194,7 +173,7 @@ func TestConfigValidationImport(t *testing.T) {
 	require.NoError(t, errorMessages)
 	require.NotNil(t, config.Databases["db"])
 
-	assert.Nil(t, config.Databases["db"].ImportPartitions)
+	// assert.Nil(t, config.Databases["db"].ImportPartitions)
 }
 
 // TestLoadServerConfigExamples will run LoadLegacyServerConfig for configs found under the legacy examples directory.

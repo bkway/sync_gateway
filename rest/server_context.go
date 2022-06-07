@@ -593,11 +593,8 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	}
 	importOptions.BackupOldRev = base.BoolDefault(config.ImportBackupOldRev, false)
 
-	if config.ImportPartitions == nil {
-		importOptions.ImportPartitions = base.DefaultImportPartitions
-	} else {
-		importOptions.ImportPartitions = *config.ImportPartitions
-	}
+	// TODO unecessary?
+	importOptions.ImportPartitions = base.DefaultImportPartitions
 
 	// Check for deprecated cache options. If new are set they will take priority but will still log warnings
 	warnings := config.deprecatedConfigCacheFallback()
@@ -631,15 +628,6 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 			if config.CacheConfig.ChannelCacheConfig.ExpirySeconds != nil {
 				cacheOptions.ChannelCacheAge = time.Duration(*config.CacheConfig.ChannelCacheConfig.ExpirySeconds) * time.Second
 			}
-			if config.CacheConfig.ChannelCacheConfig.MaxNumber != nil {
-				cacheOptions.MaxNumChannels = *config.CacheConfig.ChannelCacheConfig.MaxNumber
-			}
-			if config.CacheConfig.ChannelCacheConfig.HighWatermarkPercent != nil && *config.CacheConfig.ChannelCacheConfig.HighWatermarkPercent > 0 {
-				cacheOptions.CompactHighWatermarkPercent = *config.CacheConfig.ChannelCacheConfig.HighWatermarkPercent
-			}
-			if config.CacheConfig.ChannelCacheConfig.HighWatermarkPercent != nil && *config.CacheConfig.ChannelCacheConfig.HighWatermarkPercent > 0 {
-				cacheOptions.CompactLowWatermarkPercent = *config.CacheConfig.ChannelCacheConfig.HighWatermarkPercent
-			}
 		}
 
 		if config.CacheConfig.RevCacheConfig != nil {
@@ -662,27 +650,6 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	if config.OldRevExpirySeconds != nil {
 		oldRevExpirySeconds = *config.OldRevExpirySeconds
 	}
-
-	deltaSyncOptions := db.DeltaSyncOptions{
-		Enabled:          db.DefaultDeltaSyncEnabled,
-		RevMaxAgeSeconds: db.DefaultDeltaSyncRevMaxAge,
-	}
-
-	if config.DeltaSync != nil {
-		if enable := config.DeltaSync.Enabled; enable != nil {
-			deltaSyncOptions.Enabled = *enable
-		}
-
-		if revMaxAge := config.DeltaSync.RevMaxAgeSeconds; revMaxAge != nil {
-			if *revMaxAge == 0 {
-				// a setting of zero will fall back to the non-delta handling of revision body backups
-			} else if *revMaxAge < oldRevExpirySeconds {
-				return db.DatabaseContextOptions{}, fmt.Errorf("delta_sync.rev_max_age_seconds: %d must not be less than the configured old_rev_expiry_seconds: %d", *revMaxAge, oldRevExpirySeconds)
-			}
-			deltaSyncOptions.RevMaxAgeSeconds = *revMaxAge
-		}
-	}
-	base.InfofCtx(context.TODO(), base.KeyAll, "delta_sync enabled=%t with rev_max_age_seconds=%d for database %s", deltaSyncOptions.Enabled, deltaSyncOptions.RevMaxAgeSeconds, dbName)
 
 	compactIntervalSecs := db.DefaultCompactInterval
 	if config.CompactIntervalDays != nil {
@@ -788,7 +755,6 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 		AllowConflicts:                config.ConflictsAllowed(),
 		SendWWWAuthenticateHeader:     sendWWWAuthenticate,
 		DisablePasswordAuthentication: config.DisablePasswordAuth,
-		DeltaSyncOptions:              deltaSyncOptions,
 		CompactInterval:               compactIntervalSecs,
 		QueryPaginationLimit:          queryPaginationLimit,
 		UserXattrKey:                  config.UserXattrKey,
