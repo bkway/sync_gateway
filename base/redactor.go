@@ -99,7 +99,7 @@ func (redactorSet RedactorSet) String() string {
 func (redactorSet RedactorSet) GetRedactionString(shouldRedact bool) string {
 	tmp := []byte("{")
 	iterationCount := 0
-	for setItem, _ := range redactorSet.set {
+	for setItem := range redactorSet.set {
 		if shouldRedact {
 			tmp = append(tmp, redactorSet.redactorFunc(setItem).Redact()...)
 		} else {

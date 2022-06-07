@@ -1,0 +1,278 @@
+make all --print-data-base --no-builtin-variables --no-builtin-rules --question
+# GNU Make 3.81
+# Copyright (C) 2006  Free Software Foundation, Inc.
+# This is free software; see the source for copying conditions.
+# There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.
+
+# This program built for i386-apple-darwin11.3.0
+ 
+make: *** No rule to make target `all'.  Stop.
+
+
+# Make data base, printed on Tue Jun  7 12:41:43 2022
+
+# Variables
+
+# automatic
+<D = $(patsubst %/,%,$(dir $<))
+# automatic
+?F = $(notdir $?)
+# environment
+VSCODE_AGENT_FOLDER = /Users/tom/.vscode-server
+# environment
+GREP_COLOR = 37;45
+# environment
+VSCODE_LOG_NATIVE = false
+# automatic
+?D = $(patsubst %/,%,$(dir $?))
+# automatic
+@D = $(patsubst %/,%,$(dir $@))
+# automatic
+@F = $(notdir $@)
+# makefile
+CURDIR := /Users/tom/src/github.com/bkway/sync_gateway
+# makefile
+SHELL = /bin/sh
+# environment
+VSCODE_NLS_CONFIG = {"locale":"en","availableLanguages":{}}
+# environment
+_ = /usr/bin/make
+# makefile (from `Makefile', line 1)
+MAKEFILE_LIST :=  Makefile
+# environment
+VSCODE_AMD_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
+# environment
+LESS_TERMCAP_se = [0m
+# environment
+VSCODE_VERBOSE_LOGGING = true
+# environment
+INFOPATH = /opt/homebrew/share/info:
+# environment
+VSCODE_CWD = /Users/tom
+# environment
+GOPROXY = https://proxy.golang.org,direct
+# environment
+SSH_CONNECTION = fe80::a082:6539:756a:6eb0%en1 62515 fe80::1037:ee74:a08e:de71%en1 22
+# environment
+LESS_TERMCAP_me = [0m
+# environment
+LESS_TERMCAP_mb = [01;31m
+# environment
+LSCOLORS = exfxcxdxbxGxDxabagacad
+# environment
+GOPATH = /Users/tom/.asdf/installs/golang/1.18/packages
+# environment
+VSCODE_LOG_STACK = false
+# default
+.FEATURES := target-specific order-only second-expansion else-if archives jobserver check-symlink
+# automatic
+%F = $(notdir $%)
+# environment
+VISUAL = nano
+# environment
+VSCODE_PIPE_LOGGING = true
+# environment
+PWD = /Users/tom/src/github.com/bkway/sync_gateway
+# environment
+VSCODE_IPC_HOOK_CLI = /var/folders/47/gpts2hw9161df93rl91s813r0000gn/T/vscode-ipc-21552f27-db67-4edd-8162-2c7cf495df14.sock
+# automatic
+*D = $(patsubst %/,%,$(dir $*))
+# environment
+LESS_TERMCAP_ue = [0m
+# environment
+MANPATH = /usr/share/man:/usr/local/share/man:/opt/homebrew/share/man
+# environment
+GOMODCACHE = /Users/tom/.asdf/installs/golang/1.18/packages/pkg/mod
+# environment
+HOME = /Users/tom
+# environment
+HOMEBREW_CELLAR = /opt/homebrew/Cellar
+# default
+MAKEFILEPATH := /Applications/Xcode.app/Contents/Developer/Makefiles
+# environment
+LOGNAME = tom
+# environment
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
+# automatic
++F = $(notdir $+)
+# environment
+VSCODE_HANDLES_UNCAUGHT_ERRORS = true
+# automatic
+^D = $(patsubst %/,%,$(dir $^))
+# environment
+LESS_TERMCAP_md = [01;31m
+# default
+MAKE = $(MAKE_COMMAND)
+# default
+MAKECMDGOALS := all
+# environment
+PATH = /Users/tom/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/remote-cli:/Users/tom/.asdf/shims:/opt/homebrew/Cellar/asdf/0.8.1_1/libexec/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/opt/homebrew/bin:/opt/homebrew/sbin
+# environment
+SHLVL = 3
+# environment
+LESS_TERMCAP_so = [00;47;30m
+# default
+MAKE_VERSION := 3.81
+# environment
+USER = tom
+# makefile
+.DEFAULT_GOAL := buildit
+# environment
+LESS = -g -i -M -R -S -w -X -z-4
+# automatic
+%D = $(patsubst %/,%,$(dir $%))
+# default
+MAKE_COMMAND := /Applications/Xcode.app/Contents/Developer/usr/bin/make
+# environment
+GREP_COLORS = mt=37;45
+# default
+.VARIABLES := 
+# environment
+TMPDIR = /var/folders/47/gpts2hw9161df93rl91s813r0000gn/T/
+# automatic
+*F = $(notdir $*)
+# makefile
+MAKEFLAGS = Rrqp
+# environment
+MFLAGS = -Rrqp
+# environment
+SSH_CLIENT = fe80::a082:6539:756a:6eb0%en1 62515 22
+# environment
+HOMEBREW_SHELLENV_PREFIX = /opt/homebrew
+# environment
+LESS_TERMCAP_us = [01;32m
+# environment
+HOMEBREW_PREFIX = /opt/homebrew
+# automatic
++D = $(patsubst %/,%,$(dir $+))
+# environment
+BROWSER = /Users/tom/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/helpers/browser.sh
+# environment
+HOMEBREW_REPOSITORY = /opt/homebrew
+# environment
+VSCODE_HANDLES_SIGPIPE = true
+# environment
+__CF_USER_TEXT_ENCODING = 0x1F5:0x0:0x0
+# default
+MAKEFILES := 
+# automatic
+<F = $(notdir $<)
+# environment
+EDITOR = vim
+# environment
+PAGER = less
+# environment
+LC_ALL = C
+# automatic
+^F = $(notdir $^)
+# default
+SUFFIXES := 
+# environment
+ASDF_DIR = /opt/homebrew/Cellar/asdf/0.8.1_1/libexec
+# environment
+MAKELEVEL := 0
+# environment
+LANG = C
+# environment
+VSCODE_EXTHOST_WILL_SEND_SOCKET = true
+# variable set hash-table stats:
+ 
+# Load=81/1024=8%, Rehash=0, Collisions=7/104=7%
+
+# Pattern-specific Variable Values
+
+# No pattern-specific variable values.
+
+# Directories
+
+# . (device 16777230, inode 65932708): 42 files, no impossibilities.
+
+# 42 files, no impossibilities in 1 directories.
+
+# Implicit Rules
+
+# No implicit rules.
+
+# Files
+
+buildit:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 2):
+	./build.sh
+	
+
+# Not a target:
+all:
+#  Command-line target.
+#  Implicit rule search has been done.
+#  File does not exist.
+#  File has not been updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+# Not a target:
+.SUFFIXES:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+Makefile:
+#  Implicit rule search has been done.
+#  Last modified 2022-06-06 18:27:47
+#  File has been updated.
+#  Successfully updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+test:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 8):
+	@./test.sh
+	
+
+cleanbuild: clean buildit
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+.DEFAULT:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+clean:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 4):
+	rm -rf bin pkg
+	
+
+buildclean: clean buildit
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# files hash-table stats:
+# Load=9/1024=1%, Rehash=0, Collisions=0/25=0%
+# VPATH Search Paths
+
+# No `vpath' search paths.
+
+# No general (`VPATH' variable) search path.
+
+# # of strings in strcache: 1
+# # of strcache buffers: 1
+# strcache size: total = 4096 / max = 4096 / min = 4096 / avg = 4096
+# strcache free: total = 4087 / max = 4087 / min = 4087 / avg = 4087
+
+# Finished Make data base on Tue Jun  7 12:41:43 2022
+
+ 

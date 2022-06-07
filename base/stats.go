@@ -45,11 +45,6 @@ const (
 )
 
 const (
-	// StatsReplication (SGR 1.x)
-	StatKeySgrActive                     = "sgr_active"
-	StatKeySgrNumAttachmentsTransferred  = "sgr_num_attachments_transferred"
-	StatKeySgrAttachmentBytesTransferred = "sgr_num_attachment_bytes_transferred"
-
 	// StatsReplication (SGR 1.x and 2.x)
 	StatKeySgrNumDocsPushed       = "sgr_num_docs_pushed"
 	StatKeySgrNumDocsFailedToPush = "sgr_num_docs_failed_to_push"

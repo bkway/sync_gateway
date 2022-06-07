@@ -55,12 +55,10 @@ const (
 	KeyWebSocket
 	KeyWebSocketFrame
 	KeySGTest
-
-	LogKeyCount // Count for logKeyNames init
 )
 
 var (
-	logKeyNames = [LogKeyCount]string{
+	logKeyNames = []string{
 		KeyNone:           "",
 		KeyAll:            "*",
 		KeyAdmin:          "Admin",
@@ -221,7 +219,7 @@ func ToLogKey(keysStr []string) (logKeys LogKeyMask) {
 	return logKeys
 }
 
-func inverselogKeyNames(in [LogKeyCount]string) map[string]LogKey {
+func inverselogKeyNames(in []string) map[string]LogKey {
 	var out = make(map[string]LogKey, len(in))
 	for i, v := range in {
 		if v == "" && i != int(KeyNone) {
