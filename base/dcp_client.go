@@ -1,7 +1,6 @@
 package base
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,6 +9,7 @@ import (
 	"github.com/couchbase/gocbcore/v10"
 	"github.com/couchbase/gocbcore/v10/memd"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 //
@@ -153,7 +153,7 @@ func (dc *DCPClient) close() {
 
 	// set dc.closing to true, avoid re-triggering close if it's already in progress
 	if !dc.closing.CompareAndSwap(false, true) {
-		InfofCtx(context.TODO(), KeyDCP, "DCP Client close called - client is already closing")
+		logger.For(logger.DCPKey).Warn().Msg("DCP Client close called - client is already closing")
 		return
 	}
 
@@ -162,7 +162,7 @@ func (dc *DCPClient) close() {
 	if dc.agent != nil {
 		agentErr := dc.agent.Close()
 		if agentErr != nil {
-			WarnfCtx(context.TODO(), "Error closing DCP agent in client close: %v", agentErr)
+			logger.For(logger.DCPKey).Warn().Err(agentErr).Msg("Error closing DCP agent in client close")
 		}
 	}
 	closeErr := dc.getCloseError()
@@ -278,7 +278,6 @@ func (dc *DCPClient) startWorkers() {
 
 func (dc *DCPClient) openStream(vbID uint16) (err error) {
 
-	logCtx := context.TODO()
 	var openStreamErr error
 	for i := 0; i < openRetryCount; i++ {
 		// Cancel open for stopped client
@@ -296,21 +295,21 @@ func (dc *DCPClient) openStream(vbID uint16) (err error) {
 		switch {
 		case (errors.Is(openStreamErr, gocbcore.ErrMemdRollback) || errors.Is(openStreamErr, gocbcore.ErrMemdRangeError)):
 			if dc.failOnRollback {
-				InfofCtx(logCtx, KeyDCP, "Open stream for vbID %d failed due to rollback or range error, closing client based on failOnRollback=true", vbID)
+				logger.For(logger.DCPKey).Info().Msgf("Open stream for vbID %d failed due to rollback or range error, closing client based on failOnRollback=true", vbID)
 				return fmt.Errorf("%s, failOnRollback requested", openStreamErr)
 			}
-			InfofCtx(logCtx, KeyDCP, "Open stream for vbID %d failed due to rollback or range error, will roll back metadata and retry: %v", vbID, openStreamErr)
+			logger.For(logger.DCPKey).Info().Err(openStreamErr).Msgf("Open stream for vbID %d failed due to rollback or range error, will roll back metadata and retry", vbID)
 			err := dc.rollback(vbID)
 			if err != nil {
 				return fmt.Errorf("metadata rollback failed for vb %d: %v", vbID, err)
 			}
 		case errors.Is(openStreamErr, gocbcore.ErrShutdown):
-			WarnfCtx(logCtx, "Closing stream for vbID %d, agent has been shut down", vbID)
+			logger.For(logger.DCPKey).Info().Msgf("Closing stream for vbID %d, agent has been shut down", vbID)
 			return openStreamErr
 		case errors.Is(openStreamErr, ErrTimeout):
-			DebugfCtx(logCtx, KeyDCP, "Timeout attempting to open stream for vb %d, will retry", vbID)
+			logger.For(logger.DCPKey).Info().Msgf("Timeout attempting to open stream for vb %d, will retry", vbID)
 		default:
-			WarnfCtx(logCtx, "Error opening stream for vbID %d: %v", vbID, openStreamErr)
+			logger.For(logger.DCPKey).Warn().Err(openStreamErr).Msgf("Error opening stream for vbID %d", vbID)
 			return openStreamErr
 		}
 	}
@@ -400,21 +399,20 @@ func (dc *DCPClient) deactivateVbucket(vbID uint16) {
 }
 
 func (dc *DCPClient) onStreamEnd(e endStreamEvent) {
-	logCtx := context.TODO()
-
 	if e.err == nil {
-		DebugfCtx(logCtx, KeyDCP, "Stream (vb:%d) closed, all items streamed", e.vbID)
+		logger.For(logger.DCPKey).Info().Msgf("Stream (vb:%d) closed, all items streamed", e.vbID)
 		dc.deactivateVbucket(e.vbID)
 		return
 	}
 
 	if errors.Is(e.err, gocbcore.ErrDCPStreamClosed) {
-		DebugfCtx(logCtx, KeyDCP, "Stream (vb:%d) closed by DCPClient", e.vbID)
+		logger.For(logger.DCPKey).Info().Msgf("Stream (vb:%d) closed by DCPClient", e.vbID)
 	}
 
-	if errors.Is(e.err, gocbcore.ErrDCPStreamStateChanged) || errors.Is(e.err, gocbcore.ErrDCPStreamTooSlow) ||
+	if errors.Is(e.err, gocbcore.ErrDCPStreamStateChanged) ||
+		errors.Is(e.err, gocbcore.ErrDCPStreamTooSlow) ||
 		errors.Is(e.err, gocbcore.ErrDCPStreamDisconnected) {
-		InfofCtx(logCtx, KeyDCP, "Stream (vb:%d) closed by server, will reconnect.  Reason: %v", e.vbID, e.err)
+		logger.For(logger.DCPKey).Info().Err(e.err).Msgf("Stream (vb:%d) closed by server, will reconnect.", e.vbID)
 		err := dc.openStream(e.vbID)
 		if err != nil {
 			dc.fatalError(fmt.Errorf("Stream (vb:%d) failed to reopen: %w", e.vbID, err))

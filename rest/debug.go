@@ -19,7 +19,7 @@ import (
 
 	"github.com/couchbase/go-couchbase"
 	_ "github.com/couchbase/gomemcached/debug"
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/samuel/go-metrics/metrics"
 )
 
@@ -96,7 +96,8 @@ func recordCBClientStat(opname, k string, start time.Time, err error) {
 }
 
 func (h *handler) handleExpvar() error {
-	base.InfofCtx(h.ctx(), base.KeyHTTP, "Recording snapshot of current debug variables.")
+	//logger.InfofCtx(h.ctx(), logger.KeyHTTP, "Recording snapshot of current debug variables.")
+	logger.For(logger.HTTPKey).Info().Msgf("Recording snapshot of current debug variables.")
 	h.rq.URL.Path = strings.Replace(h.rq.URL.Path, kDebugURLPathPrefix, "/debug/vars", 1)
 	http.DefaultServeMux.ServeHTTP(h.response, h.rq)
 	return nil

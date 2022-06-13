@@ -18,15 +18,17 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // Struct that configures settings of a User/Role, for UpdatePrincipal.
 // Also used in the rest package as a JSON object that defines a User/Role within a DbConfig
 // and structures the request/response body in the admin REST API for /db/_user/*
 type PrincipalConfig struct {
-	Name             *string  `json:"name,omitempty"`
-	ExplicitChannels base.Set `json:"admin_channels,omitempty"`
-	Channels         base.Set `json:"all_channels,omitempty"`
+	Name             *string   `json:"name,omitempty"`
+	ExplicitChannels utils.Set `json:"admin_channels,omitempty"`
+	Channels         utils.Set `json:"all_channels,omitempty"`
 	// Fields below only apply to Users, not Roles:
 	Email             string   `json:"email,omitempty"`
 	Disabled          *bool    `json:"disabled,omitempty"`
@@ -157,7 +159,7 @@ func (dbc *DatabaseContext) UpdatePrincipal(ctx context.Context, newInfo Princip
 		if isUser {
 			if newInfo.Email != user.Email() {
 				if err := user.SetEmail(newInfo.Email); err != nil {
-					base.WarnfCtx(ctx, "Skipping SetEmail for user %q - Invalid email address provided: %q", base.UD(*newInfo.Name), base.UD(newInfo.Email))
+					logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Skipping SetEmail for user %q - Invalid email address provided: %q", logger.UD(*newInfo.Name), logger.UD(newInfo.Email))
 				}
 				changed = true
 			}
@@ -177,7 +179,7 @@ func (dbc *DatabaseContext) UpdatePrincipal(ctx context.Context, newInfo Princip
 			if updatedRoles == nil {
 				updatedRoles = ch.TimedSet{}
 			}
-			if !updatedRoles.Equals(base.SetFromArray(newInfo.ExplicitRoleNames)) {
+			if !updatedRoles.Equals(utils.SetFromArray(newInfo.ExplicitRoleNames)) {
 				changed = true
 			}
 		}
@@ -202,19 +204,20 @@ func (dbc *DatabaseContext) UpdatePrincipal(ctx context.Context, newInfo Princip
 		}
 
 		if isUser {
-			if updatedRoles.UpdateAtSequence(base.SetFromArray(newInfo.ExplicitRoleNames), nextSeq) {
+			if updatedRoles.UpdateAtSequence(utils.SetFromArray(newInfo.ExplicitRoleNames), nextSeq) {
 				user.SetExplicitRoles(updatedRoles, nextSeq)
 			}
 		}
 		err = authenticator.Save(princ)
 		// On cas error, retry.  Otherwise break out of loop
 		if base.IsCasMismatch(err) {
-			base.InfofCtx(ctx, base.KeyAuth, "CAS mismatch updating principal %s - will retry", base.UD(princ.Name()))
+			//			logger.InfofCtx(ctx, logger.KeyAuth, "CAS mismatch updating principal %s - will retry", logger.UD(princ.Name()))
+			logger.For(logger.AuthKey).Info().Msgf("CAS mismatch updating principal %s - will retry", logger.UD(princ.Name()))
 		} else {
 			return replaced, err
 		}
 	}
 
-	base.ErrorfCtx(ctx, "CAS mismatch updating principal %s - exceeded retry count. Latest failure: %v", base.UD(princ.Name()), err)
+	logger.For(logger.UnknownKey).Error().Err(err).Msgf("CAS mismatch updating principal %s - exceeded retry count.", logger.UD(princ.Name()))
 	return replaced, err
 }

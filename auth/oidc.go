@@ -40,7 +40,9 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
+
 	"golang.org/x/oauth2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -223,19 +225,22 @@ func (opm OIDCProviderMap) getProviderWhenSingle() (*OIDCProvider, bool) {
 }
 
 func (opm OIDCProviderMap) GetProviderForIssuer(ctx context.Context, issuer string, audiences []string) *OIDCProvider {
-	base.DebugfCtx(ctx, base.KeyAuth, "GetProviderForIssuer with issuer: %v, audiences: %+v", base.UD(issuer), base.UD(audiences))
+	// logger.DebugfCtx(ctx, logger.KeyAuth, "GetProviderForIssuer with issuer: %v, audiences: %+v", logger.UD(issuer), logger.UD(audiences))
+	logger.For(logger.AuthKey).Debug().Msgf("GetProviderForIssuer with issuer: %v, audiences: %+v", logger.UD(issuer), logger.UD(audiences))
 	for _, provider := range opm {
 		if provider.Issuer == issuer && provider.ClientID != "" {
 			// Iterate over the audiences looking for a match
 			for _, aud := range audiences {
 				if provider.ClientID == aud {
-					base.DebugfCtx(ctx, base.KeyAuth, "Provider matches, returning")
+					// logger.DebugfCtx(ctx, logger.KeyAuth, )
+					logger.For(logger.AuthKey).Debug().Msg("Provider matches, returning")
 					return provider
 				}
 			}
 		}
 	}
-	base.DebugfCtx(ctx, base.KeyAuth, "No provider match found")
+	// logger.DebugfCtx(ctx, logger.KeyAuth, "No provider match found")
+	logger.For(logger.AuthKey).Debug().Msg("No provider match found")
 	return nil
 }
 
@@ -287,7 +292,8 @@ func (op *OIDCProvider) InitUserPrefix(ctx context.Context) error {
 
 	issuerURL, err := url.ParseRequestURI(op.Issuer)
 	if err != nil {
-		base.WarnfCtx(ctx, "Unable to parse issuer URI when initializing user prefix - using provider name")
+		// log.Ctx(ctx).Warn().Err(err).Msgf("Unable to parse issuer URI when initializing user prefix - using provider name")
+		logger.For(logger.AuthKey).Warn().Err(err).Msgf("Unable to parse issuer URI when initializing user prefix - using provider name")
 		op.UserPrefix = op.Name
 		return nil
 	}
@@ -309,7 +315,7 @@ func (op *OIDCProvider) initOIDCClient(ctx context.Context) error {
 	}
 
 	if op.Issuer == "" {
-		return base.RedactErrorf("Issuer not defined for OpenID Connect provider %+v", base.UD(op))
+		return logger.RedactErrorf("Issuer not defined for OpenID Connect provider %+v", logger.UD(op))
 	}
 
 	config := oauth2.Config{
@@ -348,7 +354,8 @@ func (op *OIDCProvider) initOIDCClient(ctx context.Context) error {
 
 	discoveryURL := op.getDiscoveryEndpoint()
 	if err := op.startDiscoverySync(ctx, discoveryURL); err != nil {
-		base.ErrorfCtx(ctx, "failed to start OpenID Connect discovery sync: %v", err)
+		// logger.ErrorfCtx(ctx, "failed to start OpenID Connect discovery sync: %v", err)
+		logger.For(logger.AuthKey).Err(err).Msg("failed to start OpenID Connect discovery sync")
 	}
 
 	return nil
@@ -386,7 +393,8 @@ func GetStandardDiscoveryEndpoint(issuer string) string {
 func (op *OIDCProvider) DiscoverConfig(ctx context.Context) (metadata ProviderMetadata, verifier *oidc.IDTokenVerifier, err error) {
 	discoveryURL := op.getDiscoveryEndpoint()
 	if !op.isStandardDiscovery() {
-		base.InfofCtx(ctx, base.KeyAuth, "Fetching provider config from explicitly defined discovery endpoint: %s", base.UD(discoveryURL))
+		// logger.InfofCtx(ctx, logger.KeyAuth, "Fetching provider config from explicitly defined discovery endpoint: %s", logger.UD(discoveryURL))
+		logger.For(logger.AuthKey).Info().Msgf("Fetching provider config from explicitly defined discovery endpoint: %s", logger.UD(discoveryURL))
 		metadata, _, _, err = op.fetchCustomProviderConfig(ctx, discoveryURL)
 		if err != nil {
 			return ProviderMetadata{}, nil, err
@@ -402,7 +410,8 @@ func (op *OIDCProvider) DiscoverConfig(ctx context.Context) (metadata ProviderMe
 // look up the OIDC provider configuration and returns provider metadata and ID token verifier. Provided discoveryURL
 // must not be empty.
 func (op *OIDCProvider) standardDiscovery(ctx context.Context, discoveryURL string) (metadata ProviderMetadata, verifier *oidc.IDTokenVerifier, err error) {
-	base.InfofCtx(ctx, base.KeyAuth, "Fetching provider config from standard issuer-based discovery endpoint: %s", base.UD(discoveryURL))
+	// logger.InfofCtx(ctx, logger.KeyAuth, "Fetching provider config from standard issuer-based discovery endpoint: %s", logger.UD(discoveryURL))
+	logger.For(logger.AuthKey).Info().Msgf("Fetching provider config from standard issuer-based discovery endpoint: %s", logger.UD(discoveryURL))
 	var provider *oidc.Provider
 	maxRetryAttempts := 5
 	for i := 1; i <= maxRetryAttempts; i++ {
@@ -410,11 +419,13 @@ func (op *OIDCProvider) standardDiscovery(ctx context.Context, discoveryURL stri
 		if err == nil && provider != nil {
 			verifier = provider.Verifier(&oidc.Config{ClientID: op.ClientID})
 			if err = provider.Claims(&metadata); err != nil {
-				base.ErrorfCtx(ctx, "Error caching metadata from standard issuer-based discovery endpoint: %s", base.UD(discoveryURL))
+				// logger.ErrorfCtx(ctx, "Error caching metadata from standard issuer-based discovery endpoint: %s", logger.UD(discoveryURL))
+				logger.For(logger.AuthKey).Err(err).Msgf("Error caching metadata from standard issuer-based discovery endpoint: %s", logger.UD(discoveryURL))
 			}
 			break
 		}
-		base.DebugfCtx(ctx, base.KeyAuth, "Unable to fetch provider config from discovery endpoint for %s (attempt %v/%v): %v", base.UD(op.Issuer), i, maxRetryAttempts, err)
+		// logger.DebugfCtx(ctx, logger.KeyAuth, "Unable to fetch provider config from discovery endpoint for %s (attempt %v/%v): %v", logger.UD(op.Issuer), i, maxRetryAttempts, err)
+		logger.For(logger.AuthKey).Debug().Msgf("Unable to fetch provider config from discovery endpoint for %s (attempt %v/%v)", logger.UD(op.Issuer), i, maxRetryAttempts)
 		time.Sleep(OIDCDiscoveryRetryWait)
 	}
 	return metadata, verifier, err
@@ -458,16 +469,19 @@ func (op *OIDCProvider) fetchCustomProviderConfig(ctx context.Context, discovery
 	if discoveryURL == "" {
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, ErrEmptyDiscoveryURL
 	}
-	base.DebugfCtx(ctx, base.KeyAuth, "Fetching custom provider config from %s", base.UD(discoveryURL))
+	// logger.DebugfCtx(ctx, logger.KeyAuth, "Fetching custom provider config from %s", logger.UD(discoveryURL))
+	logger.For(logger.AuthKey).Debug().Msgf("Fetching custom provider config from %s", logger.UD(discoveryURL))
 	req, err := http.NewRequest(http.MethodGet, discoveryURL, nil)
 	if err != nil {
-		base.DebugfCtx(ctx, base.KeyAuth, "Error building new request for URL %s: %v", base.UD(discoveryURL), err)
+		// logger.DebugfCtx(ctx, logger.KeyAuth, "Error building new request for URL %s: %v", logger.UD(discoveryURL), err)
+		logger.For(logger.AuthKey).Debug().Err(err).Msgf("Error building new request for URL %s", logger.UD(discoveryURL))
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, err
 	}
 	client := base.GetHttpClient(op.InsecureSkipVerify)
 	resp, err := client.Do(req)
 	if err != nil {
-		base.DebugfCtx(ctx, base.KeyAuth, "Error invoking calling discovery URL %s: %v", base.UD(discoveryURL), err)
+		// logger.DebugfCtx(ctx, logger.KeyAuth, "Error invoking calling discovery URL %s: %v", logger.UD(discoveryURL), err)
+		logger.For(logger.AuthKey).Debug().Err(err).Msgf("Error invoking calling discovery URL %s", logger.UD(discoveryURL))
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, err
 	}
 
@@ -486,7 +500,8 @@ func (op *OIDCProvider) fetchCustomProviderConfig(ctx context.Context, discovery
 
 	ttl, _, err = cacheable(resp.Header)
 	if err != nil {
-		base.InfofCtx(ctx, base.KeyAuth, "Failed to determine whether provider metadata can be cached, error: %v", err)
+		// logger.InfofCtx(ctx, logger.KeyAuth, "Failed to determine whether provider metadata can be cached, error: %v", err)
+		logger.For(logger.AuthKey).Info().Err(err).Msg("Failed to determine whether provider metadata can be cached")
 	}
 
 	// If the metadata expiry is zero or greater than 24 hours, the next sync should start in 24 hours.
@@ -504,12 +519,14 @@ func (op *OIDCProvider) fetchCustomProviderConfig(ctx context.Context, discovery
 	}
 
 	if err := json.Unmarshal(bodyBytes, &metadata); err != nil {
-		base.DebugfCtx(ctx, base.KeyAuth, "Error parsing body during discovery sync: %v", err)
+		// logger.DebugfCtx(ctx, logger.KeyAuth, "Error parsing body during discovery sync: %v", err)
+		logger.For(logger.AuthKey).Debug().Msg("Error parsing body during discovery sync")
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, err
 	}
 
 	if reflect.DeepEqual(op.metadata, metadata) {
-		base.DebugfCtx(ctx, base.KeyAuth, "No change in discovery config detected at this time, next sync will be after %v", ttl)
+		// logger.DebugfCtx(ctx, logger.KeyAuth, "No change in discovery config detected at this time, next sync will be after %v", ttl)
+		logger.For(logger.AuthKey).Debug().Msgf("No change in discovery config detected at this time, next sync will be after %v", ttl)
 		return metadata, ttl, false, nil
 	}
 
@@ -517,7 +534,8 @@ func (op *OIDCProvider) fetchCustomProviderConfig(ctx context.Context, discovery
 		return ProviderMetadata{}, MaxProviderConfigSyncInterval, false, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", op.Issuer, metadata.Issuer)
 	}
 
-	base.DebugfCtx(ctx, base.KeyAuth, "Returning config: %v", base.UD(metadata))
+	// logger.DebugfCtx(ctx, logger.KeyAuth, "Returning config: %v", logger.UD(metadata))
+	logger.For(logger.AuthKey).Debug().Msgf("Returning config: %v", logger.UD(metadata))
 	return metadata, ttl, true, nil
 }
 
@@ -550,7 +568,8 @@ func (op *OIDCProvider) runDiscoverySync(ctx context.Context, discoveryURL strin
 func (op *OIDCProvider) generateVerifier(metadata *ProviderMetadata, ctx context.Context) *oidc.IDTokenVerifier {
 	signingAlgorithms := op.getSigningAlgorithms(metadata)
 	if len(signingAlgorithms.unsupportedAlgorithms) > 0 {
-		base.InfofCtx(ctx, base.KeyAuth, "Found algorithms not supported by underlying OpenID Connect library: %v", signingAlgorithms.unsupportedAlgorithms)
+		// logger.InfofCtx(ctx, logger.KeyAuth, "Found algorithms not supported by underlying OpenID Connect library: %v", signingAlgorithms.unsupportedAlgorithms)
+		logger.For(logger.AuthKey).Info().Msgf("Found algorithms not supported by underlying OpenID Connect library: %v", signingAlgorithms.unsupportedAlgorithms)
 	}
 	config := &oidc.Config{ClientID: op.ClientID}
 	if len(signingAlgorithms.supportedAlgorithms) > 0 {
@@ -677,10 +696,12 @@ func (op *OIDCProvider) startDiscoverySync(ctx context.Context, discoveryURL str
 			case <-time.After(duration):
 				duration, err = op.runDiscoverySync(ctx, discoveryURL)
 				if err != nil {
-					base.WarnfCtx(ctx, "OpenID Connect provider discovery sync ends up in error: %v, next retry in %v", err, duration)
+					// log.Ctx(ctx, "OpenID Connect provider discovery sync ends up in error: %v, next retry in %v", err).Warn().Err(err).Msgf(duration)
+					logger.For(logger.AuthKey).Err(err).Msgf("OpenID Connect provider discovery sync ends up in error, next retry in %v", duration)
 				}
 			case <-op.terminator:
-				base.DebugfCtx(ctx, base.KeyAll, "Terminating OpenID Connect provider discovery sync")
+				// logger.DebugfCtx(ctx, logger.KeyAll, "Terminating OpenID Connect provider discovery sync")
+				logger.For(logger.AuthKey).Debug().Msg("Terminating OpenID Connect provider discovery sync")
 				return
 			}
 		}

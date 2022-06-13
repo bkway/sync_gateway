@@ -14,7 +14,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,7 +49,7 @@ func TestSanitizedUrl(t *testing.T) {
 func TestCallValidateFunction(t *testing.T) {
 	// Boolean return type handling of CallValidateFunction; Mock up a document change event and
 	// filter function which returns a bool value while calling CallValidateFunction.
-	channels := base.SetFromArray([]string{"Netflix"})
+	channels := utils.SetFromArray([]string{"Netflix"})
 	docId, body, oldBodyJSON := "doc1", Body{BodyId: "doc1", "key1": "value1"}, ""
 	bodyBytes, _ := json.Marshal(body)
 	event := &DocumentChangeEvent{DocID: docId, DocBytes: bodyBytes, OldDoc: oldBodyJSON, Channels: channels}

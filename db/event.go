@@ -11,13 +11,13 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
 
 	sgbucket "github.com/couchbase/sg-bucket"
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/robertkrimen/otto"
 )
 
@@ -66,7 +66,7 @@ type DocumentChangeEvent struct {
 	DocBytes         []byte
 	DocID            string
 	OldDoc           string
-	Channels         base.Set
+	Channels         utils.Set
 	WinningRevChange bool // whether this event is a change to the winning revision
 }
 
@@ -115,9 +115,13 @@ func newJsEventTask(funcSource string) (sgbucket.JSServerTask, error) {
 	eventTask := &jsEventTask{}
 	err := eventTask.InitWithLogging(funcSource,
 		func(s string) {
-			base.ErrorfCtx(context.Background(), base.KeyJavascript.String()+": Webhook %s", base.UD(s))
+			logger.For(logger.JavascriptKey).Error().Msgf("Webhook %s", logger.UD(s))
+			// log.Ctx(context.Background()).Error().Err(err).Msgf(logger.KeyJavascript.String()+": Webhook %s", logger.UD(s))
 		},
-		func(s string) { base.InfofCtx(context.Background(), base.KeyJavascript, "Webhook %s", base.UD(s)) })
+		func(s string) {
+			// log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyJavascript, "Webhook %s", logger.UD(s))
+			logger.For(logger.JavascriptKey).Info().Msgf("Webhook %s", logger.UD(s))
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +158,8 @@ type JSEventFunction struct {
 
 func NewJSEventFunction(fnSource string) *JSEventFunction {
 
-	base.InfofCtx(context.Background(), base.KeyEvents, "Creating new JSEventFunction")
+	// log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyEvents, "Creating new JSEventFunction")
+	logger.For(logger.EventsKey).Info().Msgf("Creating new JSEventFunction")
 	return &JSEventFunction{
 		JSServer: sgbucket.NewJSServer(fnSource, kTaskCacheSize,
 			func(fnSource string) (sgbucket.JSServerTask, error) {
@@ -177,12 +182,14 @@ func (ef *JSEventFunction) CallFunction(event Event) (interface{}, error) {
 	case *DBStateChangeEvent:
 		result, err = ef.Call(event.Doc)
 	default:
-		base.WarnfCtx(context.TODO(), "unknown event %v tried to call function", event.EventType())
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("unknown event %v tried to call function", event.EventType())
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("unknown event %v tried to call function", event.EventType())
 		return "", fmt.Errorf("unknown event %v tried to call function", event.EventType())
 	}
 
 	if err != nil {
-		base.WarnfCtx(context.TODO(), "Error calling function - function processing aborted: %v", err)
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error calling function - function processing aborted: %v", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error calling function - function processing aborted: %v", err)
 		return "", err
 	}
 
@@ -207,7 +214,8 @@ func (ef *JSEventFunction) CallValidateFunction(event Event) (bool, error) {
 		}
 		return boolResult, nil
 	default:
-		base.WarnfCtx(context.TODO(), "Event validate function returned non-boolean result %T %v", result, result)
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Event validate function returned non-boolean result %T %v", result, result)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Event validate function returned non-boolean result %T %v", result, result)
 		return false, errors.New("Validate function returned non-boolean value.")
 	}
 

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/auth"
+	"github.com/couchbase/sync_gateway/logger"
 
 	"github.com/couchbase/gocbcore/v10"
 	sgbucket "github.com/couchbase/sg-bucket"
@@ -89,7 +90,8 @@ func (sc *ServerContext) SetCpuPprofFile(file *os.File) {
 func (sc *ServerContext) CloseCpuPprofFile() {
 	sc.cpuPprofFileMutex.Lock()
 	if err := sc.cpuPprofFile.Close(); err != nil {
-		base.WarnfCtx(context.TODO(), "Error closing CPU profile file: %v", err)
+		//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error closing CPU profile file: %v", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msg("Error closing CPU profile file")
 	}
 	sc.cpuPprofFile = nil
 	sc.cpuPprofFileMutex.Unlock()
@@ -157,15 +159,16 @@ func (sc *ServerContext) Close() {
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
 
-	logCtx := context.TODO()
 	err := base.TerminateAndWaitForClose(sc.statsContext.terminator, sc.statsContext.doneChan, serverContextStopMaxWait)
 	if err != nil {
-		base.InfofCtx(logCtx, base.KeyAll, "Couldn't stop stats logger: %v", err)
+		//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Couldn't stop stats logger: %v", err)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("Couldn't stop stats logger")
 	}
 
 	err = base.TerminateAndWaitForClose(sc.bootstrapContext.terminator, sc.bootstrapContext.doneChan, serverContextStopMaxWait)
 	if err != nil {
-		base.InfofCtx(logCtx, base.KeyAll, "Couldn't stop background config update worker: %v", err)
+		//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Couldn't stop background config update worker: %v", err)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("Couldn't stop background config update worker")
 	}
 
 	for _, ctx := range sc.databases_ {
@@ -175,16 +178,17 @@ func (sc *ServerContext) Close() {
 	sc.databases_ = nil
 
 	for _, s := range sc._httpServers {
-		base.InfofCtx(logCtx, base.KeyHTTP, "Closing HTTP Server: %v", s.Addr)
+		//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyHTTP, "Closing HTTP Server: %v", s.Addr)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("Closing HTTP Server: %v", s.Addr)
 		if err := s.Close(); err != nil {
-			base.WarnfCtx(logCtx, "Error closing HTTP server %q: %v", s.Addr, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error closing HTTP server %q: %v", s.Addr, err)
 		}
 	}
 	sc._httpServers = nil
 
 	if agent := sc.GoCBAgent; agent != nil {
 		if err := agent.Close(); err != nil {
-			base.WarnfCtx(logCtx, "Error closing agent connection: %v", err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error closing agent connection: %v", err)
 		}
 	}
 }
@@ -280,9 +284,10 @@ func (sc *ServerContext) PostUpgrade(preview bool) (postUpgradeResults PostUpgra
 
 		// Index cleanup
 		var removedIndexes []string
-		if !base.TestsDisableGSI() {
-			removedIndexes, _ = database.RemoveObsoleteIndexes(preview)
-		}
+		// FIXME WTF are testing methods doing in production code?!?
+		// if !base.TestsDisableGSI() {
+		// 	removedIndexes, _ = database.RemoveObsoleteIndexes(preview)
+		// }
 
 		postUpgradeResults[name] = PostUpgradeDatabaseResult{
 			RemovedDDocs:   removedDDocs,
@@ -353,7 +358,8 @@ func GetBucketSpec(config *DatabaseConfig, serverConfig *StartupConfig) (spec ba
 
 	spec.UseXattrs = config.UseXattrs()
 	if !spec.UseXattrs {
-		base.WarnfCtx(context.TODO(), "Running Sync Gateway without shared bucket access is deprecated. Recommendation: set enable_shared_bucket_access=true")
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Running Sync Gateway without shared bucket access is deprecated. Recommendation: set enable_shared_bucket_access=true")
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Running Sync Gateway without shared bucket access is deprecated. Recommendation: set enable_shared_bucket_access=true")
 	}
 
 	if config.BucketOpTimeoutMs != nil {
@@ -396,8 +402,8 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 	}
 
 	// Connect to bucket
-	base.InfofCtx(context.TODO(), base.KeyAll, "Opening db /%s as bucket %q, pool %q, server <%s>",
-		base.MD(dbName), base.MD(spec.BucketName), base.SD(base.DefaultPool), base.SD(spec.Server))
+	logger.For(logger.SystemKey).Info().Msgf("Opening db /%s as bucket %q, pool %q, server <%s>",
+		logger.MD(dbName), logger.MD(spec.BucketName), logger.SD(base.DefaultPool), logger.SD(spec.Server))
 	connectToBucketFn := db.ConnectToBucket
 	if failFast {
 		connectToBucketFn = db.ConnectToBucketFailFast
@@ -410,7 +416,8 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 	// If using a walrus bucket, force use of views
 	useViews := base.BoolDefault(config.UseViews, false)
 	if !useViews && spec.IsWalrusBucket() {
-		base.WarnfCtx(context.TODO(), "Using GSI is not supported when using a walrus bucket - switching to use views.  Set 'use_views':true in Sync Gateway's database config to avoid this warning.")
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Using GSI is not supported when using a walrus bucket - switching to use views.  Set 'use_views':true in Sync Gateway's database config to avoid this warning.")
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Using GSI is not supported when using a walrus bucket - switching to use views.  Set 'use_views':true in Sync Gateway's database config to avoid this warning.")
 		useViews = true
 	}
 
@@ -524,7 +531,8 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 			}
 
 			if dbcontext.RevsLimit < db.DefaultRevsLimitConflicts {
-				base.WarnfCtx(context.TODO(), "Setting the revs_limit (%v) to less than %d, whilst having allow_conflicts set to true, may have unwanted results when documents are frequently updated. Please see documentation for details.", dbcontext.RevsLimit, db.DefaultRevsLimitConflicts)
+				//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Setting the revs_limit (%v) to less than %d, whilst having allow_conflicts set to true, may have unwanted results when documents are frequently updated. Please see documentation for details.", dbcontext.RevsLimit, db.DefaultRevsLimitConflicts)
+				logger.For(logger.SystemKey).Warn().Msgf("Setting the revs_limit (%v) to less than %d, whilst having allow_conflicts set to true, may have unwanted results when documents are frequently updated. Please see documentation for details.", dbcontext.RevsLimit, db.DefaultRevsLimitConflicts)
 			}
 		} else {
 			if dbcontext.RevsLimit <= 0 {
@@ -537,7 +545,8 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 	dbcontext.ServeInsecureAttachmentTypes = base.BoolDefault(config.ServeInsecureAttachmentTypes, false)
 
 	if dbcontext.ChannelMapper == nil {
-		base.InfofCtx(context.TODO(), base.KeyAll, "Using default sync function 'channel(doc.channels)' for database %q", base.MD(dbName))
+		//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Using default sync function 'channel(doc.channels)' for database %q", logger.MD(dbName))
+		logger.For(logger.SystemKey).Info().Msgf("Using default sync function 'channel(doc.channels)' for database %q", logger.MD(dbName))
 	}
 
 	// Create default users & roles:
@@ -599,7 +608,7 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	// Check for deprecated cache options. If new are set they will take priority but will still log warnings
 	warnings := config.deprecatedConfigCacheFallback()
 	for _, warnLog := range warnings {
-		base.WarnfCtx(context.TODO(), warnLog)
+		logger.For(logger.SystemKey).Warn().Msgf(warnLog)
 	}
 	// Set cache properties, if present
 	cacheOptions := db.DefaultCacheOptions()
@@ -667,10 +676,10 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	if config.CacheConfig != nil && config.CacheConfig.ChannelCacheConfig != nil && config.CacheConfig.ChannelCacheConfig.DeprecatedQueryLimit != nil {
 		// If QueryPaginationLimit has not been set use the deprecated option
 		if queryPaginationLimit == 0 {
-			base.WarnfCtx(context.TODO(), "Using deprecated config parameter 'cache.channel_cache.query_limit'. Use 'query_pagination_limit' instead")
+			logger.For(logger.SystemKey).Warn().Msg("Using deprecated config parameter 'cache.channel_cache.query_limit'. Use 'query_pagination_limit' instead")
 			queryPaginationLimit = *config.CacheConfig.ChannelCacheConfig.DeprecatedQueryLimit
 		} else {
-			base.WarnfCtx(context.TODO(), "Both query_pagination_limit and the deprecated cache.channel_cache.query_limit have been specified in config - using query_pagination_limit")
+			logger.For(logger.SystemKey).Warn().Msg("Both query_pagination_limit and the deprecated cache.channel_cache.query_limit have been specified in config - using query_pagination_limit")
 		}
 	}
 
@@ -729,7 +738,8 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	}
 
 	if config.AllowConflicts != nil && *config.AllowConflicts {
-		base.WarnfCtx(context.TODO(), `Deprecation notice: setting database configuration option "allow_conflicts" to true is due to be removed. In the future, conflicts will not be allowed.`)
+		//log.Ctx(context.TODO()).Warn().Err(err).Msgf(`Deprecation notice: setting database configuration option "allow_conflicts" to true is due to be removed. In the future, conflicts will not be allowed.`)
+		logger.For(logger.SystemKey).Warn().Msg(`Deprecation notice: setting database configuration option "allow_conflicts" to true is due to be removed. In the future, conflicts will not be allowed.`)
 	}
 
 	// If basic auth is disabled, it doesn't make sense to send WWW-Authenticate
@@ -782,7 +792,8 @@ func (sc *ServerContext) TakeDbOnline(database *db.DatabaseContext) {
 	if atomic.CompareAndSwapUint32(&database.State, db.DBOffline, db.DBStarting) {
 		reloadedDb, err := sc.ReloadDatabase(database.Name)
 		if err != nil {
-			base.ErrorfCtx(context.TODO(), "Error reloading database from config: %v", err)
+			//log.Ctx(context.TODO()).Error().Err(err).Msgf("Error reloading database from config: %v", err)
+			logger.For(logger.SystemKey).Err(err).Msg("Error reloading database from config")
 			return
 		}
 
@@ -791,7 +802,8 @@ func (sc *ServerContext) TakeDbOnline(database *db.DatabaseContext) {
 		atomic.StoreUint32(&reloadedDb.State, db.DBOnline)
 
 	} else {
-		base.InfofCtx(context.TODO(), base.KeyCRUD, "Unable to take Database : %v online , database must be in Offline state", base.UD(database.Name))
+		//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCRUD, "Unable to take Database : %v online , database must be in Offline state", logger.UD(database.Name))
+		logger.For(logger.CRUDKey).Info().Msgf("Unable to take Database : %v online , database must be in Offline state", logger.UD(database.Name))
 	}
 
 }
@@ -877,7 +889,8 @@ func (sc *ServerContext) initEventHandlers(dbcontext *db.DatabaseContext, config
 		customWaitTime, err = strconv.ParseInt(config.EventHandlers.WaitForProcess, 10, 0)
 		if err != nil {
 			customWaitTime = -1
-			base.WarnfCtx(context.TODO(), "Error parsing wait_for_process from config, using default %s", err)
+			//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error parsing wait_for_process from config, using default %s", err)
+			logger.For(logger.SystemKey).Warn().Err(err).Msg("Error parsing wait_for_process from config, using default")
 		}
 	}
 	dbcontext.EventMgr.Start(config.EventHandlers.MaxEventProc, int(customWaitTime))
@@ -904,7 +917,8 @@ func (sc *ServerContext) processEventHandlersForEvent(events []*EventConfig, eve
 		case "webhook":
 			wh, err := db.NewWebhook(event.Url, event.Filter, event.Timeout, event.Options)
 			if err != nil {
-				base.WarnfCtx(context.TODO(), "Error creating webhook %v", err)
+				//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error creating webhook %v", err)
+				logger.For(logger.HTTPKey).Warn().Err(err).Msgf("Error creating webhook")
 				return err
 			}
 			dbcontext.EventMgr.RegisterEventHandler(wh, eventType)
@@ -922,7 +936,8 @@ func (sc *ServerContext) applySyncFunction(dbcontext *db.DatabaseContext, syncFn
 		return err
 	}
 	// Sync function has changed:
-	base.InfofCtx(context.TODO(), base.KeyAll, "**NOTE:** %q's sync function has changed. The new function may assign different channels to documents, or permissions to users. You may want to re-sync the database to update these.", base.MD(dbcontext.Name))
+	//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "**NOTE:** %q's sync function has changed. The new function may assign different channels to documents, or permissions to users. You may want to re-sync the database to update these.", logger.MD(dbcontext.Name))
+	logger.For(logger.SystemKey).Info().Msgf("**NOTE:** %q's sync function has changed. The new function may assign different channels to documents, or permissions to users. You may want to re-sync the database to update these.", logger.MD(dbcontext.Name))
 	return nil
 }
 
@@ -939,7 +954,8 @@ func (sc *ServerContext) _unloadDatabase(dbName string) bool {
 	if dbCtx == nil {
 		return false
 	}
-	base.InfofCtx(context.TODO(), base.KeyAll, "Closing db /%s (bucket %q)", base.MD(dbCtx.Name), base.MD(dbCtx.Bucket.GetName()))
+	//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Closing db /%s (bucket %q)", logger.MD(dbCtx.Name), logger.MD(dbCtx.Bucket.GetName()))
+	logger.For(logger.SystemKey).Info().Msgf("Closing db /%s (bucket %q)", logger.MD(dbCtx.Name), logger.MD(dbCtx.Bucket.GetName()))
 	dbCtx.Close()
 	delete(sc.databases_, dbName)
 	return true
@@ -971,7 +987,6 @@ func (sc *ServerContext) installPrincipals(dbc *db.DatabaseContext, spec map[str
 			princ.Name = &n
 		}
 
-		logCtx := context.TODO()
 		createdPrincipal := true
 		worker := func() (shouldRetry bool, err error, value interface{}) {
 			_, err = dbc.UpdatePrincipal(context.Background(), *princ, (what == "user"), isGuest)
@@ -985,7 +1000,8 @@ func (sc *ServerContext) installPrincipals(dbc *db.DatabaseContext, spec map[str
 
 				if err == base.ErrViewTimeoutError {
 					// Timeout error, possibly due to view re-indexing, so retry
-					base.InfofCtx(logCtx, base.KeyAuth, "Error calling UpdatePrincipal(): %v.  Will retry in case this is a temporary error", err)
+					//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAuth, "Error calling UpdatePrincipal(): %v.  Will retry in case this is a temporary error", err)
+					logger.For(logger.AuthKey).Info().Err(err).Msgf("Error calling UpdatePrincipal(): %v.  Will retry in case this is a temporary error", err)
 					return true, err, nil
 				}
 
@@ -1004,9 +1020,11 @@ func (sc *ServerContext) installPrincipals(dbc *db.DatabaseContext, spec map[str
 		}
 
 		if isGuest {
-			base.InfofCtx(logCtx, base.KeyAll, "Reset guest user to config")
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Reset guest user to config")
+			logger.For(logger.SystemKey).Info().Err(err).Msgf("Reset guest user to config")
 		} else if createdPrincipal {
-			base.InfofCtx(logCtx, base.KeyAll, "Created %s %q", what, base.UD(name))
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Created %s %q", what, logger.UD(name))
+			logger.For(logger.SystemKey).Info().Err(err).Msgf("Created %s %q", what, logger.UD(name))
 		}
 
 	}
@@ -1040,16 +1058,19 @@ func (sc *ServerContext) startStatsLogger() {
 			case <-sc.statsContext.statsLoggingTicker.C:
 				err := sc.logStats()
 				if err != nil {
-					base.WarnfCtx(context.TODO(), "Error logging stats: %v", err)
+					//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error logging stats: %v", err)
+					logger.For(logger.SystemKey).Warn().Err(err).Msg("Error logging stats")
 				}
 			case <-sc.statsContext.terminator:
-				base.DebugfCtx(context.TODO(), base.KeyAll, "Stopping stats logging goroutine")
+				//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Stopping stats logging goroutine")
+				logger.For(logger.SystemKey).Info().Msgf("Stopping stats logging goroutine")
 				sc.statsContext.statsLoggingTicker.Stop()
 				return
 			}
 		}
 	}()
-	base.InfofCtx(context.TODO(), base.KeyAll, "Logging stats with frequency: %v", interval)
+	//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Logging stats with frequency: %v", interval)
+	logger.For(logger.SystemKey).Info().Msgf("Logging stats with frequency: %v", interval)
 
 }
 
@@ -1060,25 +1081,27 @@ func (sc *ServerContext) logStats() error {
 	sc.logNetworkInterfaceStats()
 
 	if err := sc.statsContext.addGoSigarStats(); err != nil {
-		base.WarnfCtx(context.TODO(), "Error getting sigar based system resource stats: %v", err)
+		//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error getting sigar based system resource stats: %v", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Error getting sigar based system resource stats")
 	}
 
 	sc.updateCalculatedStats()
+	// FIXME stats get moved to Prometheus
 	// Create wrapper expvar map in order to add a timestamp field for logging purposes
-	currentTime := time.Now()
-	wrapper := statsWrapper{
-		Stats:              []byte(base.SyncGatewayStats.String()),
-		UnixEpochTimestamp: currentTime.Unix(),
-		RFC3339:            currentTime.Format(time.RFC3339),
-	}
 
-	marshalled, err := json.Marshal(wrapper)
-	if err != nil {
-		return err
-	}
+	// currentTime := time.Now()
+	// wrapper := statsWrapper{
+	// 	Stats:              []byte(base.SyncGatewayStats.String()),
+	// 	UnixEpochTimestamp: currentTime.Unix(),
+	// 	RFC3339:            currentTime.Format(time.RFC3339),
+	// }
 
+	// marshalled, err := json.Marshal(wrapper)
+	// if err != nil {
+	// 	return err
+	// }
 	// Marshal expvar map w/ timestamp to string and write to logs
-	base.RecordStats(string(marshalled))
+	// logger.RecordStats(string(marshalled))
 
 	return nil
 
@@ -1087,11 +1110,13 @@ func (sc *ServerContext) logStats() error {
 func (sc *ServerContext) logNetworkInterfaceStats() {
 
 	if err := sc.statsContext.addPublicNetworkInterfaceStatsForHostnamePort(sc.config.API.PublicInterface); err != nil {
-		base.WarnfCtx(context.TODO(), "Error getting public network interface resource stats: %v", err)
+		//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error getting public network interface resource stats: %v", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Error getting public network interface resource stats")
 	}
 
 	if err := sc.statsContext.addAdminNetworkInterfaceStatsForHostnamePort(sc.config.API.AdminInterface); err != nil {
-		base.WarnfCtx(context.TODO(), "Error getting admin network interface resource stats: %v", err)
+		//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error getting admin network interface resource stats: %v", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Error getting admin network interface resource stats")
 	}
 
 }
@@ -1138,7 +1163,8 @@ func initClusterAgent(clusterAddress, clusterUser, clusterPass, certPath, keyPat
 	defer func() {
 		if shouldCloseAgent {
 			if err := agent.Close(); err != nil {
-				base.WarnfCtx(context.TODO(), "unable to close gocb agent: %v", err)
+				//log.Ctx(context.TODO()).Warn().Err(err).Msgf("unable to close gocb agent: %v", err)
+				logger.For(logger.SystemKey).Warn().Err(err).Msgf("unable to close gocb agent")
 			}
 		}
 	}()
@@ -1178,7 +1204,8 @@ func (sc *ServerContext) initializeGoCBAgent() (*gocbcore.Agent, error) {
 			sc.config.Bootstrap.Server, sc.config.Bootstrap.Username, sc.config.Bootstrap.Password,
 			sc.config.Bootstrap.X509CertPath, sc.config.Bootstrap.X509KeyPath, sc.config.Bootstrap.CACertPath, sc.config.Bootstrap.ServerTLSSkipVerify)
 		if err != nil {
-			base.InfofCtx(context.TODO(), base.KeyConfig, "Couldn't initialize cluster agent: %v - will retry...", err)
+			//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyConfig, "Couldn't initialize cluster agent: %v - will retry...", err)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Couldn't initialize cluster agent: %v - will retry...", err)
 			return true, err, nil
 		}
 
@@ -1188,7 +1215,8 @@ func (sc *ServerContext) initializeGoCBAgent() (*gocbcore.Agent, error) {
 		return nil, err
 	}
 
-	base.InfofCtx(context.TODO(), base.KeyConfig, "Successfully initialized cluster agent")
+	//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyConfig, "Successfully initialized cluster agent")
+	logger.For(logger.ConfigKey).Info().Err(err).Msgf("Successfully initialized cluster agent")
 	agent := a.(*gocbcore.Agent)
 	return agent, nil
 }
@@ -1463,41 +1491,46 @@ func (sc *ServerContext) initializeCouchbaseServerConnections() error {
 			return err
 		}
 
-		logCtx := context.TODO()
 		if count > 0 {
-			base.InfofCtx(logCtx, base.KeyConfig, "Successfully fetched %d database configs from buckets in cluster", count)
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Successfully fetched %d database configs from buckets in cluster", count)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Successfully fetched %d database configs from buckets in cluster", count)
 		} else {
-			base.WarnfCtx(logCtx, "Config: No database configs for group %q. Continuing startup to allow REST API database creation", sc.config.Bootstrap.ConfigGroupID)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Config: No database configs for group %q. Continuing startup to allow REST API database creation", sc.config.Bootstrap.ConfigGroupID)
 		}
 
 		if sc.config.Bootstrap.ConfigUpdateFrequency.Value() > 0 {
 			sc.bootstrapContext.terminator = make(chan struct{})
 			sc.bootstrapContext.doneChan = make(chan struct{})
 
-			base.InfofCtx(logCtx, base.KeyConfig, "Starting background polling for new configs/buckets: %s", sc.config.Bootstrap.ConfigUpdateFrequency.Value().String())
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Starting background polling for new configs/buckets: %s", sc.config.Bootstrap.ConfigUpdateFrequency.Value().String())
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Starting background polling for new configs/buckets: %s", sc.config.Bootstrap.ConfigUpdateFrequency.Value().String())
 			go func() {
 				defer close(sc.bootstrapContext.doneChan)
 				t := time.NewTicker(sc.config.Bootstrap.ConfigUpdateFrequency.Value())
 				for {
 					select {
 					case <-sc.bootstrapContext.terminator:
-						base.InfofCtx(logCtx, base.KeyConfig, "Stopping background config polling loop")
+						//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Stopping background config polling loop")
+						logger.For(logger.ConfigKey).Info().Err(err).Msgf("Stopping background config polling loop")
 						t.Stop()
 						return
 					case <-t.C:
-						base.DebugfCtx(logCtx, base.KeyConfig, "Fetching configs from buckets in cluster for group %q", sc.config.Bootstrap.ConfigGroupID)
+						//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Fetching configs from buckets in cluster for group %q", sc.config.Bootstrap.ConfigGroupID)
+						logger.For(logger.ConfigKey).Info().Err(err).Msgf("Fetching configs from buckets in cluster for group %q", sc.config.Bootstrap.ConfigGroupID)
 						count, err := sc.fetchAndLoadConfigs(false)
 						if err != nil {
-							base.WarnfCtx(logCtx, "Couldn't load configs from bucket when polled: %v", err)
+							logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Couldn't load configs from bucket when polled: %v", err)
 						}
 						if count > 0 {
-							base.InfofCtx(logCtx, base.KeyConfig, "Successfully fetched %d database configs from buckets in cluster", count)
+							//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Successfully fetched %d database configs from buckets in cluster", count)
+							logger.For(logger.ConfigKey).Info().Err(err).Msgf("Successfully fetched %d database configs from buckets in cluster", count)
 						}
 					}
 				}
 			}()
 		} else {
-			base.InfofCtx(logCtx, base.KeyConfig, "Disabled background polling for new configs/buckets")
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Disabled background polling for new configs/buckets")
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Disabled background polling for new configs/buckets")
 		}
 	}
 

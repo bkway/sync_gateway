@@ -37,8 +37,10 @@ import (
 
 	"github.com/couchbase/go-couchbase"
 	"github.com/couchbase/gomemcached"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/gorilla/mux"
 	pkgerrors "github.com/pkg/errors"
+
 	"gopkg.in/couchbaselabs/gocbconnstr.v1"
 )
 
@@ -51,7 +53,7 @@ const (
 func RedactBasicAuthURLUserAndPassword(urlIn string) string {
 	redactedUrl, err := RedactBasicAuthURL(urlIn, false)
 	if err != nil {
-		WarnfCtx(context.Background(), "%v", err)
+		logger.For(logger.AuthKey).Warn().Err(err).Msg("RedactBasicAuthURLUserAndPassword failed")
 		return ""
 	}
 	return redactedUrl
@@ -61,7 +63,7 @@ func RedactBasicAuthURLUserAndPassword(urlIn string) string {
 func RedactBasicAuthURLPassword(urlIn string) string {
 	redactedUrl, err := RedactBasicAuthURL(urlIn, true)
 	if err != nil {
-		WarnfCtx(context.Background(), "%v", err)
+		logger.For(logger.AuthKey).Warn().Err(err).Msg("RedactBasicAuthURLPassword failed")
 		return ""
 	}
 	return redactedUrl
@@ -214,7 +216,7 @@ func CouchbaseUrlWithAuth(serverUrl, username, password, bucketname string) (str
 	// parse url and reconstruct it piece by piece
 	u, err := url.Parse(serverUrl)
 	if err != nil {
-		return "", pkgerrors.WithStack(RedactErrorf("Error parsing serverUrl: %v.  Error: %v", MD(serverUrl), err))
+		return "", pkgerrors.WithStack(logger.RedactErrorf("Error parsing serverUrl: %v.  Error: %v", logger.MD(serverUrl), err))
 	}
 
 	userPass := bytes.Buffer{}
@@ -438,10 +440,12 @@ func RetryLoopCtx(description string, worker RetryWorker, sleeper RetrySleeper, 
 			if err == nil {
 				err = NewRetryTimeoutError(description, numAttempts)
 			}
-			WarnfCtx(ctx, "RetryLoop for %v giving up after %v attempts", description, numAttempts)
+			logger.For(logger.SystemKey).Warn().Err(err).Msgf("RetryLoop for %v giving up after %v attempts", description, numAttempts)
+			// log.Ctx(ctx, "RetryLoop for %v giving up after %v attempts", description).Warn().Err(err).Msgf(numAttempts)
 			return err, value
 		}
-		DebugfCtx(ctx, KeyAll, "RetryLoop retrying %v after %v ms.", description, sleepMs)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("RetryLoop retrying %v after %v ms.", description, sleepMs)
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyAll, "RetryLoop retrying %v after %v ms.", description, sleepMs)
 
 		select {
 		case <-ctx.Done():
@@ -473,10 +477,10 @@ func RetryLoopCas(description string, worker RetryCasWorker, sleeper RetrySleepe
 			if err == nil {
 				err = NewRetryTimeoutError(description, numAttempts)
 			}
-			WarnfCtx(context.Background(), "RetryLoopCas for %v giving up after %v attempts", description, numAttempts)
+			logger.For(logger.SystemKey).Warn().Msgf("RetryLoopCas for %v giving up after %v attempts", description, numAttempts)
 			return err, value
 		}
-		DebugfCtx(context.Background(), KeyAll, "RetryLoopCas retrying %v after %v ms.", description, sleepMs)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("RetryLoopCas retrying %v after %v ms.", description, sleepMs)
 
 		<-time.After(time.Millisecond * time.Duration(sleepMs))
 
@@ -581,17 +585,19 @@ func WriteHistogram(expvarMap *expvar.Map, since time.Time, prefix string) {
 	WriteHistogramForDuration(expvarMap, time.Since(since), prefix)
 }
 
+// TODO Histograms are for Prometheus
 func WriteHistogramForDuration(expvarMap *expvar.Map, duration time.Duration, prefix string) {
 
-	if LogDebugEnabled(KeyAll) {
-		var durationMs int
-		if duration < 1*time.Second {
-			durationMs = int(duration/(100*time.Millisecond)) * 100
-		} else {
-			durationMs = int(duration/(1000*time.Millisecond)) * 1000
-		}
-		expvarMap.Add(fmt.Sprintf("%s-%06dms", prefix, durationMs), 1)
+	// TODO make this work
+	// if logger.LogDebugEnabled(logger.KeyAll) {
+	var durationMs int
+	if duration < 1*time.Second {
+		durationMs = int(duration/(100*time.Millisecond)) * 100
+	} else {
+		durationMs = int(duration/(1000*time.Millisecond)) * 1000
 	}
+	expvarMap.Add(fmt.Sprintf("%s-%06dms", prefix, durationMs), 1)
+	// }
 }
 
 /*
@@ -660,7 +666,7 @@ func SanitizeRequestURL(req *http.Request, cachedQueryValues *url.Values) string
 
 	urlString := sanitizeRequestURLQueryParams(req.URL.String(), *cachedQueryValues)
 
-	if RedactSystemData || RedactMetadata || RedactUserData {
+	if logger.RedactSystemData || logger.RedactMetadata || logger.RedactUserData {
 		tagQueryParams(*cachedQueryValues, &urlString)
 		tagPathVars(req, &urlString)
 	}
@@ -695,11 +701,11 @@ func tagPathVars(req *http.Request, urlString *string) {
 	for k, v := range pathVars {
 		switch redactedPathVars[k] {
 		case "UD":
-			str = strings.Replace(str, "/"+v, "/"+UD(v).Redact(), 1)
+			str = strings.Replace(str, "/"+v, "/"+logger.UD(v).Redact(), 1)
 		case "MD":
-			str = strings.Replace(str, "/"+v, "/"+MD(v).Redact(), 1)
+			str = strings.Replace(str, "/"+v, "/"+logger.MD(v).Redact(), 1)
 		case "SD":
-			str = strings.Replace(str, "/"+v, "/"+SD(v).Redact(), 1)
+			str = strings.Replace(str, "/"+v, "/"+logger.SD(v).Redact(), 1)
 		}
 	}
 
@@ -732,11 +738,11 @@ func tagQueryParams(values url.Values, urlString *string) {
 		for _, v := range vals {
 			switch redactedQueryParams[k] {
 			case "UD":
-				str = strings.Replace(str, fmt.Sprintf("%s=%s", k, v), fmt.Sprintf("%s=%s", k, UD(v).Redact()), 1)
+				str = strings.Replace(str, fmt.Sprintf("%s=%s", k, v), fmt.Sprintf("%s=%s", k, logger.UD(v).Redact()), 1)
 			case "MD":
-				str = strings.Replace(str, fmt.Sprintf("%s=%s", k, v), fmt.Sprintf("%s=%s", k, MD(v).Redact()), 1)
+				str = strings.Replace(str, fmt.Sprintf("%s=%s", k, v), fmt.Sprintf("%s=%s", k, logger.MD(v).Redact()), 1)
 			case "SD":
-				str = strings.Replace(str, fmt.Sprintf("%s=%s", k, v), fmt.Sprintf("%s=%s", k, SD(v).Redact()), 1)
+				str = strings.Replace(str, fmt.Sprintf("%s=%s", k, v), fmt.Sprintf("%s=%s", k, logger.SD(v).Redact()), 1)
 			}
 		}
 	}
@@ -774,7 +780,7 @@ func GetGoCBBucketFromBaseBucket(baseBucket Bucket) (bucket CouchbaseBucketGoCB,
 	case *CouchbaseBucketGoCB:
 		return *baseBucket, nil
 	default:
-		return CouchbaseBucketGoCB{}, RedactErrorf("baseBucket %v was not a CouchbaseBucketGoCB.  Was type: %T", MD(baseBucket), baseBucket)
+		return CouchbaseBucketGoCB{}, logger.RedactErrorf("baseBucket %v was not a CouchbaseBucketGoCB.  Was type: %T", logger.MD(baseBucket), baseBucket)
 	}
 }
 
@@ -788,10 +794,11 @@ func DurationPtr(value ConfigDuration) *ConfigDuration {
 	return &value
 }
 
-// LogLevelPtr returns a pointer to the given LogLevel literal.
-func LogLevelPtr(value LogLevel) *LogLevel {
-	return &value
-}
+// TODO do we need this?
+// // LogLevelPtr returns a pointer to the given logger.LogLevel literal.
+// func LogLevelPtr(value logger.LogLevel) *logger.LogLevel {
+// 	return &value
+// }
 
 // StringPtr returns a pointer to the given string literal.
 func StringPtr(value string) *string {
@@ -866,7 +873,7 @@ func CouchbaseURIToHttpURL(bucket Bucket, couchbaseUri string, connSpec *gocbcon
 		// Unable to do simple URL parse, try to parse into components w/ gocbconnstr
 		newConnSpec, errParse := gocbconnstr.Parse(couchbaseUri)
 		if errParse != nil {
-			return httpUrls, pkgerrors.WithStack(RedactErrorf("Error parsing gocb connection string: %v.  Error: %v", MD(couchbaseUri), errParse))
+			return httpUrls, pkgerrors.WithStack(logger.RedactErrorf("Error parsing gocb connection string: %v.  Error: %v", logger.MD(couchbaseUri), errParse))
 		}
 		connSpec = &newConnSpec
 	}
@@ -887,7 +894,7 @@ func connSpecToHTTPURLs(connSpec gocbconnstr.ConnSpec) (httpUrls []string, err e
 		case "couchbase":
 			fallthrough
 		case "couchbases":
-			return nil, RedactErrorf("couchbase:// and couchbases:// URI schemes can only be used with GoCB buckets.")
+			return nil, logger.RedactErrorf("couchbase:// and couchbases:// URI schemes can only be used with GoCB buckets.")
 		case "https":
 			translatedScheme = "https"
 		}
@@ -1154,7 +1161,7 @@ func ExpvarVar2Int(expvarVar expvar.Var) int64 {
 	}
 	asInt, ok := expvarVar.(*expvar.Int)
 	if !ok {
-		WarnfCtx(context.Background(), "ExpvarVar2Int could not convert %v to *expvar.Int", expvarVar)
+		logger.For(logger.SystemKey).Warn().Msgf("ExpvarVar2Int could not convert %v to *expvar.Int", expvarVar)
 		return 0
 	}
 	return asInt.Value()
@@ -1474,7 +1481,7 @@ type JSONEncoderI interface {
 func FatalPanicHandler() {
 	// Log any panics using the built-in loggers so that the stacktraces end up in SG log files before exiting.
 	if r := recover(); r != nil {
-		FatalfCtx(context.TODO(), "Unexpected panic: %v - stopping process\n%v", r, string(debug.Stack()))
+		logger.For(logger.SystemKey).Fatal().Msgf("Unexpected panic: %v - stopping process\n%v", r, string(debug.Stack()))
 	}
 }
 

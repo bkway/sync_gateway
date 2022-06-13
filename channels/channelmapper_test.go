@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/robertkrimen/otto"
 	"github.com/robertkrimen/otto/underscore"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +56,7 @@ func TestJavaScriptWorks(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {channel(doc.x.concat(doc.y));}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"x":["abc"],"y":["xyz"]}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "abc", "xyz"), res.Channels)
+	assert.Equal(t, SetOfTester(t, "abc", "xyz"), res.Channels)
 }
 
 // Just verify that the calls to the channel() fn show up in the output channel list.
@@ -62,7 +64,7 @@ func TestSyncFunction(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {channel("foo", "bar"); channel("baz")}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"channels": []}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "foo", "bar", "baz"), res.Channels)
+	assert.Equal(t, SetOfTester(t, "foo", "bar", "baz"), res.Channels)
 }
 
 // Just verify that the calls to the access() fn show up in the output channel list.
@@ -70,7 +72,7 @@ func TestAccessFunction(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {access("foo", "bar"); access("foo", "baz")}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, AccessMap{"foo": SetOf(t, "bar", "baz")}, res.Access)
+	assert.Equal(t, AccessMap{"foo": SetOfTester(t, "bar", "baz")}, res.Access)
 }
 
 // Just verify that the calls to the channel() fn show up in the output channel list.
@@ -78,7 +80,7 @@ func TestSyncFunctionTakesArray(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {channel(["foo", "bar ok","baz"])}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"channels": []}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "foo", "bar ok", "baz"), res.Channels)
+	assert.Equal(t, SetOfTester(t, "foo", "bar ok", "baz"), res.Channels)
 }
 
 // Calling channel() with an invalid channel name should return an error.
@@ -100,7 +102,7 @@ func TestAccessFunctionTakesArrayOfUsers(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {access(["foo","bar","baz"], "ginger")}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, AccessMap{"bar": SetOf(t, "ginger"), "baz": SetOf(t, "ginger"), "foo": SetOf(t, "ginger")}, res.Access)
+	assert.Equal(t, AccessMap{"bar": SetOfTester(t, "ginger"), "baz": SetOfTester(t, "ginger"), "foo": SetOfTester(t, "ginger")}, res.Access)
 }
 
 // Just verify that the calls to the access() fn show up in the output channel list.
@@ -108,15 +110,15 @@ func TestAccessFunctionTakesArrayOfChannels(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {access("lee", ["ginger", "earl_grey", "green"])}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, AccessMap{"lee": SetOf(t, "ginger", "earl_grey", "green")}, res.Access)
+	assert.Equal(t, AccessMap{"lee": SetOfTester(t, "ginger", "earl_grey", "green")}, res.Access)
 }
 
 func TestAccessFunctionTakesArrayOfChannelsAndUsers(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {access(["lee", "nancy"], ["ginger", "earl_grey", "green"])}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "ginger", "earl_grey", "green"), res.Access["lee"])
-	assert.Equal(t, SetOf(t, "ginger", "earl_grey", "green"), res.Access["nancy"])
+	assert.Equal(t, SetOfTester(t, "ginger", "earl_grey", "green"), res.Access["lee"])
+	assert.Equal(t, SetOfTester(t, "ginger", "earl_grey", "green"), res.Access["nancy"])
 }
 
 func TestAccessFunctionTakesEmptyArrayUser(t *testing.T) {
@@ -151,7 +153,7 @@ func TestAccessFunctionTakesNonChannelsInArray(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {access("lee", ["ginger", null, 5])}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, AccessMap{"lee": SetOf(t, "ginger")}, res.Access)
+	assert.Equal(t, AccessMap{"lee": SetOfTester(t, "ginger")}, res.Access)
 }
 
 func TestAccessFunctionTakesUndefinedUser(t *testing.T) {
@@ -167,7 +169,7 @@ func TestRoleFunction(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {role(["foo","bar","baz"], "role:froods")}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, AccessMap{"bar": SetOf(t, "froods"), "baz": SetOf(t, "froods"), "foo": SetOf(t, "froods")}, res.Roles)
+	assert.Equal(t, AccessMap{"bar": SetOfTester(t, "froods"), "baz": SetOfTester(t, "froods"), "foo": SetOfTester(t, "froods")}, res.Roles)
 }
 
 // Now just make sure the input comes through intact
@@ -175,7 +177,7 @@ func TestInputParse(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {channel(doc.channel);}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"channel": "foo"}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "foo"), res.Channels)
+	assert.Equal(t, SetOfTester(t, "foo"), res.Channels)
 }
 
 // A more realistic example
@@ -183,11 +185,11 @@ func TestDefaultChannelMapper(t *testing.T) {
 	mapper := NewDefaultChannelMapper()
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"channels": ["foo", "bar", "baz"]}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "foo", "bar", "baz"), res.Channels)
+	assert.Equal(t, SetOfTester(t, "foo", "bar", "baz"), res.Channels)
 
 	res, err = mapper.MapToChannelsAndAccess(parse(`{"x": "y"}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, base.Set{}, res.Channels)
+	assert.Equal(t, utils.Set{}, res.Channels)
 }
 
 // Empty/no-op channel mapper fn
@@ -195,7 +197,7 @@ func TestEmptyChannelMapper(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"channels": ["foo", "bar", "baz"]}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, base.Set{}, res.Channels)
+	assert.Equal(t, utils.Set{}, res.Channels)
 }
 
 // channel mapper fn that uses _ underscore JS library
@@ -205,7 +207,7 @@ func TestChannelMapperUnderscoreLib(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {channel(_.first(doc.channels));}`)
 	res, err := mapper.MapToChannelsAndAccess(parse(`{"channels": ["foo", "bar", "baz"]}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "foo"), res.Channels)
+	assert.Equal(t, SetOfTester(t, "foo"), res.Channels)
 }
 
 // Validation by calling reject()
@@ -236,7 +238,7 @@ func TestPublicChannelMapper(t *testing.T) {
 	mapper := NewChannelMapper(`function(doc) {channel(doc.channels);}`)
 	output, err := mapper.MapToChannelsAndAccess(parse(`{"channels": ["foo", "bar", "baz"]}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "foo", "bar", "baz"), output.Channels)
+	assert.Equal(t, SetOfTester(t, "foo", "bar", "baz"), output.Channels)
 }
 
 // Test the userCtx name parameter
@@ -369,7 +371,7 @@ func TestSetFunction(t *testing.T) {
 	assert.NoError(t, err, "SetFunction failed")
 	output, err = mapper.MapToChannelsAndAccess(parse(`{"channels": ["foo", "bar", "baz"]}`), `{}`, emptyMetaMap(), noUser)
 	assert.NoError(t, err, "MapToChannelsAndAccess failed")
-	assert.Equal(t, SetOf(t, "all"), output.Channels)
+	assert.Equal(t, SetOfTester(t, "all"), output.Channels)
 }
 
 // Test that expiry function sets the expiry property
@@ -527,7 +529,7 @@ func TestMetaMap(t *testing.T) {
 }
 
 func TestNilMetaMap(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	mapper := NewChannelMapper(`function(doc, oldDoc, meta) {channel(meta.xattrs.myxattr.val);}`)
 
 	metaMap := map[string]interface{}{
@@ -542,8 +544,8 @@ func TestNilMetaMap(t *testing.T) {
 }
 
 func TestChangedUsers(t *testing.T) {
-	a := AccessMap{"alice": SetOf(t, "x", "y"), "bita": SetOf(t, "z"), "claire": SetOf(t, "w")}
-	b := AccessMap{"alice": SetOf(t, "x", "z"), "bita": SetOf(t, "z"), "diana": SetOf(t, "w")}
+	a := AccessMap{"alice": SetOfTester(t, "x", "y"), "bita": SetOfTester(t, "z"), "claire": SetOfTester(t, "w")}
+	b := AccessMap{"alice": SetOfTester(t, "x", "z"), "bita": SetOfTester(t, "z"), "diana": SetOfTester(t, "w")}
 
 	changes := map[string]bool{}
 	ForChangedUsers(a, b, func(name string) {

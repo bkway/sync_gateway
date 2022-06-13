@@ -16,24 +16,26 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserWaiter(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyCache)
 
 	db := setupTestDB(t)
 	defer db.Close()
 
-	ctx := base.TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	// Create user
 	username := "bob"
 	authenticator := db.Authenticator(ctx)
-	require.NotNil(t, authenticator, "db.Authenticator(base.TestCtx(t)) returned nil")
-	user, err := authenticator.NewUser(username, "letmein", channels.SetOf(t, "ABC"))
+	require.NotNil(t, authenticator, "db.Authenticator(logger.TestCtx(t)) returned nil")
+	user, err := authenticator.NewUser(username, "letmein", channels.SetOfTester(t, "ABC"))
 	require.NoError(t, err, "Error creating new user")
 
 	// Create the user waiter (note: user hasn't been saved yet)
@@ -55,7 +57,7 @@ func TestUserWaiter(t *testing.T) {
 	// Update the user to grant new channel
 	updatedUser := PrincipalConfig{
 		Name:             &username,
-		ExplicitChannels: base.SetFromArray([]string{"ABC", "DEF"}),
+		ExplicitChannels: utils.SetFromArray([]string{"ABC", "DEF"}),
 	}
 	_, err = db.UpdatePrincipal(ctx, updatedUser, true, true)
 	require.NoError(t, err, "Error updating user")
@@ -67,24 +69,24 @@ func TestUserWaiter(t *testing.T) {
 
 func TestUserWaiterForRoleChange(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyCache)
 
 	db := setupTestDB(t)
 	defer db.Close()
 
-	ctx := base.TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	// Create role
 	roleName := "good_egg"
 	authenticator := db.Authenticator(ctx)
-	require.NotNil(t, authenticator, "db.Authenticator(base.TestCtx(t)) returned nil")
-	role, err := authenticator.NewRole(roleName, channels.SetOf(t, "ABC"))
+	require.NotNil(t, authenticator, "db.Authenticator(logger.TestCtx(t)) returned nil")
+	role, err := authenticator.NewRole(roleName, channels.SetOfTester(t, "ABC"))
 	require.NoError(t, err, "Error creating new role")
 	require.NoError(t, authenticator.Save(role))
 
 	// Create user
 	username := "bob"
-	require.NotNil(t, authenticator, "db.Authenticator(base.TestCtx(t)) returned nil")
+	require.NotNil(t, authenticator, "db.Authenticator(logger.TestCtx(t)) returned nil")
 	user, err := authenticator.NewUser(username, "letmein", nil)
 	require.NoError(t, err, "Error creating new user")
 
@@ -128,7 +130,7 @@ func TestUserWaiterForRoleChange(t *testing.T) {
 	// Update the role to grant a new channel
 	updatedRole := PrincipalConfig{
 		Name:             &roleName,
-		ExplicitChannels: base.SetFromArray([]string{"ABC", "DEF"}),
+		ExplicitChannels: utils.SetFromArray([]string{"ABC", "DEF"}),
 	}
 	_, err = db.UpdatePrincipal(ctx, updatedRole, false, true)
 	require.NoError(t, err, "Error updating role")

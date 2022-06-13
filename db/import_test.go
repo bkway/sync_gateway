@@ -20,6 +20,7 @@ import (
 
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +40,7 @@ func TestMigrateMetadata(t *testing.T) {
 		t.Skip("This test only works with XATTRS enabled")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyMigrate, base.KeyImport)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyMigrate, logger.KeyImport)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -109,7 +110,7 @@ func TestImportWithStaleBucketDocCorrectExpiry(t *testing.T) {
 		t.Skip("This test only works with XATTRS enabled")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyMigrate, base.KeyImport)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyMigrate, logger.KeyImport)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -381,7 +382,7 @@ func TestImportNullDoc(t *testing.T) {
 		t.Skip("This test only works with XATTRS enabled and in integration mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyImport)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyImport)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -398,7 +399,7 @@ func TestImportNullDoc(t *testing.T) {
 }
 
 func TestImportNullDocRaw(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyImport)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyImport)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -423,7 +424,7 @@ func assertXattrSyncMetaRevGeneration(t *testing.T, bucket base.Bucket, key stri
 }
 
 func TestEvaluateFunction(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyImport)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyImport)
 	db := setupTestDB(t)
 	defer db.Close()
 
@@ -431,7 +432,7 @@ func TestEvaluateFunction(t *testing.T) {
 	body := Body{"key": "value", "version": "1a"}
 	source := "illegal function(doc) {}"
 	importFilterFunc := NewImportFilterFunction(source)
-	result, err := importFilterFunc.EvaluateFunction(base.TestCtx(t), body)
+	result, err := importFilterFunc.EvaluateFunction(logger.TestCtx(t), body)
 	assert.Error(t, err, "Unexpected token function error")
 	assert.False(t, result, "Function evaluation result should be false")
 
@@ -439,7 +440,7 @@ func TestEvaluateFunction(t *testing.T) {
 	body = Body{"key": "value", "version": "2a"}
 	source = `function(doc) { if (doc.version == "2a") { return true; } else { return false; }}`
 	importFilterFunc = NewImportFilterFunction(source)
-	result, err = importFilterFunc.EvaluateFunction(base.TestCtx(t), body)
+	result, err = importFilterFunc.EvaluateFunction(logger.TestCtx(t), body)
 	assert.NoError(t, err, "Import filter function shouldn't throw any error")
 	assert.True(t, result, "Import filter function should return boolean value true")
 
@@ -447,7 +448,7 @@ func TestEvaluateFunction(t *testing.T) {
 	body = Body{"key": "value", "version": "2b"}
 	source = `function(doc) { if (doc.version == "2b") { return 1.01; } else { return 0.01; }}`
 	importFilterFunc = NewImportFilterFunction(source)
-	result, err = importFilterFunc.EvaluateFunction(base.TestCtx(t), body)
+	result, err = importFilterFunc.EvaluateFunction(logger.TestCtx(t), body)
 	assert.Error(t, err, "Import filter function returned non-boolean value")
 	assert.False(t, result, "Import filter function evaluation result should be false")
 
@@ -455,7 +456,7 @@ func TestEvaluateFunction(t *testing.T) {
 	body = Body{"key": "value", "version": "1a"}
 	source = `function(doc) { if (doc.version == "1a") { return "true"; } else { return "false"; }}`
 	importFilterFunc = NewImportFilterFunction(source)
-	result, err = importFilterFunc.EvaluateFunction(base.TestCtx(t), body)
+	result, err = importFilterFunc.EvaluateFunction(logger.TestCtx(t), body)
 	assert.NoError(t, err, "Import filter function shouldn't throw any error")
 	assert.True(t, result, "Import filter function should return true")
 
@@ -463,7 +464,7 @@ func TestEvaluateFunction(t *testing.T) {
 	body = Body{"key": "value", "version": "2a"}
 	source = `function(doc) { if (doc.version == "1a") { return "true"; } else { return "false"; }}`
 	importFilterFunc = NewImportFilterFunction(source)
-	result, err = importFilterFunc.EvaluateFunction(base.TestCtx(t), body)
+	result, err = importFilterFunc.EvaluateFunction(logger.TestCtx(t), body)
 	assert.NoError(t, err, "Import filter function shouldn't throw any error")
 	assert.False(t, result, "Import filter function should return false")
 
@@ -471,7 +472,7 @@ func TestEvaluateFunction(t *testing.T) {
 	body = Body{"key": "value", "version": "1a"}
 	source = `function(doc) { if (doc.version == "1a") { return "TruE"; } else { return "FaLsE"; }}`
 	importFilterFunc = NewImportFilterFunction(source)
-	result, err = importFilterFunc.EvaluateFunction(base.TestCtx(t), body)
+	result, err = importFilterFunc.EvaluateFunction(logger.TestCtx(t), body)
 	assert.Error(t, err, `strconv.ParseBool: parsing "TruE": invalid syntax`)
 	assert.False(t, result, "Import filter function should return true")
 }

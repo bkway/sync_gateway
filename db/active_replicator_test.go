@@ -16,7 +16,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +65,7 @@ func TestBlipSyncErrorUserinfo(t *testing.T) {
 			srvURL.Path = "/db1"
 			t.Logf("srvURL: %v", srvURL.String())
 
-			blipContext, err := NewSGBlipContext(base.TestCtx(t), t.Name())
+			blipContext, err := NewSGBlipContext(logger.TestCtx(t), t.Name())
 			require.NoError(t, err)
 
 			_, err = blipSync(*srvURL, blipContext, false)

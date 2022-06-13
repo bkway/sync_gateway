@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,14 +74,14 @@ func TestStartupConfigMerge(t *testing.T) {
 		},
 		{
 			name:     "Keep original *ConsoleLoggerConfig",
-			config:   StartupConfig{Logging: base.LoggingConfig{Console: &base.ConsoleLoggerConfig{LogKeys: []string{"HTTP", "Config", "CRUD", "DCP", "Sync"}}}},
-			override: StartupConfig{Logging: base.LoggingConfig{Console: &base.ConsoleLoggerConfig{}}},
-			expected: StartupConfig{Logging: base.LoggingConfig{Console: &base.ConsoleLoggerConfig{LogKeys: []string{"HTTP", "Config", "CRUD", "DCP", "Sync"}}}},
+			config:   StartupConfig{Logging: logger.LoggingConfig{Console: &logger.ConsoleLoggerConfig{LogKeys: []string{"HTTP", "Config", "CRUD", "DCP", "Sync"}}}},
+			override: StartupConfig{Logging: logger.LoggingConfig{Console: &logger.ConsoleLoggerConfig{}}},
+			expected: StartupConfig{Logging: logger.LoggingConfig{Console: &logger.ConsoleLoggerConfig{LogKeys: []string{"HTTP", "Config", "CRUD", "DCP", "Sync"}}}},
 		}, {
 			name:     "Override empty logging",
-			config:   StartupConfig{Logging: base.LoggingConfig{Trace: &base.FileLoggerConfig{}}},
-			override: StartupConfig{Logging: base.LoggingConfig{Trace: &base.FileLoggerConfig{Enabled: base.BoolPtr(true)}}},
-			expected: StartupConfig{Logging: base.LoggingConfig{Trace: &base.FileLoggerConfig{Enabled: base.BoolPtr(true)}}},
+			config:   StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{}}},
+			override: StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{Enabled: base.BoolPtr(true)}}},
+			expected: StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{Enabled: base.BoolPtr(true)}}},
 		},
 		{
 			name:     "Keep original *CORSconfig",

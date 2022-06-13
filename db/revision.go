@@ -20,6 +20,8 @@ import (
 	"strings"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // The body of a CouchDB document/revision as decoded from JSON.
@@ -81,7 +83,7 @@ func (body Body) Copy(copyType BodyCopyType) Body {
 	case BodyNoCopy:
 		return body
 	default:
-		base.InfofCtx(context.Background(), base.KeyCRUD, "Unexpected copy type specified in body.Copy - defaulting to shallow copy.  copyType: %d", copyType)
+		logger.For(logger.CRUDKey).Info().Msgf("Unexpected copy type specified in body.Copy - defaulting to shallow copy.  copyType: %d", copyType)
 		return body.ShallowCopy()
 	}
 }
@@ -99,9 +101,10 @@ func (body Body) ShallowCopy() Body {
 
 func (body Body) DeepCopy() Body {
 	var copiedBody Body
-	err := base.DeepCopyInefficient(&copiedBody, body)
+	err := utils.DeepCopyInefficient(&copiedBody, body)
 	if err != nil {
-		base.InfofCtx(context.Background(), base.KeyCRUD, "Error copying body: %v", err)
+		// // log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyCRUD, "Error copying body: %v", err)
+		logger.For(logger.CRUDKey).Info().Msgf("Error copying body: %v", err)
 	}
 	return copiedBody
 }
@@ -231,7 +234,8 @@ const nonJSONPrefix = byte(1)
 func (db *DatabaseContext) getOldRevisionJSON(ctx context.Context, docid string, revid string) ([]byte, error) {
 	data, _, err := db.Bucket.GetRaw(oldRevisionKey(docid, revid))
 	if base.IsDocNotFoundError(err) {
-		base.DebugfCtx(ctx, base.KeyCRUD, "No old revision %q / %q", base.UD(docid), revid)
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "No old revision %q / %q", logger.UD(docid), revid)
+		logger.For(logger.CRUDKey).Info().Msgf("No old revision %q / %q", logger.UD(docid), revid)
 		err = base.HTTPErrorf(404, "missing")
 	}
 	if data != nil {
@@ -239,7 +243,8 @@ func (db *DatabaseContext) getOldRevisionJSON(ctx context.Context, docid string,
 		if len(data) > 0 && data[0] == nonJSONPrefix {
 			data = data[1:]
 		}
-		base.DebugfCtx(ctx, base.KeyCRUD, "Got old revision %q / %q --> %d bytes", base.UD(docid), revid, len(data))
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Got old revision %q / %q --> %d bytes", logger.UD(docid), revid, len(data))
+		logger.For(logger.CRUDKey).Info().Msgf("Got old revision %q / %q --> %d bytes", logger.UD(docid), revid, len(data))
 	}
 	return data, err
 }
@@ -275,7 +280,7 @@ func (db *Database) backupRevisionJSON(docId, newRevId, oldRevId string, newBody
 				Val: newAtts,
 			})
 			if err != nil {
-				base.WarnfCtx(db.Ctx, "Unable to marshal new revision body during backupRevisionJSON: doc=%q rev=%q err=%v ", base.UD(docId), newRevId, err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to marshal new revision body during backupRevisionJSON: doc=%q rev=%q err=%v ", logger.UD(docId), newRevId, err)
 				return
 			}
 		}
@@ -302,9 +307,10 @@ func (db *Database) setOldRevisionJSON(docid string, revid string, body []byte, 
 	nonJSONBytes = append(nonJSONBytes, body...)
 	err := db.Bucket.SetRaw(oldRevisionKey(docid, revid), expiry, nil, base.BinaryDocument(nonJSONBytes))
 	if err == nil {
-		base.DebugfCtx(db.Ctx, base.KeyCRUD, "Backed up revision body %q/%q (%d bytes, ttl:%d)", base.UD(docid), revid, len(body), expiry)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Backed up revision body %q/%q (%d bytes, ttl:%d)", logger.UD(docid), revid, len(body), expiry)
+		logger.For(logger.CRUDKey).Info().Msgf("Backed up revision body %q/%q (%d bytes, ttl:%d)", logger.UD(docid), revid, len(body), expiry)
 	} else {
-		base.WarnfCtx(db.Ctx, "setOldRevisionJSON failed: doc=%q rev=%q err=%v", base.UD(docid), revid, err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("setOldRevisionJSON failed: doc=%q rev=%q err=%v", logger.UD(docid), revid, err)
 	}
 	return err
 }
@@ -322,7 +328,8 @@ func (db *Database) refreshPreviousRevisionBackup(docid string, revid string, bo
 
 // Currently only used by unit tests - deletes an archived old revision from the database
 func (db *Database) PurgeOldRevisionJSON(docid string, revid string) error {
-	base.DebugfCtx(db.Ctx, base.KeyCRUD, "Purging old revision backup %q / %q ", base.UD(docid), revid)
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Purging old revision backup %q / %q ", logger.UD(docid), revid)
+	logger.For(logger.CRUDKey).Info().Msgf("Purging old revision backup %q / %q ", logger.UD(docid), revid)
 	return db.Bucket.Delete(oldRevisionKey(docid, revid))
 }
 
@@ -365,7 +372,7 @@ func genOfRevID(revid string) int {
 	var generation int
 	n, _ := fmt.Sscanf(revid, "%d-", &generation)
 	if n < 1 || generation < 1 {
-		base.WarnfCtx(context.Background(), "genOfRevID unsuccessful for %q", revid)
+		logger.For(logger.UnknownKey).Warn().Msgf("genOfRevID unsuccessful for %q", revid)
 		return -1
 	}
 	return generation
@@ -379,16 +386,18 @@ func ParseRevID(revid string) (int, string) {
 
 	idx := strings.Index(revid, "-")
 	if idx == -1 {
-		base.WarnfCtx(context.Background(), "parseRevID found no separator in rev %q", revid)
+		logger.For(logger.UnknownKey).Warn().Msgf("parseRevID found no separator in rev %q", revid)
 		return -1, ""
 	}
 
 	gen, err := strconv.Atoi(revid[:idx])
 	if err != nil {
-		base.WarnfCtx(context.Background(), "parseRevID unexpected generation in rev %q: %s", revid, err)
+		// 		log.Ctx(context.Background()).Warn().Err(err).Msgf("parseRevID unexpected generation in rev %q: %s", revid, err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("parseRevID unexpected generation in rev %q: %s", revid, err)
 		return -1, ""
 	} else if gen < 1 {
-		base.WarnfCtx(context.Background(), "parseRevID unexpected generation in rev %q", revid)
+		// 		log.Ctx(context.Background()).Warn().Err(err).Msgf("parseRevID unexpected generation in rev %q", revid)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("parseRevID unexpected generation in rev %q", revid)
 		return -1, ""
 	}
 

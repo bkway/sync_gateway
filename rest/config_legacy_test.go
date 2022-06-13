@@ -12,6 +12,7 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -281,7 +282,7 @@ func TestLegacyGuestUserMigration(t *testing.T) {
 	}
 
 	expected := db.PrincipalConfig{
-		ExplicitChannels: base.SetFromArray([]string{"*"}),
+		ExplicitChannels: utils.SetFromArray([]string{"*"}),
 		Disabled:         base.BoolPtr(false),
 	}
 
@@ -361,11 +362,11 @@ func TestLegacyConfigPrinciplesMigration(t *testing.T) {
 	existingUsers := map[string]*db.PrincipalConfig{
 		"ExistingUserStatic": {
 			Name:             base.StringPtr("ExistingUserStatic"),
-			ExplicitChannels: base.SetOf("*"),
+			ExplicitChannels: utils.SetOf("*"),
 		},
 		"ExistingUser": {
 			Name:             base.StringPtr("ExistingUser"),
-			ExplicitChannels: base.SetOf("*"),
+			ExplicitChannels: utils.SetOf("*"),
 		},
 	}
 	err := rt.ServerContext().installPrincipals(rt.GetDatabase(), existingUsers, "user")
@@ -374,11 +375,11 @@ func TestLegacyConfigPrinciplesMigration(t *testing.T) {
 	existingRoles := map[string]*db.PrincipalConfig{
 		"ExistingRoleStatic": {
 			Name:             base.StringPtr("ExistingRoleStatic"),
-			ExplicitChannels: base.SetOf("*"),
+			ExplicitChannels: utils.SetOf("*"),
 		},
 		"ExistingRole": {
 			Name:             base.StringPtr("ExistingRole"),
-			ExplicitChannels: base.SetOf("*"),
+			ExplicitChannels: utils.SetOf("*"),
 		},
 	}
 	err = rt.ServerContext().installPrincipals(rt.GetDatabase(), existingRoles, "role")

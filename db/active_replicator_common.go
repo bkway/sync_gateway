@@ -18,6 +18,7 @@ import (
 
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const (
@@ -72,7 +73,8 @@ func newActiveReplicatorCommon(config *ActiveReplicatorConfig, direction ActiveR
 
 // reconnectLoop synchronously calls replicatorConnectFn until successful, or times out trying. Retry loop can be stopped by cancelling ctx
 func (a *activeReplicatorCommon) reconnectLoop() {
-	base.DebugfCtx(a.ctx, base.KeyReplicate, "starting reconnector")
+	//	logger.DebugfCtx(a.ctx, logger.KeyReplicate, "starting reconnector")
+	logger.For(logger.ReplicateKey).Debug().Msgf("starting reconnector")
 	defer func() {
 		a.reconnectActive.Set(false)
 	}()
@@ -116,7 +118,8 @@ func (a *activeReplicatorCommon) reconnectLoop() {
 		// disconnect no-ops if nothing is active, but will close any checkpointer processes, blip contexts, etc, if active.
 		err = a._disconnect()
 		if err != nil {
-			base.InfofCtx(a.ctx, base.KeyReplicate, "error stopping replicator on reconnect: %v", err)
+			//			logger.InfofCtx(a.ctx, logger.KeyReplicate, "error stopping replicator on reconnect: %v", err)
+			logger.For(logger.ReplicateKey).Info().Msgf("error stopping replicator on reconnect: %v", err)
 		}
 
 		// set lastError, but don't set an error state inside the reconnect loop
@@ -127,7 +130,8 @@ func (a *activeReplicatorCommon) reconnectLoop() {
 		a.lock.Unlock()
 
 		if err != nil {
-			base.InfofCtx(a.ctx, base.KeyReplicate, "error starting replicator on reconnect: %v", err)
+			//			logger.InfofCtx(a.ctx, logger.KeyReplicate, "error starting replicator on reconnect: %v", err)
+			logger.For(logger.ReplicateKey).Info().Msgf("error starting replicator on reconnect: %v", err)
 		}
 		return err != nil, err, nil
 	}
@@ -139,7 +143,7 @@ func (a *activeReplicatorCommon) reconnectLoop() {
 	}
 	if err != nil {
 		a.replicationStats.NumReconnectsAborted.Add(1)
-		base.WarnfCtx(ctx, "couldn't reconnect replicator: %v", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("couldn't reconnect replicator: %v", err)
 	}
 }
 
@@ -209,7 +213,8 @@ type ReplicatorCompleteFunc func()
 // returns the error provided.  Expects callers to be holding
 // a.lock
 func (a *activeReplicatorCommon) setError(err error) (passThrough error) {
-	base.InfofCtx(a.ctx, base.KeyReplicate, "ActiveReplicator had error state set with err: %v", err)
+	//	logger.InfofCtx(a.ctx, logger.KeyReplicate, "ActiveReplicator had error state set with err: %v", err)
+	logger.For(logger.ReplicateKey).Info().Msgf("ActiveReplicator had error state set with err: %v", err)
 	a.stateErrorLock.Lock()
 	a.state = ReplicationStateError
 	a.lastError = err

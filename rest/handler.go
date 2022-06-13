@@ -31,10 +31,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const (
@@ -166,11 +168,12 @@ func newHandler(server *ServerContext, privs handlerPrivs, r http.ResponseWriter
 
 // ctx returns the request-scoped context for logging/cancellation.
 func (h *handler) ctx() context.Context {
-	if h.rqCtx == nil {
-		h.rqCtx = context.WithValue(h.rq.Context(), base.LogContextKey{},
-			base.LogContext{CorrelationID: h.formatSerialNumber()},
-		)
-	}
+	// FIXME make work?
+	// if h.rqCtx == nil {
+	// 	h.rqCtx = context.WithValue(h.rq.Context(), logger.LogContextKey{},
+	// 		logger.LogContext{CorrelationID: h.formatSerialNumber()},
+	// 	)
+	// }
 	return h.rqCtx
 }
 
@@ -217,7 +220,8 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 	var dbContext *db.DatabaseContext
 	if dbname := h.PathVar("db"); dbname != "" {
 		if dbContext, err = h.server.GetDatabase(dbname); err != nil {
-			base.InfofCtx(h.ctx(), base.KeyHTTP, "Error trying to get db %s: %v", base.MD(dbname), err)
+			//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyHTTP, "Error trying to get db %s: %v", logger.MD(dbname), err)
+			logger.For(logger.HTTPKey).Info().Err(err).Msgf("Error trying to get db %s", logger.MD(dbname))
 
 			if shouldCheckAdminAuth {
 				if httpError, ok := err.(*base.HTTPError); ok && httpError.Status == http.StatusNotFound {
@@ -302,7 +306,8 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 			authScope = ""
 		}
 		if err != nil {
-			base.WarnfCtx(h.ctx(), "An error occurred whilst obtaining management endpoints: %v", err)
+			//log.Ctx(h.ctx()).Warn().Err(err).Msgf("An error occurred whilst obtaining management endpoints: %v", err)
+			logger.For(logger.HTTPKey).Warn().Err(err).Msg("An error occurred whilst obtaining management endpoints")
 			return base.HTTPErrorf(http.StatusInternalServerError, "")
 		}
 
@@ -327,19 +332,22 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 			managementEndpoints, *h.server.config.API.EnableAdminAuthenticationPermissionsCheck, accessPermissions,
 			responsePermissions)
 		if err != nil {
-			base.WarnfCtx(h.ctx(), "An error occurred whilst checking whether a user was authorized: %v", err)
+			//log.Ctx(h.ctx()).Warn().Err(err).Msgf("An error occurred whilst checking whether a user was authorized: %v", err)
+			logger.For(logger.AuthKey).Warn().Err(err).Msg("An error occurred whilst checking whether a user was authorized")
 			return base.HTTPErrorf(http.StatusInternalServerError, "")
 		}
 
 		if statusCode != http.StatusOK {
-			base.InfofCtx(h.ctx(), base.KeyAuth, "%s: User %s failed to auth as an admin statusCode: %d", h.formatSerialNumber(), base.UD(username), statusCode)
+			//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAuth, "%s: User %s failed to auth as an admin statusCode: %d", h.formatSerialNumber(), logger.UD(username), statusCode)
+			logger.For(logger.AuthKey).Info().Err(err).Msgf("%s: User %s failed to auth as an admin statusCode: %d", h.formatSerialNumber(), logger.UD(username), statusCode)
 			return base.HTTPErrorf(statusCode, "")
 		}
 
 		h.authorizedAdminUser = username
 		h.permissionsResults = permissions
 
-		base.InfofCtx(h.ctx(), base.KeyAuth, "%s: User %s was successfully authorized as an admin", h.formatSerialNumber(), base.UD(username))
+		//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAuth, "%s: User %s was successfully authorized as an admin", h.formatSerialNumber(), logger.UD(username))
+		logger.For(logger.AuthKey).Info().Err(err).Msgf("%s: User %s was successfully authorized as an admin", h.formatSerialNumber(), logger.UD(username))
 	} else {
 		// If admin auth is not enabled we should set any responsePermissions to true so that any handlers checking for
 		// these still pass
@@ -365,10 +373,6 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 }
 
 func (h *handler) logRequestLine() {
-	// Check Log Level first, as SanitizeRequestURL is expensive to evaluate.
-	if !base.LogInfoEnabled(base.KeyHTTP) {
-		return
-	}
 
 	proto := ""
 	if h.rq.ProtoMajor >= 2 {
@@ -376,7 +380,10 @@ func (h *handler) logRequestLine() {
 	}
 
 	queryValues := h.getQueryValues()
-	base.InfofCtx(h.ctx(), base.KeyHTTP, "%s %s%s%s", h.rq.Method, base.SanitizeRequestURL(h.rq, &queryValues), proto, h.formattedEffectiveUserName())
+	//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyHTTP, "%s %s%s%s", h.rq.Method, base.SanitizeRequestURL(h.rq, &queryValues), proto, h.formattedEffectiveUserName())
+	logger.For(logger.HTTPKey).Info().Func(func(e *zerolog.Event) {
+		e.Msgf("%s %s%s%s", h.rq.Method, base.SanitizeRequestURL(h.rq, &queryValues), proto, h.formattedEffectiveUserName())
+	})
 }
 
 func (h *handler) logDuration(realTime bool) {
@@ -390,17 +397,23 @@ func (h *handler) logDuration(realTime bool) {
 		duration = time.Since(h.startTime)
 	}
 
+	// TODO different HTTP log keys?
 	// Log timings/status codes for errors under the HTTP log key
 	// and the HTTPResp log key for everything else.
-	logKey := base.KeyHTTPResp
-	if h.status >= 300 {
-		logKey = base.KeyHTTP
-	}
+	// logKey := logger.KeyHTTPResp
+	// if h.status >= 300 {
+	logKey := logger.HTTPKey
+	// }
 
-	base.InfofCtx(h.ctx(), logKey, "%s:     --> %d %s  (%.1f ms)",
-		h.formatSerialNumber(), h.status, h.statusMessage,
-		float64(duration)/float64(time.Millisecond),
-	)
+	logger.For(logKey).Info().Msgf("%s:     --> %d %s  (%.1f ms)",
+		h.formatSerialNumber(),
+		h.status,
+		h.statusMessage,
+		float64(duration)/float64(time.Millisecond))
+	// log.Ctx(h.ctx()).Info().Msgf(logKey, "%s:     --> %d %s  (%.1f ms)",
+	// 	h.formatSerialNumber(), h.status, h.statusMessage,
+	// 	float64(duration)/float64(time.Millisecond),
+	// )
 }
 
 // logStatusWithDuration will log the request status and the duration of the request.
@@ -476,7 +489,8 @@ func (h *handler) checkAuth(dbCtx *db.DatabaseContext) (err error) {
 				return err
 			}
 			if h.user == nil {
-				base.InfofCtx(h.ctx(), base.KeyAll, "HTTP auth failed for username=%q", base.UD(userName))
+				//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "HTTP auth failed for username=%q", logger.UD(userName))
+				logger.For(logger.SystemKey).Info().Err(err).Msgf("HTTP auth failed for username=%q", logger.UD(userName))
 				if dbCtx.Options.SendWWWAuthenticateHeader == nil || *dbCtx.Options.SendWWWAuthenticateHeader {
 					h.response.Header().Set("WWW-Authenticate", wwwAuthenticateHeader)
 				}
@@ -796,7 +810,8 @@ func (h *handler) readDocument() (db.Body, error) {
 			body, err := ReadMultipartDocument(reader)
 			if err != nil {
 				_ = ioutil.WriteFile("GatewayPUT.mime", raw, 0600)
-				base.WarnfCtx(h.ctx(), "Error reading MIME data: copied to file GatewayPUT.mime")
+				// 				log.Ctx(h.ctx()).Warn().Err(err).Msgf("Error reading MIME data: copied to file GatewayPUT.mime")
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error reading MIME data: copied to file GatewayPUT.mime")
 			}
 			return body, err
 		} else {
@@ -840,7 +855,7 @@ func (h *handler) getBearerToken() string {
 // e.g: '<ud>alice</ud>' or 'GUEST'
 func (h *handler) taggedEffectiveUserName() string {
 	if h.authorizedAdminUser != "" {
-		return base.UD(h.authorizedAdminUser).Redact() + " as ADMIN"
+		return logger.UD(h.authorizedAdminUser).Redact() + " as ADMIN"
 	}
 
 	if h.privs == adminPrivs || h.privs == metricsPrivs {
@@ -852,7 +867,7 @@ func (h *handler) taggedEffectiveUserName() string {
 	}
 
 	if name := h.user.Name(); name != "" {
-		return base.UD(name).Redact()
+		return logger.UD(name).Redact()
 	}
 
 	return "GUEST"
@@ -916,14 +931,16 @@ func (h *handler) writeJSON(value interface{}) {
 // If status is nonzero, the header will be written with that status.
 func (h *handler) writeJSONStatus(status int, value interface{}) {
 	if !h.requestAccepts("application/json") {
-		base.WarnfCtx(h.ctx(), "Client won't accept JSON, only %s", h.rq.Header.Get("Accept"))
+		//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Client won't accept JSON, only %s", h.rq.Header.Get("Accept"))
+		logger.For(logger.HTTPKey).Warn().Msgf("Client won't accept JSON only %s", h.rq.Header.Get("Accept"))
 		h.writeStatus(http.StatusNotAcceptable, "only application/json available")
 		return
 	}
 
 	jsonOut, err := json.Marshal(value)
 	if err != nil {
-		base.WarnfCtx(h.ctx(), "Couldn't serialize JSON for %v : %s", base.UD(value), err)
+		//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Couldn't serialize JSON for %v : %s", logger.UD(value), err)
+		logger.For(logger.HTTPKey).Warn().Err(err).Msgf("Couldn't serialize JSON for %v", logger.UD(value))
 		h.writeStatus(http.StatusInternalServerError, "JSON serialization failed")
 		return
 	}
@@ -945,7 +962,8 @@ func (h *handler) writeRawJSON(b []byte) {
 // If status is nonzero, the header will be written with that status.
 func (h *handler) writeRawJSONStatus(status int, b []byte) {
 	if !h.requestAccepts("application/json") {
-		base.WarnfCtx(h.ctx(), "Client won't accept JSON, only %s", h.rq.Header.Get("Accept"))
+		//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Client won't accept JSON, only %s", h.rq.Header.Get("Accept"))
+		logger.For(logger.HTTPKey).Warn().Msgf("Client won't accept JSON, only %s", h.rq.Header.Get("Accept"))
 		h.writeStatus(http.StatusNotAcceptable, "only application/json available")
 		return
 	}
@@ -972,7 +990,8 @@ func (h *handler) writeJavascript(js string) {
 // If status is nonzero, the header will be written with that status.
 func (h *handler) writeWithMimetypeStatus(status int, value []byte, mimetype string) {
 	if !h.requestAccepts(mimetype) {
-		base.WarnfCtx(h.ctx(), "Client won't accept %s, only %s", mimetype, h.rq.Header.Get("Accept"))
+		//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Client won't accept %s, only %s", mimetype, h.rq.Header.Get("Accept"))
+		logger.For(logger.HTTPKey).Warn().Msgf("Client won't accept %s, only %s", mimetype, h.rq.Header.Get("Accept"))
 		h.writeStatus(http.StatusNotAcceptable, fmt.Sprintf("only %s available", mimetype))
 		return
 	}
@@ -993,10 +1012,12 @@ func (h *handler) addJSON(value interface{}) error {
 		brokenPipeError := strings.Contains(err.Error(), "write: broken pipe")
 		connectionResetError := strings.Contains(err.Error(), "write: connection reset")
 		if brokenPipeError || connectionResetError {
-			base.DebugfCtx(h.ctx(), base.KeyCRUD, "Couldn't serialize document body, HTTP client closed connection")
+			//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyCRUD, "Couldn't serialize document body, HTTP client closed connection")
+			logger.For(logger.CRUDKey).Info().Err(err).Msgf("Couldn't serialize document body, HTTP client closed connection")
 			return err
 		} else {
-			base.WarnfCtx(h.ctx(), "Couldn't serialize JSON for %s", err)
+			//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Couldn't serialize JSON for %s", err)
+			logger.For(logger.CRUDKey).Warn().Err(err).Msg("Couldn't serialize JSON")
 			h.writeStatus(http.StatusInternalServerError, "Couldn't serialize document body")
 		}
 	}
@@ -1046,12 +1067,15 @@ func (h *handler) writeError(err error) {
 		status, message := base.ErrorAsHTTPStatus(err)
 		h.writeStatus(status, message)
 		if status >= 500 {
+			logger.For(logger.HTTPKey).Err(err).Msg(h.formatSerialNumber())
 			// Log additional context when the handler has a database reference
-			if h.db != nil {
-				base.ErrorfCtx(h.db.Ctx, "%s: %v", h.formatSerialNumber(), err)
-			} else {
-				base.ErrorfCtx(h.ctx(), "%s: %v", h.formatSerialNumber(), err)
-			}
+			// if h.db != nil {
+			// 	//log.Ctx(h.db.Ctx).Error().Err(err).Msgf("%s: %v", h.formatSerialNumber(), err)
+			// 	logger.For("%s: %v").Error().Err(err).Msgf(h.formatSerialNumber(), err)
+			// } else {
+			// 	//log.Ctx(h.ctx()).Error().Err(err).Msgf("%s: %v", h.formatSerialNumber(), err)
+			// 	logger.For("%s: %v").Error().Err(err).Msgf(h.formatSerialNumber(), err)
+			// }
 		}
 	}
 }

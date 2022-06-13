@@ -23,6 +23,7 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,14 +34,14 @@ func TestChangesAccessNotifyInteger(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyHTTP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyHTTP)
 
 	rt := NewRestTester(t, &RestTesterConfig{SyncFn: `function(doc) {channel(doc.channel); access(doc.accessUser, doc.accessChannel);}`})
 	defer rt.Close()
 
 	// Create user:
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
-	bernard, err := a.NewUser("bernard", "letmein", channels.SetOf(t, "ABC"))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
+	bernard, err := a.NewUser("bernard", "letmein", channels.SetOfTester(t, "ABC"))
 	assert.NoError(t, err)
 	assert.NoError(t, a.Save(bernard))
 
@@ -88,7 +89,7 @@ func TestChangesNotifyChannelFilter(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyHTTP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyHTTP)
 
 	rt := NewRestTester(t, &RestTesterConfig{SyncFn: `function(doc) {channel(doc.channel);}`})
 	defer rt.Close()
@@ -103,7 +104,7 @@ func TestChangesNotifyChannelFilter(t *testing.T) {
 	assertStatus(t, userResponse, 200)
 
 	/*
-		a := it.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+		a := it.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 		bernard, err := a.NewUser("bernard", "letmein", channels.SetOf(t,"ABC"))
 		goassert.True(t, err == nil)
 		a.Save(bernard)
@@ -166,7 +167,7 @@ func TestSetupAndValidate(t *testing.T) {
 	if !base.UnitTestUrlIsWalrus() {
 		t.Skip("Skipping this test; it only works on Walrus bucket")
 	}
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	t.Run("Run setupAndValidate with valid config", func(t *testing.T) {
 		configFile := createTempFile(t, []byte(`{
           "databases": {

@@ -19,6 +19,7 @@ import (
 
 	"github.com/couchbase/gocb/v2"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -116,7 +117,7 @@ func createIndex(store N1QLStore, indexName string, createStatement string, opti
 		createStatement = fmt.Sprintf(`%s with %s`, createStatement, withClause)
 	}
 
-	DebugfCtx(context.TODO(), KeyQuery, "Attempting to create index using statement: [%s]", UD(createStatement))
+	logger.For(logger.QueryKey).Info().Msgf("Attempting to create index using statement: [%s]", logger.UD(createStatement))
 
 	err := store.executeStatement(createStatement)
 	if err == nil {
@@ -124,18 +125,18 @@ func createIndex(store N1QLStore, indexName string, createStatement string, opti
 	}
 
 	if IsIndexerRetryIndexError(err) {
-		InfofCtx(context.TODO(), KeyQuery, "Indexer error creating index - waiting for server background retry.  Error:%v", err)
+		logger.For(logger.QueryKey).Err(err).Msgf("Indexer error creating index - waiting for server background retry.")
 		// Wait for bucket to be created in background before returning
 		return waitForIndexExistence(store, indexName, true)
 	}
 
 	if IsCreateDuplicateIndexError(err) {
-		InfofCtx(context.TODO(), KeyQuery, "Duplicate index creation in progress - waiting for index readiness.  Error:%v", err)
+		logger.For(logger.QueryKey).Err(err).Msgf("Duplicate index creation in progress - waiting for index readiness")
 		// Wait for bucket to be created in background before returning
 		return waitForIndexExistence(store, indexName, true)
 	}
 
-	return pkgerrors.WithStack(RedactErrorf("Error creating index with statement: %s.  Error: %v", UD(createStatement), err))
+	return pkgerrors.WithStack(logger.RedactErrorf("Error creating index with statement: %s.  Error: %v", logger.UD(createStatement), err))
 }
 
 // Waits for index to exist/not exist.  Used in response to background create/drop processing by server.
@@ -204,7 +205,7 @@ func BuildDeferredIndexes(s N1QLStore, indexSet []string) error {
 		return nil
 	}
 
-	InfofCtx(context.TODO(), KeyQuery, "Building deferred indexes: %v", deferredIndexes)
+	logger.For(logger.QueryKey).Info().Msgf("Building deferred indexes: %v", deferredIndexes)
 	buildErr := buildIndexes(s, deferredIndexes)
 	return buildErr
 }
@@ -224,7 +225,7 @@ func buildIndexes(s N1QLStore, indexNames []string) error {
 
 	// If indexer reports build will be completed in the background, wait to validate build actually happens.
 	if IsIndexerRetryBuildError(err) {
-		InfofCtx(context.TODO(), KeyQuery, "Indexer error creating index - waiting for background build.  Error:%v", err)
+		logger.For(logger.QueryKey).Err(err).Msgf("Indexer error creating index - waiting for background build.")
 		// Wait for bucket to be created in background before returning
 		for _, indexName := range indexNames {
 			waitErr := s.WaitForIndexOnline(indexName)
@@ -251,7 +252,7 @@ func WaitForIndexOnline(store N1QLStore, indexName string) error {
 	// Kick off retry loop
 	err, _ := RetryLoop("WaitForIndexOnline", worker, CreateMaxDoublingSleeperFunc(25, 100, 15000))
 	if err != nil {
-		return pkgerrors.Wrapf(err, "WaitForIndexOnline for index %s", MD(indexName).Redact())
+		return pkgerrors.Wrapf(err, "WaitForIndexOnline for index %s", logger.MD(indexName).Redact())
 	}
 	return nil
 }
@@ -278,7 +279,7 @@ func GetIndexMeta(store N1QLStore, indexName string) (exists bool, meta *IndexMe
 		exists, meta, err := getIndexMetaWithoutRetry(store, indexName)
 		if err != nil {
 			// retry
-			WarnfCtx(context.TODO(), "Error from GetIndexMeta for index %s: %v will retry", indexName, err)
+			logger.For(logger.QueryKey).Warn().Err(err).Msgf("Error from GetIndexMeta for index %s, will retry", indexName)
 			return true, err, nil
 		}
 		return false, nil, getIndexMetaRetryValues{
@@ -329,7 +330,7 @@ func DropIndex(store N1QLStore, indexName string) error {
 	}
 
 	if IsIndexerRetryIndexError(err) {
-		InfofCtx(context.TODO(), KeyQuery, "Indexer error dropping index - waiting for server background retry.  Error:%v", err)
+		logger.For(logger.QueryKey).Err(err).Msgf("Indexer error dropping index - waiting for server background retry.")
 		// Wait for bucket to be dropped in background before returning
 		return waitForIndexExistence(store, indexName, false)
 	}
@@ -350,8 +351,8 @@ func AsN1QLStore(bucket Bucket) (N1QLStore, bool) {
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
 	case *LeakyBucket:
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
-	case *TestBucket:
-		underlyingBucket = typedBucket.Bucket
+	// case *TestBucket:
+	// 	underlyingBucket = typedBucket.Bucket
 	default:
 		// bail out for unrecognised/unsupported buckets
 		return nil, false
@@ -414,7 +415,7 @@ func isTransientIndexerError(err error) bool {
 
 func SlowQueryLog(ctx context.Context, startTime time.Time, threshold time.Duration, messageFormat string, args ...interface{}) {
 	if elapsed := time.Now().Sub(startTime); elapsed > threshold {
-		InfofCtx(ctx, KeyQuery, messageFormat+" took "+elapsed.String(), args...)
+		logger.For(logger.QueryKey).Info().Msgf(fmt.Sprintf("%s took %s", messageFormat, elapsed), args...)
 	}
 }
 
@@ -479,7 +480,7 @@ func (i *gocbRawIterator) Next(valuePtr interface{}) bool {
 
 	err := json.Unmarshal(nextBytes, &valuePtr)
 	if err != nil {
-		WarnfCtx(context.TODO(), "Unable to marshal view result row into value: %v", err)
+		logger.For(logger.QueryKey).Warn().Err(err).Msgf("Unable to marshal view result row into value")
 		return false
 	}
 	return true

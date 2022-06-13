@@ -1,10 +1,10 @@
 package base
 
 import (
-	"context"
 	"errors"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 	"gopkg.in/couchbase/gocb.v1"
 	"gopkg.in/couchbase/gocbcore.v7"
@@ -70,17 +70,17 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetXattr(k string, xattrKey string, xv 
 		case nil:
 			xattrContErr := res.Content(xattrKey, xv)
 			if xattrContErr != nil {
-				DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContErr)
+				logger.For(logger.CRUDKey).Debug().Err(xattrContErr).Msgf("No xattr content found for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 			}
 			cas := uint64(res.Cas())
 			return false, err, cas
 		case gocbcore.ErrSubDocBadMulti:
 			xattrErr := res.Content(xattrKey, xv)
-			DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrErr)
+			logger.For(logger.CRUDKey).Debug().Err(xattrErr).Msgf("No xattr content found for key=%s, xattrKey=%s: %v", logger.UD(k), logger.UD(xattrKey))
 			cas := uint64(res.Cas())
 			return false, ErrXattrNotFound, cas
 		case gocbcore.ErrKeyNotFound:
-			DebugfCtx(context.TODO(), KeyCRUD, "No document found for key=%s", UD(k))
+			logger.For(logger.CRUDKey).Debug().Msgf("No document found for key=%s", logger.UD(k))
 			return false, ErrNotFound, 0
 		case gocbcore.ErrSubDocMultiPathFailureDeleted, gocb.ErrSubDocSuccessDeleted:
 			xattrContentErr := res.Content(xattrKey, xv)
@@ -98,7 +98,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetXattr(k string, xattrKey string, xv 
 
 	err, result := RetryLoop("SubdocGetXattr", worker, bucket.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocGetXattr %s", UD(k).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocGetXattr %s", logger.UD(k).Redact())
 	}
 
 	if result == nil {
@@ -107,7 +107,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetXattr(k string, xattrKey string, xv 
 
 	cas, ok := result.(uint64)
 	if !ok {
-		return 0, RedactErrorf("SubdocGetXattr: Error doing type assertion of %v (%T) into uint64, Key %v", UD(result), result, UD(k))
+		return 0, logger.RedactErrorf("SubdocGetXattr: Error doing type assertion of %v (%T) into uint64, Key %v", logger.UD(result), result, logger.UD(k))
 	}
 
 	return cas, err
@@ -132,7 +132,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocWrite(k string, subdocKey string, cas u
 
 	err, casOut := RetryLoopCas("SubdocWrite", worker, bucket.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocWrite with key %s and subdocKey %s", UD(k).Redact(), UD(subdocKey).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocWrite with key %s and subdocKey %s", logger.UD(k).Redact(), logger.UD(subdocKey).Redact())
 	}
 
 	return casOut, err
@@ -164,7 +164,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetRaw(k string, subdocKey string) ([]b
 
 	err, casOut := RetryLoopCas("SubdocGetRaw", worker, bucket.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocGetRaw with key %s and subdocKey %s", UD(k).Redact(), UD(subdocKey).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocGetRaw with key %s and subdocKey %s", logger.UD(k).Redact(), logger.UD(subdocKey).Redact())
 	}
 
 	return rawValue, casOut, err
@@ -190,12 +190,12 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetBodyAndXattr(k string, xattrKey stri
 			// Attempt to retrieve the document body, if present
 			docContentErr := res.Content("", rv)
 			if docContentErr != nil {
-				DebugfCtx(context.TODO(), KeyCRUD, "No document body found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), docContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(docContentErr).Msgf("No document body found for key=%s, xattrKey=%s: %v", logger.UD(k), logger.UD(xattrKey))
 			}
 			// Attempt to retrieve the xattr, if present
 			xattrContentErr := res.Content(xattrKey, xv)
 			if xattrContentErr != nil {
-				DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(xattrContentErr).Msgf("No xattr content found for key=%s, xattrKey=%s: %v", logger.UD(k), logger.UD(xattrKey))
 			}
 			cas = uint64(res.Cas())
 
@@ -205,7 +205,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetBodyAndXattr(k string, xattrKey stri
 			cas = uint64(res.Cas())
 			if xattrContentErr != nil {
 				// No doc, no xattr can be treated as NotFound from Sync Gateway's perspective, even if it is a server tombstone
-				DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(xattrContentErr).Msgf("No xattr content found for key=%s, xattrKey=%s: %v", logger.UD(k), logger.UD(xattrKey))
 				return false, ErrNotFound, cas
 			}
 			return false, nil, cas
@@ -247,7 +247,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocGetBodyAndXattr(k string, xattrKey stri
 	// Kick off retry loop
 	err, cas = RetryLoopCas("SubdocGetBodyAndXattr", worker, bucket.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocGetBodyAndXattr %v", UD(k).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocGetBodyAndXattr %v", logger.UD(k).Redact())
 	}
 
 	return cas, err
@@ -307,7 +307,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocDeleteBodyAndXattr(k string, xattrKey s
 		Execute()
 
 	if mutateErr == nil || mutateErr == gocbcore.ErrSubDocSuccessDeleted {
-		DebugfCtx(context.TODO(), KeyCRUD, "No error or ErrSubDocSuccessDeleted.  We're done.")
+		logger.For(logger.CRUDKey).Debug().Msgf("No error or ErrSubDocSuccessDeleted.  We're done.")
 		return nil
 	}
 
@@ -338,7 +338,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocDeleteBody(k string, xattrKey string, e
 		Execute()
 
 	if mutateErr == nil || mutateErr == gocbcore.ErrSubDocSuccessDeleted {
-		DebugfCtx(context.TODO(), KeyCRUD, "No error or ErrSubDocSuccessDeleted.  We're done.")
+		logger.For(logger.CRUDKey).Debug().Msgf("No error or ErrSubDocSuccessDeleted.  We're done.")
 		return uint64(docFragment.Cas()), nil
 	}
 
@@ -361,7 +361,7 @@ func (bucket *CouchbaseBucketGoCB) SubdocUpdateXattrDeleteBody(k, xattrKey strin
 		Execute()
 
 	if mutateErr == nil || mutateErr == gocbcore.ErrSubDocSuccessDeleted {
-		DebugfCtx(context.TODO(), KeyCRUD, "No error or ErrSubDocSuccessDeleted.  We're done.")
+		logger.For(logger.CRUDKey).Debug().Msgf("No error or ErrSubDocSuccessDeleted.  We're done.")
 		return uint64(docFragment.Cas()), nil
 	}
 

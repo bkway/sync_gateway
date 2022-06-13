@@ -10,7 +10,6 @@ package db
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +17,8 @@ import (
 	"strconv"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 type RevKey string
@@ -30,7 +31,7 @@ type RevInfo struct {
 	Deleted        bool
 	depth          uint32
 	Body           []byte // Used when revision body stored inline (stores bodies)
-	Channels       base.Set
+	Channels       utils.Set
 	HasAttachments bool
 }
 
@@ -51,7 +52,7 @@ type revTreeList struct {
 	Bodies_Old     []string          `json:"bodies,omitempty"`     // JSON of each revision (legacy)
 	BodyMap        map[string]string `json:"bodymap,omitempty"`    // JSON of each revision
 	BodyKeyMap     map[string]string `json:"bodyKeyMap,omitempty"` // Keys of revision bodies stored in external documents
-	Channels       []base.Set        `json:"channels"`
+	Channels       []utils.Set       `json:"channels"`
 	HasAttachments []int             `json:"hasAttachments,omitempty"` // Indexes of revisions that has attachments
 }
 
@@ -60,7 +61,7 @@ func (tree RevTree) MarshalJSON() ([]byte, error) {
 	rep := revTreeList{
 		Revs:     make([]string, n),
 		Parents:  make([]int, n),
-		Channels: make([]base.Set, n),
+		Channels: make([]utils.Set, n),
 	}
 	revIndexes := map[string]int{"": -1}
 
@@ -118,7 +119,7 @@ func (tree RevTree) MarshalJSON() ([]byte, error) {
 func (tree *RevTree) UnmarshalJSON(inputjson []byte) (err error) {
 
 	if tree == nil {
-		// base.Warnf(base.KeyAll, "No RevTree for input %q", inputjson)
+		// base.Warnf(	logger.KeyAll, "No RevTree for input %q", inputjson)
 		return nil
 	}
 	var rep revTreeList
@@ -202,7 +203,8 @@ func (tree RevTree) RepairCycles() (err error) {
 		for {
 
 			if node.ParentGenGTENodeGen() {
-				base.InfofCtx(context.Background(), base.KeyCRUD, "Node %+v detected to have invalid parent rev (parent generation larger than node generation).  Repairing by designating as a root node.", base.UD(node))
+				// log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyCRUD, "Node %+v detected to have invalid parent rev (parent generation larger than node generation).  Repairing by designating as a root node.", logger.UD(node))
+				logger.For(logger.CRUDKey).Info().Msgf("Node %+v detected to have invalid parent rev (parent generation larger than node generation).  Repairing by designating as a root node.", logger.UD(node))
 				node.Parent = ""
 				break
 			}
@@ -425,7 +427,7 @@ func (tree RevTree) setRevisionBody(revid string, body []byte, bodyKey string, h
 func (tree RevTree) removeRevisionBody(revid string) (deletedBodyKey string) {
 	info, found := tree[revid]
 	if !found {
-		base.ErrorfCtx(context.Background(), "RemoveRevisionBody called for revid not in tree: %v", revid)
+		logger.For(logger.UnknownKey).Error().Msgf("RemoveRevisionBody called for revid not in tree: %v", revid)
 		return ""
 	}
 	deletedBodyKey = info.BodyKey
@@ -650,7 +652,7 @@ func (tree RevTree) RenderGraphvizDot() string {
 	}
 
 	// Helper func to append node to result: parent -> child;
-	dupes := base.Set{}
+	dupes := utils.Set{}
 	appendNodeToResult := func(node *RevInfo) {
 		nodeAsDotText := dotRepresentation(node)
 		if dupes.Contains(nodeAsDotText) {
@@ -789,7 +791,7 @@ func encodeRevisions(docID string, revs []string) Revisions {
 		if i == 0 {
 			start = gen
 		} else if gen != start-i {
-			base.WarnfCtx(context.TODO(), "Found gap in revision list for doc %q. Expecting gen %v but got %v in %v", base.UD(docID), start-i, gen, revs)
+			logger.For(logger.SystemKey).Warn().Msgf("Found gap in revision list for doc %q. Expecting gen %v but got %v in %v", logger.UD(docID), start-i, gen, revs)
 		}
 	}
 	return Revisions{RevisionsStart: start, RevisionsIds: ids}

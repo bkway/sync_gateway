@@ -24,6 +24,8 @@ import (
 
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -76,7 +78,8 @@ func NewBlipSyncContext(bc *blip.Context, db *Database, contextID string, replic
 	// Register default handlers
 	bc.DefaultHandler = bsc.NotFoundHandler
 	bc.FatalErrorHandler = func(err error) {
-		base.InfofCtx(db.Ctx, base.KeyHTTP, "%s:     --> BLIP+WebSocket connection error: %v", contextID, err)
+		//		logger.InfofCtx(db.Ctx, logger.KeyHTTP, "%s:     --> BLIP+WebSocket connection error: %v", contextID, err)
+		logger.For(logger.HTTPKey).Info().Msgf("%s:     --> BLIP+WebSocket connection error: %v", contextID, err)
 	}
 
 	// Register 2.x replicator handlers
@@ -160,15 +163,17 @@ func (bsc *BlipSyncContext) register(profile string, handlerFn func(*blipHandler
 				// If we recover from a panic and the database bucket has gone - we likely paniced due to a config update causing a db reload.
 				// Until we have a better way of telling a client this has happened and to reconnect, returning a 503 will cause the client to reconnect.
 				if bsc.blipContextDb.DatabaseContext.Bucket == nil {
-					base.InfofCtx(bsc.loggingCtx, base.KeySync, "Database bucket closed underneath request %v - asking client to reconnect", rq)
-					base.DebugfCtx(bsc.loggingCtx, base.KeySync, "PANIC handling BLIP request %v: %v\n%s", rq, err, debug.Stack())
+					//					logger.InfofCtx(bsc.loggingCtx, logger.KeySync, "Database bucket closed underneath request %v - asking client to reconnect", rq)
+					logger.For(logger.SyncKey).Info().Msgf("Database bucket closed underneath request %v - asking client to reconnect", rq)
+					//					logger.DebugfCtx(bsc.loggingCtx, logger.KeySync, "PANIC handling BLIP request %v: %v\n%s", rq, err, debug.Stack())
+					logger.For(logger.SyncKey).Debug().Msgf("PANIC handling BLIP request %v: %v\n%s", rq, err, debug.Stack())
 					// HTTP 503 asks CBL to disconnect and retry.
 					rq.Response().SetError("HTTP", ErrDatabaseWentAway.Status, ErrDatabaseWentAway.Message)
 					return
 				}
 
 				// This is a panic we don't know about - so continue to log at warn with a generic 500 response via go-blip
-				base.WarnfCtx(bsc.loggingCtx, "PANIC handling BLIP request %v: %v\n%s", rq, err, debug.Stack())
+				logger.For(logger.UnknownKey).Warn().Msgf("PANIC handling BLIP request %v: %v\n%s", rq, err, debug.Stack())
 				panic(err)
 			}
 		}()
@@ -181,33 +186,37 @@ func (bsc *BlipSyncContext) register(profile string, handlerFn func(*blipHandler
 		}
 
 		// Trace log the full message body and properties
-		if base.LogTraceEnabled(base.KeySyncMsg) {
+		logger.For(logger.SyncKey).Trace().Func(func(e *zerolog.Event) {
 			rqBody, _ := rq.Body()
-			base.TracefCtx(bsc.loggingCtx, base.KeySyncMsg, "Recv Req %s: Body: '%s' Properties: %v", rq, base.UD(rqBody), base.UD(rq.Properties))
-		}
+			e.Msgf("Recv Req %s: Body: '%s' Properties: %v", rq, logger.UD(rqBody), logger.UD(rq.Properties))
+		})
 
 		if err := handlerFn(&handler, rq); err != nil {
 			status, msg := base.ErrorAsHTTPStatus(err)
 			if response := rq.Response(); response != nil {
 				response.SetError("HTTP", status, msg)
 			}
-			base.InfofCtx(bsc.loggingCtx, base.KeySyncMsg, "#%d: Type:%s   --> %d %s Time:%v", handler.serialNumber, profile, status, msg, time.Since(startTime))
+			//			logger.InfofCtx(bsc.loggingCtx, logger.KeySyncMsg, "#%d: Type:%s   --> %d %s Time:%v", handler.serialNumber, profile, status, msg, time.Since(startTime))
+			logger.For(logger.SyncKey).Info().Msgf("#%d: Type:%s   --> %d %s Time:%v", handler.serialNumber, profile, status, msg, time.Since(startTime))
 		} else {
 			// Log the fact that the handler has finished, except for the "subChanges" special case which does it's own termination related logging
 			if profile != "subChanges" {
-				base.DebugfCtx(bsc.loggingCtx, base.KeySyncMsg, "#%d: Type:%s   --> OK Time:%v", handler.serialNumber, profile, time.Since(startTime))
+				//				logger.DebugfCtx(bsc.loggingCtx, logger.KeySyncMsg, "#%d: Type:%s   --> OK Time:%v", handler.serialNumber, profile, time.Since(startTime))
+				logger.For(logger.SyncKey).Debug().Msgf("#%d: Type:%s   --> OK Time:%v", handler.serialNumber, profile, time.Since(startTime))
 			}
 		}
 
 		// Trace log the full response body and properties
-		if base.LogTraceEnabled(base.KeySyncMsg) {
+		logger.For(logger.SyncKey).Trace().Func(func(e *zerolog.Event) {
 			resp := rq.Response()
 			if resp == nil {
 				return
 			}
 			respBody, _ := resp.Body()
-			base.TracefCtx(bsc.loggingCtx, base.KeySyncMsg, "Recv Rsp %s: Body: '%s' Properties: %v", resp, base.UD(respBody), base.UD(resp.Properties))
-		}
+			//			logger.TracefCtx(bsc.loggingCtx, logger.KeySyncMsg, "Recv Rsp %s: Body: '%s' Properties: %v", resp, logger.UD(respBody), logger.UD(resp.Properties))
+			e.Msgf("Recv Rsp %s: Body: '%s' Properties: %v", resp, logger.UD(respBody), logger.UD(resp.Properties))
+		})
+
 	}
 
 	bsc.blipContext.HandlerForProfile[profile] = handlerFnWrapper
@@ -222,8 +231,10 @@ func (bsc *BlipSyncContext) Close() {
 
 // NotFoundHandler is used for unknown requests
 func (bsc *BlipSyncContext) NotFoundHandler(rq *blip.Message) {
-	base.InfofCtx(bsc.loggingCtx, base.KeySync, "%s Type:%q", rq, rq.Profile())
-	base.InfofCtx(bsc.loggingCtx, base.KeySync, "%s    --> 404 Unknown profile", rq)
+	//	logger.InfofCtx(bsc.loggingCtx, logger.KeySync, "%s Type:%q", rq, rq.Profile())
+	logger.For(logger.SyncKey).Info().Msgf("%s Type:%q", rq, rq.Profile())
+	//	logger.InfofCtx(bsc.loggingCtx, logger.KeySync, "%s    --> 404 Unknown profile", rq)
+	logger.For(logger.SyncKey).Info().Msgf("%s    --> 404 Unknown profile", rq)
 	blip.Unhandled(rq)
 }
 
@@ -244,13 +255,14 @@ func (bsc *BlipSyncContext) _copyContextDatabase() *Database {
 func (bsc *BlipSyncContext) handleChangesResponse(sender *blip.Sender, response *blip.Message, changeArray [][]interface{}, requestSent time.Time, handleChangesResponseDb *Database) error {
 	defer func() {
 		if panicked := recover(); panicked != nil {
-			base.WarnfCtx(bsc.loggingCtx, "PANIC handling 'changes' response: %v\n%s", panicked, debug.Stack())
+			logger.For(logger.UnknownKey).Warn().Msgf("PANIC handling 'changes' response: %v\n%s", panicked, debug.Stack())
 		}
 	}()
 
 	respBody, err := response.Body()
 	if err != nil {
-		base.ErrorfCtx(bsc.loggingCtx, "Couldn't get body for 'changes' response message: %s -- %s", response, err)
+		// logger.ErrorfCtx(bsc.loggingCtx, "Couldn't get body for 'changes' response message: %s -- %s", response, err)
+		logger.For(logger.SyncKey).Error().Msgf("Couldn't get body for 'changes' response message: %s", response)
 		return err
 	}
 
@@ -261,11 +273,13 @@ func (bsc *BlipSyncContext) handleChangesResponse(sender *blip.Sender, response 
 	var answer []interface{}
 	if len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, &answer); err != nil {
-			base.ErrorfCtx(bsc.loggingCtx, "Invalid response to 'changes' message: %s -- %s.  Body: %s", response, err, respBody)
+			// logger.ErrorfCtx(bsc.loggingCtx, "Invalid response to 'changes' message: %s -- %s.  Body: %s", response, err, respBody)
+			logger.For(logger.SyncKey).Error().Err(err).Msgf("Invalid response to 'changes' message: %s.  Body: %s", response, respBody)
 			return nil
 		}
 	} else {
-		base.DebugfCtx(bsc.loggingCtx, base.KeyAll, "Empty response to 'changes' message: %s", response)
+		//		logger.DebugfCtx(bsc.loggingCtx, logger.KeyAll, "Empty response to 'changes' message: %s", response)
+		logger.For(logger.SyncKey).Debug().Msgf("Empty response to 'changes' message: %s", response)
 	}
 	changesResponseReceived := time.Now()
 
@@ -281,7 +295,8 @@ func (bsc *BlipSyncContext) handleChangesResponse(sender *blip.Sender, response 
 	if clientDeltasStr, ok := response.Properties[ChangesResponseDeltas]; ok {
 		bsc.setUseDeltas(clientDeltasStr == "true")
 	} else {
-		base.TracefCtx(bsc.loggingCtx, base.KeySync, "Client didn't specify 'deltas' property in 'changes' response. useDeltas: %v", bsc.useDeltas)
+		//		logger.TracefCtx(bsc.loggingCtx, logger.KeySync, "Client didn't specify 'deltas' property in 'changes' response. useDeltas: %v", bsc.useDeltas)
+		logger.For(logger.SyncKey).Trace().Msgf("Client didn't specify 'deltas' property in 'changes' response. useDeltas: %v", bsc.useDeltas)
 	}
 
 	// Maps docID --> a map containing true for revIDs known to the client
@@ -319,7 +334,8 @@ func (bsc *BlipSyncContext) handleChangesResponse(sender *blip.Sender, response 
 				if revID, ok := rev.(string); ok {
 					knownRevs[revID] = true
 				} else {
-					base.ErrorfCtx(bsc.loggingCtx, "Invalid response to 'changes' message")
+					// logger.ErrorfCtx(bsc.loggingCtx, "Invalid response to 'changes' message")
+					logger.For(logger.SyncKey).Error().Msg("Invalid response to 'changes' message")
 					return nil
 				}
 			}
@@ -341,7 +357,8 @@ func (bsc *BlipSyncContext) handleChangesResponse(sender *blip.Sender, response 
 				sentSeqs = append(sentSeqs, seq.String())
 			}
 		} else {
-			base.DebugfCtx(bsc.loggingCtx, base.KeySync, "Peer didn't want revision %s / %s (seq:%v)", base.UD(docID), revID, seq)
+			//			logger.DebugfCtx(bsc.loggingCtx, logger.KeySync, "Peer didn't want revision %s / %s (seq:%v)", logger.UD(docID), revID, seq)
+			logger.For(logger.SyncKey).Debug().Msgf("Peer didn't want revision %s / %s (seq:%v)", logger.UD(docID), revID, seq)
 			if bsc.sgr2PushAlreadyKnownSeqsCallback != nil {
 				alreadyKnownSeqs = append(alreadyKnownSeqs, seq.String())
 			}
@@ -386,7 +403,8 @@ func (bsc *BlipSyncContext) sendRevisionWithProperties(sender *blip.Sender, docI
 		bsc.replicationStats.SendRevBytes.Add(int64(len(messageBody)))
 	}
 
-	base.TracefCtx(bsc.loggingCtx, base.KeySync, "Sending revision %s/%s, body:%s, properties: %v, attDigests: %v", base.UD(docID), revID, base.UD(string(bodyBytes)), base.UD(properties), attMeta)
+	//	logger.TracefCtx(bsc.loggingCtx, logger.KeySync, "Sending revision %s/%s, body:%s, properties: %v, attDigests: %v", logger.UD(docID), revID, logger.UD(string(bodyBytes)), logger.UD(properties), attMeta)
+	logger.For(logger.SyncKey).Trace().Msgf("Sending revision %s/%s, body:%s, properties: %v, attDigests: %v", logger.UD(docID), revID, logger.UD(string(bodyBytes)), logger.UD(properties), attMeta)
 
 	// asynchronously wait for a response if we have attachment digests to verify, if we sent a delta and want to error check, or if we have a registered callback.
 	awaitResponse := len(attMeta) > 0 || properties[RevMessageDeltaSrc] != "" || bsc.sgr2PushProcessedSeqCallback != nil
@@ -410,7 +428,7 @@ func (bsc *BlipSyncContext) sendRevisionWithProperties(sender *blip.Sender, docI
 		go func(activeSubprotocol string) {
 			defer func() {
 				if panicked := recover(); panicked != nil {
-					base.WarnfCtx(bsc.loggingCtx, "PANIC handling 'sendRevision' response: %v\n%s", panicked, debug.Stack())
+					logger.For(logger.UnknownKey).Warn().Msgf("PANIC handling 'sendRevision' response: %v\n%s", panicked, debug.Stack())
 					bsc.Close()
 				}
 			}()
@@ -419,14 +437,16 @@ func (bsc *BlipSyncContext) sendRevisionWithProperties(sender *blip.Sender, docI
 
 			respBody, err := resp.Body()
 			if err != nil {
-				base.WarnfCtx(bsc.loggingCtx, "couldn't get response body for rev: %v", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("couldn't get response body for rev: %v", err)
 			}
 
-			base.TracefCtx(bsc.loggingCtx, base.KeySync, "Received response for sendRevisionWithProperties rev message %s/%s", base.UD(docID), revID)
+			//			logger.TracefCtx(bsc.loggingCtx, logger.KeySync, "Received response for sendRevisionWithProperties rev message %s/%s", logger.UD(docID), revID)
+			logger.For(logger.SyncKey).Trace().Msgf("Received response for sendRevisionWithProperties rev message %s/%s", logger.UD(docID), revID)
 
 			if resp.Type() == blip.ErrorType {
 				bsc.replicationStats.SendRevErrorTotal.Add(1)
-				base.InfofCtx(bsc.loggingCtx, base.KeySync, "error %s in response to rev: %s", resp.Properties["Error-Code"], respBody)
+				//				logger.InfofCtx(bsc.loggingCtx, logger.KeySync, "error %s in response to rev: %s", resp.Properties["Error-Code"], respBody)
+				logger.For(logger.SyncKey).Info().Msgf("error %s in response to rev: %s", resp.Properties["Error-Code"], respBody)
 
 				if resp.Properties["Error-Domain"] == "HTTP" {
 					switch resp.Properties["Error-Code"] {
@@ -437,9 +457,10 @@ func (bsc *BlipSyncContext) sendRevisionWithProperties(sender *blip.Sender, docI
 					case "422", "404":
 						// unprocessable entity, CBL has not been able to use the delta we sent, so we should re-send the revision in full
 						if resendFullRevisionFunc != nil {
-							base.DebugfCtx(bsc.loggingCtx, base.KeySync, "sending full body replication for doc %s/%s due to unprocessable entity", base.UD(docID), revID)
+							//							logger.DebugfCtx(bsc.loggingCtx, logger.KeySync, "sending full body replication for doc %s/%s due to unprocessable entity", logger.UD(docID), revID)
+							logger.For(logger.SyncKey).Debug().Msgf("sending full body replication for doc %s/%s due to unprocessable entity", logger.UD(docID), revID)
 							if err := resendFullRevisionFunc(); err != nil {
-								base.WarnfCtx(bsc.loggingCtx, "unable to resend revision: %v", err)
+								logger.For(logger.UnknownKey).Warn().Err(err).Msgf("unable to resend revision: %v", err)
 							}
 						}
 					case "500":
@@ -486,7 +507,8 @@ func (bsc *BlipSyncContext) setUseDeltas(clientCanUseDeltas bool) {
 
 	// Both sides want deltas, and we've not previously enabled them.
 	if bsc.sgCanUseDeltas && clientCanUseDeltas && !bsc.useDeltas {
-		base.DebugfCtx(bsc.loggingCtx, base.KeySync, "Enabling deltas for this replication")
+		//		logger.DebugfCtx(bsc.loggingCtx, logger.KeySync, "Enabling deltas for this replication")
+		logger.For(logger.SyncKey).Debug().Msgf("Enabling deltas for this replication")
 		bsc.replicationStats.DeltaEnabledPullReplicationCount.Add(1)
 		bsc.useDeltas = true
 		return
@@ -496,14 +518,16 @@ func (bsc *BlipSyncContext) setUseDeltas(clientCanUseDeltas bool) {
 
 	// The client doesn't want deltas, but we'd previously enabled them.
 	if !clientCanUseDeltas && bsc.useDeltas {
-		base.InfofCtx(bsc.loggingCtx, base.KeySync, "Disabling deltas for this replication based on client setting.")
+		//		logger.InfofCtx(bsc.loggingCtx, logger.KeySync, "Disabling deltas for this replication based on client setting.")
+		logger.For(logger.SyncKey).Info().Msgf("Disabling deltas for this replication based on client setting.")
 		bsc.useDeltas = false
 		return
 	}
 
 	// We don't want deltas, but we'd previously enabled them.
 	if !bsc.sgCanUseDeltas && bsc.useDeltas {
-		base.InfofCtx(bsc.loggingCtx, base.KeySync, "Disabling deltas for this replication based on server setting.")
+		//		logger.InfofCtx(bsc.loggingCtx, logger.KeySync, "Disabling deltas for this replication based on server setting.")
+		logger.For(logger.SyncKey).Info().Msgf("Disabling deltas for this replication based on server setting.")
 		bsc.useDeltas = false
 		return
 	}
@@ -514,7 +538,8 @@ func (bsc *BlipSyncContext) sendDelta(sender *blip.Sender, docID, deltaSrcRevID 
 	properties := blipRevMessageProperties(revDelta.RevisionHistory, revDelta.ToDeleted, seq)
 	properties[RevMessageDeltaSrc] = deltaSrcRevID
 
-	base.DebugfCtx(bsc.loggingCtx, base.KeySync, "Sending rev %q %s as delta. DeltaSrc:%s", base.UD(docID), revDelta.ToRevID, deltaSrcRevID)
+	//	logger.DebugfCtx(bsc.loggingCtx, logger.KeySync, "Sending rev %q %s as delta. DeltaSrc:%s", logger.UD(docID), revDelta.ToRevID, deltaSrcRevID)
+	logger.For(logger.SyncKey).Debug().Msgf("Sending rev %q %s as delta. DeltaSrc:%s", logger.UD(docID), revDelta.ToRevID, deltaSrcRevID)
 	return bsc.sendRevisionWithProperties(sender, docID, revDelta.ToRevID, revDelta.DeltaBytes, revDelta.AttachmentStorageMeta,
 		properties, seq, resendFullRevisionFunc)
 }
@@ -522,15 +547,17 @@ func (bsc *BlipSyncContext) sendDelta(sender *blip.Sender, docID, deltaSrcRevID 
 // sendBLIPMessage is a simple wrapper around all sent BLIP messages
 func (bsc *BlipSyncContext) sendBLIPMessage(sender *blip.Sender, msg *blip.Message) bool {
 	ok := sender.Send(msg)
-	if base.LogTraceEnabled(base.KeySyncMsg) {
+	logger.For(logger.SyncKey).Trace().Func(func(e *zerolog.Event) {
 		rqBody, _ := msg.Body()
-		base.TracefCtx(bsc.loggingCtx, base.KeySyncMsg, "Sent Req %s: Body: '%s' Properties: %v", msg, base.UD(rqBody), base.UD(msg.Properties))
-	}
+		//		logger.TracefCtx(bsc.loggingCtx, logger.KeySyncMsg, "Sent Req %s: Body: '%s' Properties: %v", msg, logger.UD(rqBody), logger.UD(msg.Properties))
+		e.Msgf("Sent Req %s: Body: '%s' Properties: %v", msg, logger.UD(rqBody), logger.UD(msg.Properties))
+	})
 	return ok
 }
 
 func (bsc *BlipSyncContext) sendNoRev(sender *blip.Sender, docID, revID string, seq SequenceID, err error) error {
-	base.DebugfCtx(bsc.loggingCtx, base.KeySync, "Sending norev %q %s due to unavailable revision: %v", base.UD(docID), revID, err)
+	//	logger.DebugfCtx(bsc.loggingCtx, logger.KeySync, "Sending norev %q %s due to unavailable revision: %v", logger.UD(docID), revID, err)
+	logger.For(logger.SyncKey).Debug().Msgf("Sending norev %q %s due to unavailable revision: %v", logger.UD(docID), revID, err)
 
 	noRevRq := NewNoRevMessage()
 	noRevRq.SetId(docID)
@@ -566,7 +593,8 @@ func (bsc *BlipSyncContext) sendRevision(sender *blip.Sender, docID, revID strin
 		return bsc.sendNoRev(sender, docID, revID, seq, err)
 	}
 
-	base.TracefCtx(bsc.loggingCtx, base.KeySync, "sendRevision, rev attachments for %s/%s are %v", base.UD(docID), revID, base.UD(rev.Attachments))
+	//	logger.TracefCtx(bsc.loggingCtx, logger.KeySync, "sendRevision, rev attachments for %s/%s are %v", logger.UD(docID), revID, logger.UD(rev.Attachments))
+	logger.For(logger.SyncKey).Trace().Msgf("sendRevision, rev attachments for %s/%s are %v", logger.UD(docID), revID, logger.UD(rev.Attachments))
 	attachmentStorageMeta := ToAttachmentStorageMeta(rev.Attachments)
 	var bodyBytes []byte
 
@@ -588,9 +616,8 @@ func (bsc *BlipSyncContext) sendRevision(sender *blip.Sender, docID, revID strin
 
 	history := toHistory(rev.History, knownRevs, maxHistory)
 	properties := blipRevMessageProperties(history, rev.Deleted, seq)
-	if base.LogDebugEnabled(base.KeySync) {
-		base.DebugfCtx(bsc.loggingCtx, base.KeySync, "Sending rev %q %s based on %d known, digests: %v", base.UD(docID), revID, len(knownRevs), digests(attachmentStorageMeta))
-	}
+	logger.For(logger.SyncKey).Debug().
+		Msgf("Sending rev %q %s based on %d known, digests: %v", logger.UD(docID), revID, len(knownRevs), digests(attachmentStorageMeta))
 	return bsc.sendRevisionWithProperties(sender, docID, revID, bodyBytes, attachmentStorageMeta, properties, seq, nil)
 }
 

@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -66,7 +68,7 @@ func (th *TestingHandler) HandleEvent(event Event) bool {
 
 		// localtime must parse from an ISO8601 Format string
 		localtime := (doc["localtime"]).(string)
-		_, err = time.Parse(base.ISO8601Format, localtime)
+		_, err = time.Parse(time.RFC3339, localtime)
 		assert.NoError(th.t, err)
 
 		th.ResultChannel <- dsceEvent.Doc
@@ -92,16 +94,16 @@ func TestDocumentChangeEvent(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
-	eventForTest := func(i int) (Body, string, base.Set) {
+	eventForTest := func(i int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[i],
 			"value": i,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if i%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[i], channelSet
 	}
@@ -163,7 +165,7 @@ func TestDBStateChangeEvent(t *testing.T) {
 // the max concurrent goroutines
 func TestSlowExecutionProcessing(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyEvents)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyEvents)
 
 	em := NewEventManager()
 	em.Start(0, -1)
@@ -173,16 +175,16 @@ func TestSlowExecutionProcessing(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(i int) (Body, string, base.Set) {
+	eventForTest := func(i int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[i],
 			"value": i,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if i%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[i], channelSet
 	}
@@ -213,16 +215,16 @@ func TestCustomHandler(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(i int) (Body, string, base.Set) {
+	eventForTest := func(i int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[i],
 			"value": i,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if i%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[i], channelSet
 	}
@@ -254,16 +256,16 @@ func TestUnhandledEvent(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(i int) (Body, string, base.Set) {
+	eventForTest := func(i int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[i],
 			"value": i,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if i%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[i], channelSet
 	}
@@ -354,7 +356,7 @@ func (em *EventManager) waitForProcessedTotal(ctx context.Context, waitCount int
 	worker := func() (bool, error, interface{}) {
 		eventTotal := em.GetEventsProcessedSuccess() + em.GetEventsProcessedFail()
 		if eventTotal >= int64(waitCount) {
-			base.DebugfCtx(ctx, base.KeyAll, "waitForProcessedTotal(%d) took %v", waitCount, time.Since(startTime))
+			logger.DebugfCtx(ctx, logger.KeyAll, "waitForProcessedTotal(%d) took %v", waitCount, time.Since(startTime))
 			return false, nil, nil
 		}
 
@@ -438,16 +440,16 @@ func TestWebhookBasic(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(i int) (Body, string, base.Set) {
+	eventForTest := func(i int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[i],
 			"value": i,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if i%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[i], channelSet
 	}
@@ -464,7 +466,7 @@ func TestWebhookBasic(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docId, "", channels, false)
 		assert.NoError(t, err)
 	}
-	err := em.waitForProcessedTotal(base.TestCtx(t), 10, DefaultWaitForWebhook)
+	err := em.waitForProcessedTotal(logger.TestCtx(t), 10, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(10), em.GetEventsProcessedSuccess())
 
@@ -489,7 +491,7 @@ func TestWebhookBasic(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	err = em.waitForProcessedTotal(base.TestCtx(t), 10, DefaultWaitForWebhook)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 10, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), em.GetEventsProcessedSuccess())
 
@@ -504,7 +506,7 @@ func TestWebhookBasic(t *testing.T) {
 	bodyBytes, _ := json.Marshal(body)
 	err = em.RaiseDocumentChangeEvent(bodyBytes, docId, "", channels, false)
 	assert.NoError(t, err)
-	err = em.waitForProcessedTotal(base.TestCtx(t), 1, DefaultWaitForWebhook)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 1, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	receivedPayload := string((wr.GetPayloads())[0])
 	fmt.Println("payload:", receivedPayload)
@@ -524,7 +526,7 @@ func TestWebhookBasic(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docId, "", channels, false)
 		assert.NoError(t, err)
 	}
-	err = em.waitForProcessedTotal(base.TestCtx(t), 100, DefaultWaitForWebhook)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 100, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(100), em.GetEventsProcessedSuccess())
 
@@ -546,7 +548,7 @@ func TestWebhookBasic(t *testing.T) {
 	}
 	// Expect 21 to complete.  5 get goroutines immediately, 15 get queued, and one is blocked waiting
 	// for a goroutine.  The rest get discarded because the queue is full.
-	err = em.waitForProcessedTotal(base.TestCtx(t), 21, 10*time.Second)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 21, 10*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(21), em.GetEventsProcessedSuccess())
 	assert.Equal(t, 79, errCount)
@@ -564,7 +566,7 @@ func TestWebhookBasic(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docId, "", channels, false)
 		assert.NoError(t, err)
 	}
-	err = em.waitForProcessedTotal(base.TestCtx(t), 100, 10*time.Second)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 100, 10*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(100), em.GetEventsProcessedSuccess())
 }
@@ -585,16 +587,16 @@ func TestWebhookOldDoc(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(k string, v int) (Body, string, base.Set) {
+	eventForTest := func(k string, v int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[v],
 			"value": k,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if v%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[v], channelSet
 	}
@@ -615,7 +617,7 @@ func TestWebhookOldDoc(t *testing.T) {
 		assert.NoError(t, err)
 
 	}
-	err := em.waitForProcessedTotal(base.TestCtx(t), 10, DefaultWaitForWebhook)
+	err := em.waitForProcessedTotal(logger.TestCtx(t), 10, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(10), em.eventsProcessedSuccess)
 	log.Printf("Actual: %v, Expected: %v", wr.GetCount(), 10)
@@ -643,7 +645,7 @@ func TestWebhookOldDoc(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docId, string(oldBodyBytes), channels, false)
 		assert.NoError(t, err)
 	}
-	err = em.waitForProcessedTotal(base.TestCtx(t), 10, DefaultWaitForWebhook)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 10, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), em.eventsProcessedSuccess)
 	log.Printf("Actual: %v, Expected: %v", wr.GetCount(), 4)
@@ -671,7 +673,7 @@ func TestWebhookOldDoc(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docId, string(oldBodyBytes), channels, false)
 		assert.NoError(t, err)
 	}
-	err = em.waitForProcessedTotal(base.TestCtx(t), 10, DefaultWaitForWebhook)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 10, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), em.eventsProcessedSuccess)
 	log.Printf("Actual: %v, Expected: %v", wr.GetCount(), 4)
@@ -705,7 +707,7 @@ func TestWebhookOldDoc(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docId, string(oldBodyBytes), channels, false)
 		assert.NoError(t, err)
 	}
-	err = em.waitForProcessedTotal(base.TestCtx(t), 20, DefaultWaitForWebhook)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 20, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(10), em.eventsProcessedSuccess)
 	log.Printf("Actual: %v, Expected: %v", wr.GetCount(), 10)
@@ -717,7 +719,7 @@ func TestWebhookTimeout(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	ts, wr := InitWebhookTest()
 	defer ts.Close()
 	url := ts.URL
@@ -727,16 +729,16 @@ func TestWebhookTimeout(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(k string, v int) (Body, string, base.Set) {
+	eventForTest := func(k string, v int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[v],
 			"value": k,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if v%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[v], channelSet
 	}
@@ -754,7 +756,7 @@ func TestWebhookTimeout(t *testing.T) {
 		err := em.RaiseDocumentChangeEvent(bodyBytes, docid, "", channels, false)
 		assert.NoError(t, err)
 	}
-	err := em.waitForProcessedTotal(base.TestCtx(t), 10, DefaultWaitForWebhook)
+	err := em.waitForProcessedTotal(logger.TestCtx(t), 10, DefaultWaitForWebhook)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(10), em.eventsProcessedSuccess)
 
@@ -780,7 +782,7 @@ func TestWebhookTimeout(t *testing.T) {
 		}
 	}
 	// Even though we timed out waiting for response on the SG side, POST still completed on target side.
-	err = em.waitForProcessedTotal(base.TestCtx(t), 10, 30*time.Second)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 10, 30*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), em.GetEventsProcessedSuccess())
 	assert.Equal(t, int64(10), em.GetEventsProcessedFail())
@@ -805,7 +807,7 @@ func TestWebhookTimeout(t *testing.T) {
 		}
 	}
 	// wait for slow webhook to finish processing
-	err = em.waitForProcessedTotal(base.TestCtx(t), 5, 30*time.Second)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 5, 30*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(5), em.GetEventsProcessedSuccess())
 
@@ -828,7 +830,7 @@ func TestWebhookTimeout(t *testing.T) {
 		}
 	}
 	// wait for slow webhook to finish processing
-	err = em.waitForProcessedTotal(base.TestCtx(t), 10, 20*time.Second)
+	err = em.waitForProcessedTotal(logger.TestCtx(t), 10, 20*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(10), em.eventsProcessedSuccess)
 
@@ -843,16 +845,16 @@ func TestUnavailableWebhook(t *testing.T) {
 		ids[i] = fmt.Sprintf("%d", i)
 	}
 
-	eventForTest := func(k string, v int) (Body, string, base.Set) {
+	eventForTest := func(k string, v int) (Body, string, utils.Set) {
 		testBody := Body{
 			BodyId:  ids[v],
 			"value": k,
 		}
-		var channelSet base.Set
+		var channelSet utils.Set
 		if v%2 == 0 {
-			channelSet = base.SetFromArray([]string{"Even"})
+			channelSet = utils.SetFromArray([]string{"Even"})
 		} else {
-			channelSet = base.SetFromArray([]string{"Odd"})
+			channelSet = utils.SetFromArray([]string{"Odd"})
 		}
 		return testBody, ids[v], channelSet
 	}
@@ -902,7 +904,7 @@ func mockDBStateChangeEvent(dbName string, state string, reason string, adminInt
 	body["admininterface"] = adminInterface
 	body["state"] = state
 	body["reason"] = reason
-	body["localtime"] = time.Now().Format(base.ISO8601Format)
+	body["localtime"] = time.Now().Format(time.RFC3339)
 	event := &DBStateChangeEvent{Doc: body}
 	return event
 }

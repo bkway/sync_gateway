@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ import (
 func TestCreateSession(t *testing.T) {
 	var username string = "Alice"
 	const invalidSessionTTLError = "400 Invalid session time-to-live"
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	testBucket := base.GetTestBucket(t)
 	defer testBucket.Close()
 
@@ -63,7 +64,7 @@ func TestCreateSession(t *testing.T) {
 }
 
 func TestDeleteSession(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	var username string = "Alice"
 	testBucket := base.GetTestBucket(t)
 	defer testBucket.Close()
@@ -93,7 +94,7 @@ func TestDeleteSession(t *testing.T) {
 // using the sessionID, username, expiration and TTL from LoginSession provided.
 // If nil is provided instead of valid login session, nil must be returned.
 func TestMakeSessionCookie(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	testBucket := base.GetTestBucket(t)
 	defer testBucket.Close()
 
@@ -154,7 +155,7 @@ func TestMakeSessionCookieProperties(t *testing.T) {
 // the request is unknown, Nil would be returned from DeleteSessionForCookie.
 func TestDeleteSessionForCookie(t *testing.T) {
 	const defaultEndpoint = "http://localhost/"
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	testBucket := base.GetTestBucket(t)
 	defer testBucket.Close()
 

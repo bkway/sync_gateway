@@ -11,7 +11,6 @@ package rest
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +22,8 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"golang.org/x/net/websocket"
 )
 
@@ -239,8 +240,11 @@ func (h *handler) handleChanges() error {
 			to = fmt.Sprintf("  (to %s)", h.user.Name())
 		}
 
-		base.DebugfCtx(h.db.Ctx, base.KeyChanges, "Changes POST request.  URL: %v, feed: %v, options: %+v, filter: %v, bychannel: %v, docIds: %v %s",
-			h.rq.URL, feed, options, filter, base.UD(channelsArray), base.UD(docIdsArray), base.UD(to))
+		logger.For(logger.ChangesKey).Info().
+			Msgf("Changes POST request.  URL: %v, feed: %v, options: %+v, filter: %v, bychannel: %v, docIds: %v %s",
+				h.rq.URL, feed, options, filter, logger.UD(channelsArray), logger.UD(docIdsArray), logger.UD(to))
+		// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.ChangesKey, "Changes POST request.  URL: %v, feed: %v, options: %+v, filter: %v, bychannel: %v, docIds: %v %s",
+		// 	h.rq.URL, feed, options, filter, logger.UD(channelsArray), logger.UD(docIdsArray), logger.UD(to))
 
 	}
 
@@ -251,7 +255,7 @@ func (h *handler) handleChanges() error {
 
 	// Get the channels as parameters to an imaginary "bychannel" filter.
 	// The default is all channels the user can access.
-	userChannels := base.SetOf(ch.AllChannelWildcard)
+	userChannels := utils.SetOf(ch.AllChannelWildcard)
 	if filter != "" {
 		if filter == base.ByChannelFilter {
 			if channelsArray == nil {
@@ -335,7 +339,7 @@ func (h *handler) handleChanges() error {
 	return err
 }
 
-func (h *handler) sendSimpleChanges(channels base.Set, options db.ChangesOptions, docids []string) (error, bool) {
+func (h *handler) sendSimpleChanges(channels utils.Set, options db.ChangesOptions, docids []string) (error, bool) {
 	lastSeq := options.Since
 	var first bool = true
 	var feed <-chan *db.ChangeEntry
@@ -382,7 +386,8 @@ func (h *handler) sendSimpleChanges(channels base.Set, options db.ChangesOptions
 		if ok {
 			closeNotify = cn.CloseNotify()
 		} else {
-			base.InfofCtx(h.db.Ctx, base.KeyChanges, "simple changes cannot get Close Notifier from ResponseWriter")
+			//log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyChanges, "simple changes cannot get Close Notifier from ResponseWriter")
+			logger.For(logger.ChangesKey).Info().Err(err).Msgf("simple changes cannot get Close Notifier from ResponseWriter")
 		}
 
 		encoder := json.NewEncoder(h.response)
@@ -409,13 +414,15 @@ func (h *handler) sendSimpleChanges(channels base.Set, options db.ChangesOptions
 			case <-heartbeat:
 				_, err = h.response.Write([]byte("\n"))
 				h.flush()
-				base.DebugfCtx(h.db.Ctx, base.KeyChanges, "heartbeat written to _changes feed for request received")
+				//log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyChanges, "heartbeat written to _changes feed for request received")
+				logger.For(logger.ChangesKey).Info().Err(err).Msgf("heartbeat written to _changes feed for request received")
 			case <-timeout:
 				message = "OK (timeout)"
 				forceClose = true
 				break loop
 			case <-closeNotify:
-				base.InfofCtx(h.db.Ctx, base.KeyChanges, "Connection lost from client")
+				//log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyChanges, "Connection lost from client")
+				logger.For(logger.ChangesKey).Info().Err(err).Msgf("Connection lost from client")
 				forceClose = true
 				break loop
 			case <-h.db.ExitChanges:
@@ -440,7 +447,7 @@ func (h *handler) sendSimpleChanges(channels base.Set, options db.ChangesOptions
 // It defers to a callback function 'send()' to actually send the changes to the client.
 // It will call send(nil) to notify that it's caught up and waiting for new changes, or as
 // a periodic heartbeat while waiting.
-func (h *handler) generateContinuousChanges(inChannels base.Set, options db.ChangesOptions, send func([]*db.ChangeEntry) error) (error, bool) {
+func (h *handler) generateContinuousChanges(inChannels utils.Set, options db.ChangesOptions, send func([]*db.ChangeEntry) error) (error, bool) {
 	// Ensure continuous is set, since generateChanges now supports both continuous and one-shot
 	options.Continuous = true
 	err, forceClose := db.GenerateChanges(h.rq.Context(), h.db, inChannels, options, nil, send)
@@ -453,7 +460,7 @@ func (h *handler) generateContinuousChanges(inChannels base.Set, options db.Chan
 	return err, forceClose
 }
 
-func (h *handler) sendContinuousChangesByHTTP(inChannels base.Set, options db.ChangesOptions) (error, bool) {
+func (h *handler) sendContinuousChangesByHTTP(inChannels utils.Set, options db.ChangesOptions) (error, bool) {
 	// Setting a non-default content type will keep the client HTTP framework from trying to sniff
 	// a real content-type from the response text, which can delay or prevent the client app from
 	// receiving the response.
@@ -480,16 +487,18 @@ func (h *handler) sendContinuousChangesByHTTP(inChannels base.Set, options db.Ch
 	})
 }
 
-func (h *handler) sendContinuousChangesByWebSocket(inChannels base.Set, options db.ChangesOptions) (error, bool) {
+func (h *handler) sendContinuousChangesByWebSocket(inChannels utils.Set, options db.ChangesOptions) (error, bool) {
 
 	forceClose := false
 	handler := func(conn *websocket.Conn) {
 		h.logStatus(101, "Upgraded to WebSocket protocol")
 		defer func() {
 			if err := conn.Close(); err != nil {
-				base.WarnfCtx(h.db.Ctx, "WebSocket connection (%s) closed with error %v", h.formatSerialNumber(), err)
+				//log.Ctx(h.db.Ctx).Warn().Err(err).Msgf("WebSocket connection (%s) closed with error %v", h.formatSerialNumber(), err)
+				logger.For(logger.ChangesKey).Warn().Err(err).Msgf("WebSocket connection (%s) closed with error", h.formatSerialNumber())
 			}
-			base.InfofCtx(h.db.Ctx, base.KeyHTTP, "%s:     --> WebSocket closed", h.formatSerialNumber())
+			//log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyHTTP, "%s:     --> WebSocket closed", h.formatSerialNumber())
+			logger.For(logger.HTTPKey).Info().Msgf("%s:     --> WebSocket closed", h.formatSerialNumber())
 		}()
 
 		// Read changes-feed options from an initial incoming WebSocket message in JSON format:
@@ -624,7 +633,8 @@ func readWebSocketMessage(conn *websocket.Conn) ([]byte, error) {
 	var message []byte
 	if err := websocket.Message.Receive(conn, &message); err != nil {
 		if err != io.EOF {
-			base.WarnfCtx(context.TODO(), "Error reading initial websocket message: %v", err)
+			//log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error reading initial websocket message: %v", err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msg("Error reading initial websocket message")
 			return nil, err
 		}
 	}

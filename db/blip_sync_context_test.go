@@ -14,12 +14,13 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 // TestBlipSyncContextSetUseDeltas verifies all permutations of setUseDeltas()
 func TestBlipSyncContextSetUseDeltas(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeySync)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeySync)
 
 	tests := []struct {
 		name string
@@ -46,7 +47,7 @@ func TestBlipSyncContextSetUseDeltas(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := &BlipSyncContext{
-				blipContextDb:    &Database{Ctx: base.TestCtx(t)},
+				blipContextDb:    &Database{Ctx: logger.TestCtx(t)},
 				useDeltas:        tt.startingCtxDeltas,
 				sgCanUseDeltas:   tt.sgCanUseDeltas,
 				replicationStats: NewBlipSyncStats(),
@@ -60,7 +61,7 @@ func TestBlipSyncContextSetUseDeltas(t *testing.T) {
 
 // BenchmarkBlipSyncContextSetUseDeltas verifies all permutations of setUseDeltas()
 func BenchmarkBlipSyncContextSetUseDeltas(b *testing.B) {
-	base.SetUpBenchmarkLogging(b, base.LevelInfo, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelInfo, logger.KeyHTTP)
 
 	tests := []struct {
 		name string
@@ -87,7 +88,7 @@ func BenchmarkBlipSyncContextSetUseDeltas(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			ctx := &BlipSyncContext{
-				blipContextDb:    &Database{Ctx: base.TestCtx(b)},
+				blipContextDb:    &Database{Ctx: logger.TestCtx(b)},
 				replicationStats: NewBlipSyncStats(),
 			}
 			b.ResetTimer()

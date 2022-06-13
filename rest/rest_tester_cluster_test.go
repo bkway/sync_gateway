@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -141,7 +142,7 @@ func dbConfigForTestBucket(tb *base.TestBucket) DbConfig {
 }
 
 func TestPersistentDbConfigWithInvalidUpsert(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP)
 
 	rtc := NewRestTesterCluster(t, nil)
 	defer rtc.Close()

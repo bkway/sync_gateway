@@ -1,11 +1,11 @@
 package base
 
 import (
-	"context"
 	"fmt"
 	"math"
 
 	"github.com/couchbase/gocbcore/v10"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 type DCPMetadata struct {
@@ -236,10 +236,9 @@ func (m *DCPMetadataCS) Persist(workerID int, vbIDs []uint16) {
 	}
 	err := m.bucket.Set(m.getMetadataKey(workerID), 0, nil, meta)
 	if err != nil {
-		InfofCtx(context.TODO(), KeyDCP, "Unable to persist DCP metadata: %v", err)
+		logger.For(logger.DCPKey).Err(err).Msg("Unable to persist DCP metadata")
 	} else {
-		TracefCtx(context.TODO(), KeyDCP, "Persisted metadata for worker %d: %v", workerID, meta)
-		//log.Printf("Persisted metadata for worker %d (%s): %v", workerID, m.getMetadataKey(workerID), meta)
+		logger.For(logger.DCPKey).Trace().Msgf("Persisted metadata for worker %d: %v", workerID, meta)
 	}
 	return
 }
@@ -251,11 +250,10 @@ func (m *DCPMetadataCS) load(workerID int) {
 		if IsKeyNotFoundError(m.bucket, err) {
 			return
 		}
-		InfofCtx(context.TODO(), KeyDCP, "Error loading persisted metadata - metadata will be reset for worker %d: %s", workerID, err)
+		logger.For(logger.DCPKey).Info().Err(err).Msgf("Error loading persisted metadata - metadata will be reset for worker %d", workerID)
 	}
 
-	TracefCtx(context.TODO(), KeyDCP, "Loaded metadata for worker %d: %v", workerID, meta)
-	//log.Printf("Loaded metadata for worker %d (%s): %v", workerID, m.getMetadataKey(workerID), meta)
+	logger.For(logger.DCPKey).Trace().Msgf("Loaded metadata for worker %d: %v", workerID, meta)
 	for vbID, metadata := range meta.DCPMeta {
 		m.metadata[vbID] = metadata
 	}
@@ -265,7 +263,7 @@ func (m *DCPMetadataCS) Purge(numWorkers int) {
 	for i := 0; i < numWorkers; i++ {
 		err := m.bucket.Delete(m.getMetadataKey(i))
 		if err != nil && !IsKeyNotFoundError(m.bucket, err) {
-			InfofCtx(context.TODO(), KeyDCP, "Unable to remove DCP checkpoint for key %s: %v", m.getMetadataKey(i), err)
+			logger.For(logger.DCPKey).Info().Err(err).Msgf("Unable to remove DCP checkpoint for key %s", m.getMetadataKey(i))
 		}
 	}
 }

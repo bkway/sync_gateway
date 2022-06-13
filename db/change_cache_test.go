@@ -22,6 +22,8 @@ import (
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -245,16 +247,16 @@ func TestLateSequenceErrorRecovery(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyCache)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	require.NotNil(t, authenticator, "db.Authenticator(base.TestCtx(t)) returned nil")
-	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	require.NotNil(t, authenticator, "db.Authenticator(logger.TestCtx(t)) returned nil")
+	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC"))
 	require.NoError(t, err, "Error creating new user")
 	require.NoError(t, authenticator.Save(user))
 
@@ -265,7 +267,7 @@ func TestLateSequenceErrorRecovery(t *testing.T) {
 	defer close(options.Terminator)
 	options.Continuous = true
 	options.Wait = true
-	feed, err := db.MultiChangesFeed(base.SetOf("ABC"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("ABC"), options)
 	require.NoError(t, err, "Feed initialization error")
 
 	// Reads events until it gets a nil event, which indicates the changes loop has entered wait mode.
@@ -363,7 +365,7 @@ func TestLateSequenceHandlingDuringCompact(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyCache)
 
 	cacheOptions := shortWaitCache()
 	cacheOptions.ChannelCacheOptions.MaxNumChannels = 100
@@ -393,10 +395,10 @@ func TestLateSequenceHandlingDuringCompact(t *testing.T) {
 			channelName := fmt.Sprintf("chan_%d", i)
 			perRequestDb, err := CreateDatabase(db.DatabaseContext)
 			assert.NoError(t, err)
-			perRequestDb.Ctx = context.WithValue(base.TestCtx(t), base.LogContextKey{},
-				base.LogContext{CorrelationID: fmt.Sprintf("context_%s", channelName)},
+			perRequestDb.Ctx = context.WithValue(logger.TestCtx(t), logger.LogContextKey{},
+				logger.LogContext{CorrelationID: fmt.Sprintf("context_%s", channelName)},
 			)
-			feed, err := perRequestDb.MultiChangesFeed(base.SetOf(channelName), options)
+			feed, err := perRequestDb.MultiChangesFeed(utils.SetOf(channelName), options)
 			require.NoError(t, err, "Feed initialization error")
 
 			// Process feed until closed by terminator in main goroutine
@@ -524,7 +526,7 @@ func WriteDirectWithChannelGrant(db *Database, channelArray []string, sequence u
 	}
 
 	accessMap := make(map[string]channels.TimedSet)
-	channelTimedSet := channels.AtSequence(base.SetFromArray(channelGrantArray), sequence)
+	channelTimedSet := channels.AtSequence(utils.SetFromArray(channelGrantArray), sequence)
 	accessMap[username] = channelTimedSet
 
 	syncData := &SyncData{
@@ -543,7 +545,7 @@ func TestChannelCacheBufferingWithUserDoc(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges, base.KeyDCP)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges, logger.KeyDCP)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -553,7 +555,7 @@ func TestChannelCacheBufferingWithUserDoc(t *testing.T) {
 	WriteDirect(db, []string{"ABC"}, 2)
 
 	// Start wait for doc in ABC
-	waiter := db.mutationListener.NewWaiterWithChannels(channels.SetOf(t, "ABC"), nil)
+	waiter := db.mutationListener.NewWaiterWithChannels(channels.SetOfTester(t, "ABC"), nil)
 
 	successChan := make(chan bool)
 	go func() {
@@ -581,15 +583,15 @@ func TestChannelCacheBackfill(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC", "PBS", "NBC", "TBS"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC", "PBS", "NBC", "TBS"))
 	require.NoError(t, authenticator.Save(user))
 
 	// Simulate seq 3 being delayed - write 1,2,4,5
@@ -599,9 +601,9 @@ func TestChannelCacheBackfill(t *testing.T) {
 	WriteDirect(db, []string{"ABC", "PBS"}, 6)
 
 	// Test that retrieval isn't blocked by skipped sequences
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 6, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 6, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
-	changes, err := db.GetChanges(base.SetOf("*"), ChangesOptions{Since: SequenceID{Seq: 0}})
+	changes, err := db.GetChanges(utils.SetOf("*"), ChangesOptions{Since: SequenceID{Seq: 0}})
 	assert.NoError(t, err, "Couldn't GetChanges")
 	assert.Equal(t, 4, len(changes))
 	assert.Equal(t, &ChangeEntry{
@@ -614,7 +616,7 @@ func TestChannelCacheBackfill(t *testing.T) {
 	// Validate insert to various cache states
 	WriteDirect(db, []string{"ABC", "NBC", "PBS", "TBS"}, 3)
 	WriteDirect(db, []string{"CBS"}, 7)
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 7, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 7, base.DefaultWaitForSequence))
 	// verify insert at start (PBS)
 	pbsCache := db.changeCache.getChannelCache().getSingleChannelCache("PBS").(*singleChannelCacheImpl)
 	assert.True(t, verifyCacheSequences(pbsCache, []uint64{3, 5, 6}))
@@ -630,7 +632,7 @@ func TestChannelCacheBackfill(t *testing.T) {
 
 	// verify changes has three entries (needs to resend all since previous LowSeq, which
 	// will be the late arriver (3) along with 5, 6)
-	changes, err = db.GetChanges(base.SetOf("*"), ChangesOptions{Since: lastSeq})
+	changes, err = db.GetChanges(utils.SetOf("*"), ChangesOptions{Since: lastSeq})
 	assert.Equal(t, 3, len(changes))
 	assert.Equal(t, &ChangeEntry{
 		Seq:     SequenceID{Seq: 3, LowSeq: 3},
@@ -646,7 +648,7 @@ func TestContinuousChangesBackfill(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache, base.KeyChanges, base.KeyDCP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache, logger.KeyChanges, logger.KeyDCP)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
@@ -654,8 +656,8 @@ func TestContinuousChangesBackfill(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC", "PBS", "NBC", "CBS"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC", "PBS", "NBC", "CBS"))
 	require.NoError(t, authenticator.Save(user))
 
 	// Simulate seq 3 and 4 being delayed - write 1,2,5,6
@@ -674,7 +676,7 @@ func TestContinuousChangesBackfill(t *testing.T) {
 	options.Wait = true
 	defer close(options.Terminator)
 
-	feed, err := db.MultiChangesFeed(base.SetOf("*"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("*"), options)
 	assert.True(t, err == nil)
 
 	time.Sleep(50 * time.Millisecond)
@@ -682,14 +684,14 @@ func TestContinuousChangesBackfill(t *testing.T) {
 	// Write some more docs
 	WriteDirect(db, []string{"CBS"}, 3)
 	WriteDirect(db, []string{"PBS"}, 12)
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 12, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 12, base.DefaultWaitForSequence))
 
 	// Test multiple backfill in single changes loop iteration
 	WriteDirect(db, []string{"ABC", "NBC", "PBS", "CBS"}, 4)
 	WriteDirect(db, []string{"ABC", "NBC", "PBS", "CBS"}, 7)
 	WriteDirect(db, []string{"ABC", "PBS"}, 8)
 	WriteDirect(db, []string{"ABC", "PBS"}, 13)
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 13, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 13, base.DefaultWaitForSequence))
 	time.Sleep(50 * time.Millisecond)
 
 	// We can't guarantee how compound sequences will be generated in a multi-core test - will
@@ -746,7 +748,7 @@ func TestLowSequenceHandling(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges, base.KeyQuery)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges, logger.KeyQuery)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
@@ -754,9 +756,9 @@ func TestLowSequenceHandling(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	assert.True(t, authenticator != nil, "db.Authenticator(base.TestCtx(t)) returned nil")
-	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC", "PBS", "NBC", "TBS"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	assert.True(t, authenticator != nil, "db.Authenticator(logger.TestCtx(t)) returned nil")
+	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC", "PBS", "NBC", "TBS"))
 	assert.NoError(t, err, fmt.Sprintf("Error creating new user: %v", err))
 	require.NoError(t, authenticator.Save(user))
 
@@ -766,7 +768,7 @@ func TestLowSequenceHandling(t *testing.T) {
 	WriteDirect(db, []string{"ABC", "PBS"}, 5)
 	WriteDirect(db, []string{"ABC", "PBS"}, 6)
 
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 6, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 6, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
 
 	// Start changes feed
@@ -777,7 +779,7 @@ func TestLowSequenceHandling(t *testing.T) {
 	defer close(options.Terminator)
 	options.Continuous = true
 	options.Wait = true
-	feed, err := db.MultiChangesFeed(base.SetOf("*"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("*"), options)
 	assert.True(t, err == nil)
 
 	changes, err := verifySequencesInFeed(feed, []uint64{1, 2, 5, 6})
@@ -811,7 +813,7 @@ func TestLowSequenceHandlingAcrossChannels(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges, base.KeyQuery)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges, logger.KeyQuery)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
@@ -819,9 +821,9 @@ func TestLowSequenceHandlingAcrossChannels(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC"))
-	assert.NoError(t, err, fmt.Sprintf("db.Authenticator(base.TestCtx(t)) returned err: %v", err))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC"))
+	assert.NoError(t, err, fmt.Sprintf("db.Authenticator(logger.TestCtx(t)) returned err: %v", err))
 	require.NoError(t, authenticator.Save(user))
 
 	// Simulate seq 3 and 4 being delayed - write 1,2,5,6
@@ -830,7 +832,7 @@ func TestLowSequenceHandlingAcrossChannels(t *testing.T) {
 	WriteDirect(db, []string{"PBS"}, 5)
 	WriteDirect(db, []string{"ABC", "PBS"}, 6)
 
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 6, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 6, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
 
 	// Start changes feed
@@ -840,7 +842,7 @@ func TestLowSequenceHandlingAcrossChannels(t *testing.T) {
 	options.Terminator = make(chan bool)
 	options.Continuous = true
 	options.Wait = true
-	feed, err := db.MultiChangesFeed(base.SetOf("*"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("*"), options)
 	assert.True(t, err == nil)
 
 	_, err = verifySequencesInFeed(feed, []uint64{1, 2, 6})
@@ -868,7 +870,7 @@ func TestLowSequenceHandlingWithAccessGrant(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyChanges, base.KeyQuery)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyChanges, logger.KeyQuery)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
@@ -876,8 +878,8 @@ func TestLowSequenceHandlingWithAccessGrant(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC"))
 	require.NoError(t, authenticator.Save(user))
 
 	// Simulate seq 3 and 4 being delayed - write 1,2,5,6
@@ -886,7 +888,7 @@ func TestLowSequenceHandlingWithAccessGrant(t *testing.T) {
 	WriteDirect(db, []string{"PBS"}, 5)
 	WriteDirect(db, []string{"ABC", "PBS"}, 6)
 
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 6, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 6, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
 
 	// Start changes feed
@@ -896,7 +898,7 @@ func TestLowSequenceHandlingWithAccessGrant(t *testing.T) {
 	options.Terminator = make(chan bool)
 	options.Continuous = true
 	options.Wait = true
-	feed, err := db.MultiChangesFeed(base.SetOf("*"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("*"), options)
 	require.NoError(t, err)
 
 	var changes = make([]*ChangeEntry, 0, 50)
@@ -914,12 +916,12 @@ func TestLowSequenceHandlingWithAccessGrant(t *testing.T) {
 	userInfo, err := db.GetPrincipalForTest(t, "naomi", true)
 	require.NoError(t, err)
 	require.NotNil(t, userInfo)
-	userInfo.ExplicitChannels = base.SetOf("ABC", "PBS")
-	_, err = db.UpdatePrincipal(base.TestCtx(t), *userInfo, true, true)
+	userInfo.ExplicitChannels = utils.SetOf("ABC", "PBS")
+	_, err = db.UpdatePrincipal(logger.TestCtx(t), *userInfo, true, true)
 	require.NoError(t, err, "UpdatePrincipal failed")
 
 	WriteDirect(db, []string{"PBS"}, 9)
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 9, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 9, base.DefaultWaitForSequence))
 
 	err = appendFromFeed(&changes, feed, 4, base.DefaultWaitForSequence)
 	require.NoError(t, err, "Expected more changes to be sent on feed, but never received")
@@ -954,7 +956,7 @@ func TestChannelQueryCancellation(t *testing.T) {
 		t.Skip("Skip test with LeakyBucket dependency test when running in integration")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	// Set up PostQueryCallback on bucket - will be invoked when changes triggers the cache backfill view query
 
@@ -991,7 +993,7 @@ func TestChannelQueryCancellation(t *testing.T) {
 	assert.NoError(t, err, "Put failed with error: %v", err)
 	_, _, err = db.Put("key4", Body{"channels": "ABC"})
 	assert.NoError(t, err, "Put failed with error: %v", err)
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 4, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 4, base.DefaultWaitForSequence))
 
 	// Flush the cache, to ensure view query on subsequent changes requests
 	require.NoError(t, db.FlushChannelCache())
@@ -1007,7 +1009,7 @@ func TestChannelQueryCancellation(t *testing.T) {
 		options.Continuous = false
 		options.Wait = false
 		options.Limit = 2 // Avoid prepending results in cache, as we don't want second changes to serve results from cache
-		_, err := db.GetChanges(base.SetOf("ABC"), options)
+		_, err := db.GetChanges(utils.SetOf("ABC"), options)
 		assert.NoError(t, err, "Expect no error for first changes request")
 	}()
 
@@ -1032,7 +1034,7 @@ func TestChannelQueryCancellation(t *testing.T) {
 		options.Continuous = false
 		options.Limit = 2
 		options.Wait = false
-		_, err := db.GetChanges(base.SetOf("ABC"), options)
+		_, err := db.GetChanges(utils.SetOf("ABC"), options)
 		assert.Error(t, err, "Expected error for second changes")
 	}()
 
@@ -1069,7 +1071,7 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyChanges, logger.KeyCache)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
@@ -1077,9 +1079,9 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	assert.True(t, authenticator != nil, "db.Authenticator(base.TestCtx(t)) returned nil")
-	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC", "PBS", "NBC", "TBS"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	assert.True(t, authenticator != nil, "db.Authenticator(logger.TestCtx(t)) returned nil")
+	user, err := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC", "PBS", "NBC", "TBS"))
 	assert.NoError(t, err, fmt.Sprintf("Error creating new user: %v", err))
 	require.NoError(t, authenticator.Save(user))
 
@@ -1089,7 +1091,7 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 	WriteDirect(db, []string{"ABC", "PBS"}, 5)
 	WriteDirect(db, []string{"ABC", "PBS"}, 6)
 
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 6, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 6, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
 
 	// Start changes feed
@@ -1100,7 +1102,7 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 	defer close(options.Terminator)
 	options.Continuous = true
 	options.Wait = true
-	feed, err := db.MultiChangesFeed(base.SetOf("*"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("*"), options)
 	assert.True(t, err == nil)
 
 	// Array to read changes from feed to support assertions
@@ -1120,7 +1122,7 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 	WriteDirect(db, []string{"ABC", "NBC", "PBS", "TBS"}, 3)
 	WriteDirect(db, []string{"ABC", "PBS"}, 4)
 
-	require.NoError(t, db.changeCache.waitForSequenceNotSkipped(base.TestCtx(t), 4, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequenceNotSkipped(logger.TestCtx(t), 4, base.DefaultWaitForSequence))
 
 	err = appendFromFeed(&changes, feed, 2, base.DefaultWaitForSequence)
 	assert.True(t, err == nil)
@@ -1130,7 +1132,7 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 	WriteDirect(db, []string{"ABC"}, 7)
 	WriteDirect(db, []string{"ABC", "NBC"}, 8)
 	WriteDirect(db, []string{"ABC", "PBS"}, 9)
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 9, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 9, base.DefaultWaitForSequence))
 	require.NoError(t, appendFromFeed(&changes, feed, 5, base.DefaultWaitForSequence))
 	assert.True(t, verifyChangesSequencesIgnoreOrder(changes, []uint64{1, 2, 5, 6, 3, 4, 7, 8, 9}))
 
@@ -1150,7 +1152,7 @@ func TestLowSequenceHandlingNoDuplicates(t *testing.T) {
 //     - there are channels C,D,E,F,G with large caches that get processed between A and B
 // To test, uncomment the following
 // lines at the start of changesFeed() in changes.go to simulate slow processing:
-//	    base.Infof(base.KeyChanges, "Simulate slow processing time for channel %s - sleeping for 100 ms", channel)
+//	    base.Infof(logger.KeyChanges, "Simulate slow processing time for channel %s - sleeping for 100 ms", channel)
 //	    time.Sleep(100 * time.Millisecond)
 func TestChannelRace(t *testing.T) {
 	// TODO: Test current fails intermittently on concurrent access to var changes.
@@ -1161,7 +1163,7 @@ func TestChannelRace(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges)
 
 	db := setupTestDBWithCacheOptions(t, shortWaitCache())
 	defer db.Close()
@@ -1169,8 +1171,8 @@ func TestChannelRace(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channels "Odd", "Even"
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "Even", "Odd"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "Even", "Odd"))
 	require.NoError(t, authenticator.Save(user))
 
 	// Write initial sequences
@@ -1178,7 +1180,7 @@ func TestChannelRace(t *testing.T) {
 	WriteDirect(db, []string{"Even"}, 2)
 	WriteDirect(db, []string{"Odd"}, 3)
 
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 3, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 3, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
 
 	// Start changes feed
@@ -1188,7 +1190,7 @@ func TestChannelRace(t *testing.T) {
 	options.Terminator = make(chan bool)
 	options.Continuous = true
 	options.Wait = true
-	feed, err := db.MultiChangesFeed(base.SetOf("Even", "Odd"), options)
+	feed, err := db.MultiChangesFeed(utils.SetOf("Even", "Odd"), options)
 	assert.True(t, err == nil)
 	feedClosed := false
 
@@ -1254,7 +1256,7 @@ func TestSkippedViewRetrieval(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache)
 
 	originalBatchSize := SkippedSeqCleanViewBatch
 	SkippedSeqCleanViewBatch = 4
@@ -1301,7 +1303,7 @@ func TestSkippedViewRetrieval(t *testing.T) {
 	assert.NoError(t, cleanErr, "CleanSkippedSequenceQueue returned error")
 
 	// Validate expected entries
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 15, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 15, base.DefaultWaitForSequence))
 	entries, err := db.changeCache.GetChanges("ABC", ChangesOptions{Since: SequenceID{Seq: 2}})
 	assert.NoError(t, err, "Get Changes returned error")
 	assert.Equal(t, 6, len(entries))
@@ -1324,7 +1326,7 @@ func TestStopChangeCache(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyChanges, base.KeyDCP)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyChanges, logger.KeyDCP)
 
 	if base.TestUseXattrs() {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
@@ -1366,7 +1368,7 @@ func TestChannelCacheSize(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache)
 
 	options := DefaultCacheOptions()
 	options.ChannelCacheOptions.ChannelCacheMinLength = 600
@@ -1379,8 +1381,8 @@ func TestChannelCacheSize(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC"))
 	require.NoError(t, authenticator.Save(user))
 
 	// Write 750 docs to channel ABC
@@ -1389,9 +1391,9 @@ func TestChannelCacheSize(t *testing.T) {
 	}
 
 	// Validate that retrieval returns expected sequences
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 750, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 750, base.DefaultWaitForSequence))
 	db.user, _ = authenticator.GetUser("naomi")
-	changes, err := db.GetChanges(base.SetOf("ABC"), ChangesOptions{Since: SequenceID{Seq: 0}})
+	changes, err := db.GetChanges(utils.SetOf("ABC"), ChangesOptions{Since: SequenceID{Seq: 0}})
 	assert.NoError(t, err, "Couldn't GetChanges")
 	assert.Equal(t, 750, len(changes))
 
@@ -1586,7 +1588,7 @@ func TestLateArrivingSequenceTriggersOnChange(t *testing.T) {
 	}
 
 	// Enable relevant logging
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache, logger.KeyChanges)
 
 	// Create a test db that uses channel cache
 	options := DefaultCacheOptions()
@@ -1601,7 +1603,7 @@ func TestLateArrivingSequenceTriggersOnChange(t *testing.T) {
 	//  Detect whether the 2nd was ignored using an notifyChange listener callback and make sure it was not added to the ABC channel
 	waitForOnChangeCallback := sync.WaitGroup{}
 	waitForOnChangeCallback.Add(1)
-	db.changeCache.notifyChange = func(channels base.Set) {
+	db.changeCache.notifyChange = func(channels utils.Set) {
 		// defer waitForOnChangeCallback.Done()
 		log.Printf("channelsChanged: %v", channels)
 		// goassert.True(t, channels.Contains("ABC"))
@@ -1671,7 +1673,7 @@ func TestLateArrivingSequenceTriggersOnChange(t *testing.T) {
 // Trigger initialization of empty cache, then write and validate a subsequent changes request returns expected data.
 func TestInitializeEmptyCache(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges)
 
 	// Increase the cache max size
 	cacheOptions := DefaultCacheOptions()
@@ -1694,7 +1696,7 @@ func TestInitializeEmptyCache(t *testing.T) {
 	}
 
 	// Issue getChanges for empty channel
-	changes, err := db.GetChanges(channels.SetOf(t, "zero"), ChangesOptions{})
+	changes, err := db.GetChanges(channels.SetOfTester(t, "zero"), ChangesOptions{})
 	assert.NoError(t, err, "Couldn't GetChanges")
 	changesCount := len(changes)
 	assert.Equal(t, 0, changesCount)
@@ -1712,7 +1714,7 @@ func TestInitializeEmptyCache(t *testing.T) {
 	cacheWaiter.Add(docCount)
 	cacheWaiter.Wait()
 
-	changes, err = db.GetChanges(channels.SetOf(t, "zero"), ChangesOptions{})
+	changes, err = db.GetChanges(channels.SetOfTester(t, "zero"), ChangesOptions{})
 	assert.NoError(t, err, "Couldn't GetChanges")
 	changesCount = len(changes)
 	assert.Equal(t, 10, changesCount)
@@ -1722,7 +1724,7 @@ func TestInitializeEmptyCache(t *testing.T) {
 // sets query/cache boundaries
 func TestInitializeCacheUnderLoad(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges)
 
 	// Increase the cache max size
 	cacheOptions := DefaultCacheOptions()
@@ -1758,7 +1760,7 @@ func TestInitializeCacheUnderLoad(t *testing.T) {
 
 	// Wait for writes to be in progress, then getChanges for channel zero
 	writesInProgress.Wait()
-	changes, err := db.GetChanges(channels.SetOf(t, "zero"), ChangesOptions{})
+	changes, err := db.GetChanges(channels.SetOfTester(t, "zero"), ChangesOptions{})
 	require.NoError(t, err, "Couldn't GetChanges")
 	firstChangesCount := len(changes)
 	var lastSeq SequenceID
@@ -1769,7 +1771,7 @@ func TestInitializeCacheUnderLoad(t *testing.T) {
 	// Wait for all writes to be cached, then getChanges again
 	cacheWaiter.Wait()
 
-	changes, err = db.GetChanges(channels.SetOf(t, "zero"), ChangesOptions{Since: lastSeq})
+	changes, err = db.GetChanges(channels.SetOfTester(t, "zero"), ChangesOptions{Since: lastSeq})
 	require.NoError(t, err, "Couldn't GetChanges")
 	secondChangesCount := len(changes)
 	assert.Equal(t, docCount, firstChangesCount+secondChangesCount)
@@ -1780,7 +1782,7 @@ func TestInitializeCacheUnderLoad(t *testing.T) {
 func TestNotifyForInactiveChannel(t *testing.T) {
 
 	// Enable relevant logging
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache, base.KeyDCP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache, logger.KeyDCP)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -1788,7 +1790,7 @@ func TestNotifyForInactiveChannel(t *testing.T) {
 	// -------- Setup notifyChange callback ----------------
 
 	notifyChannel := make(chan struct{})
-	db.changeCache.notifyChange = func(channels base.Set) {
+	db.changeCache.notifyChange = func(channels utils.Set) {
 		log.Printf("channelsChanged: %v", channels)
 		if channels.Contains("zero") {
 			notifyChannel <- struct{}{}
@@ -1842,7 +1844,7 @@ func TestChangeCache_InsertPendingEntries(t *testing.T) {
 		t.Skip("This test does not work with XATTRs due to calling WriteDirect().  Skipping.")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges)
 
 	cacheOptions := DefaultCacheOptions()
 	cacheOptions.CachePendingSeqMaxWait = 100 * time.Millisecond
@@ -1853,8 +1855,8 @@ func TestChangeCache_InsertPendingEntries(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to some channels
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC", "PBS", "NBC", "TBS"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC", "PBS", "NBC", "TBS"))
 	require.NoError(t, authenticator.Save(user))
 
 	// Simulate seq 3 + 4 being delayed - write 1,2,5,6
@@ -1864,7 +1866,7 @@ func TestChangeCache_InsertPendingEntries(t *testing.T) {
 	WriteDirect(db, []string{"ABC", "PBS"}, 6)
 
 	// wait for InsertPendingEntries to fire, move 3 and 4 to skipped and get seqs 5 + 6
-	require.NoError(t, db.changeCache.waitForSequence(base.TestCtx(t), 6, base.DefaultWaitForSequence))
+	require.NoError(t, db.changeCache.waitForSequence(logger.TestCtx(t), 6, base.DefaultWaitForSequence))
 
 }
 
@@ -1933,7 +1935,7 @@ func (f *testProcessEntryFeed) Next() *LogEntry {
 //   - non-unique doc ids?
 
 func BenchmarkProcessEntry(b *testing.B) {
-	base.SetUpBenchmarkLogging(b, base.LevelError, base.KeyCache, base.KeyChanges)
+	base.SetUpBenchmarkLogging(b, logger.LevelError, logger.KeyCache, logger.KeyChanges)
 	processEntryBenchmarks := []struct {
 		name           string
 		feed           *testProcessEntryFeed
@@ -2159,7 +2161,7 @@ func (f *testDocChangedFeed) Next() sgbucket.FeedEvent {
 //   - non-unique doc ids?
 
 func BenchmarkDocChanged(b *testing.B) {
-	base.SetUpBenchmarkLogging(b, base.LevelError, base.KeyCache, base.KeyChanges)
+	base.SetUpBenchmarkLogging(b, logger.LevelError, logger.KeyCache, logger.KeyChanges)
 	processEntryBenchmarks := []struct {
 		name           string
 		feed           *testDocChangedFeed

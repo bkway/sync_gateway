@@ -11,11 +11,11 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"encoding/json"
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -141,9 +141,11 @@ This is how the view is iterated:
 */
 func (r RepairBucket) RepairBucket() (results []RepairBucketResult, err error) {
 
-	logCtx := context.TODO()
-	base.InfofCtx(logCtx, base.KeyCRUD, "RepairBucket() invoked")
-	defer base.InfofCtx(logCtx, base.KeyCRUD, "RepairBucket() finished")
+	// logCtx := context.TODO()
+	//	logger.InfofCtx(logCtx, logger.KeyCRUD, "RepairBucket() invoked")
+	logger.For(logger.CRUDKey).Info().Msgf("RepairBucket() invoked")
+	// defer logger.InfofCtx(logCtx, logger.KeyCRUD, "RepairBucket() finished")
+	defer logger.For(logger.CRUDKey).Info().Msgf("RepairBucket() finished")
 
 	startKey := ""
 	results = []RepairBucketResult{}
@@ -158,9 +160,11 @@ func (r RepairBucket) RepairBucket() (results []RepairBucketResult, err error) {
 		}
 		options["limit"] = r.ViewQueryPageSize
 
-		base.InfofCtx(logCtx, base.KeyCRUD, "RepairBucket() querying view with options: %+v", options)
+		//		logger.InfofCtx(logCtx, logger.KeyCRUD, "RepairBucket() querying view with options: %+v", options)
+		logger.For(logger.CRUDKey).Info().Msgf("RepairBucket() querying view with options: %+v", options)
 		vres, err := r.Bucket.View(DesignDocSyncHousekeeping(), ViewImport, options)
-		base.InfofCtx(logCtx, base.KeyCRUD, "RepairBucket() queried view and got %d results", len(vres.Rows))
+		//		logger.InfofCtx(logCtx, logger.KeyCRUD, "RepairBucket() queried view and got %d results", len(vres.Rows))
+		logger.For(logger.CRUDKey).Info().Msgf("RepairBucket() queried view and got %d results", len(vres.Rows))
 		if err != nil {
 			// TODO: Maybe we could retry if the view timed out (as seen in #3267)
 			return results, err
@@ -213,9 +217,12 @@ func (r RepairBucket) RepairBucket() (results []RepairBucketResult, err error) {
 
 					backupOrDryRunDocId, err = r.WriteRepairedDocsToBucket(key, currentValue, updatedDoc)
 					if err != nil {
-						base.InfofCtx(logCtx, base.KeyCRUD, "Repair Doc (dry_run=%v) Writing docs to bucket failed with error: %v.  Dumping raw contents.", r.DryRun, err)
-						base.InfofCtx(logCtx, base.KeyCRUD, "Original Doc before repair: %s", base.UD(currentValue))
-						base.InfofCtx(logCtx, base.KeyCRUD, "Updated doc after repair: %s", base.UD(updatedDoc))
+						//						logger.InfofCtx(logCtx, logger.KeyCRUD, "Repair Doc (dry_run=%v) Writing docs to bucket failed with error: %v.  Dumping raw contents.", r.DryRun, err)
+						logger.For(logger.CRUDKey).Info().Msgf("Repair Doc (dry_run=%v) Writing docs to bucket failed with error: %v.  Dumping raw contents.", r.DryRun, err)
+						//						logger.InfofCtx(logCtx, logger.KeyCRUD, "Original Doc before repair: %s", logger.UD(currentValue))
+						logger.For(logger.CRUDKey).Info().Msgf("Original Doc before repair: %s", logger.UD(currentValue))
+						//						logger.InfofCtx(logCtx, logger.KeyCRUD, "Updated doc after repair: %s", logger.UD(updatedDoc))
+						logger.For(logger.CRUDKey).Info().Msgf("Updated doc after repair: %s", logger.UD(updatedDoc))
 					}
 
 					result := RepairBucketResult{
@@ -247,9 +254,11 @@ func (r RepairBucket) RepairBucket() (results []RepairBucketResult, err error) {
 
 			if backupOrDryRunDocId != "" {
 				if r.DryRun {
-					base.InfofCtx(logCtx, base.KeyCRUD, "Repair Doc: dry run result available in Bucket Doc: %v (auto-deletes in 24 hours)", base.UD(backupOrDryRunDocId))
+					//					logger.InfofCtx(logCtx, logger.KeyCRUD, "Repair Doc: dry run result available in Bucket Doc: %v (auto-deletes in 24 hours)", logger.UD(backupOrDryRunDocId))
+					logger.For(logger.CRUDKey).Info().Msgf("Repair Doc: dry run result available in Bucket Doc: %v (auto-deletes in 24 hours)", logger.UD(backupOrDryRunDocId))
 				} else {
-					base.InfofCtx(logCtx, base.KeyCRUD, "Repair Doc: Doc repaired, original doc backed up in Bucket Doc: %v (auto-deletes in 24 hours)", base.UD(backupOrDryRunDocId))
+					//					logger.InfofCtx(logCtx, logger.KeyCRUD, "Repair Doc: Doc repaired, original doc backed up in Bucket Doc: %v (auto-deletes in 24 hours)", logger.UD(backupOrDryRunDocId))
+					logger.For(logger.CRUDKey).Info().Msgf("Repair Doc: Doc repaired, original doc backed up in Bucket Doc: %v (auto-deletes in 24 hours)", logger.UD(backupOrDryRunDocId))
 				}
 			}
 
@@ -257,7 +266,8 @@ func (r RepairBucket) RepairBucket() (results []RepairBucketResult, err error) {
 
 		numDocsProcessed += numResultsProcessed
 
-		base.InfofCtx(logCtx, base.KeyCRUD, "RepairBucket() processed %d / %d", numDocsProcessed, vres.TotalRows)
+		//		logger.InfofCtx(logCtx, logger.KeyCRUD, "RepairBucket() processed %d / %d", numDocsProcessed, vres.TotalRows)
+		logger.For(logger.CRUDKey).Info().Msgf("RepairBucket() processed %d / %d", numDocsProcessed, vres.TotalRows)
 
 		if numResultsProcessed == 0 {
 			// No point in going to the next page, since this page had 0 results.  See method comments.
@@ -287,7 +297,8 @@ func (r RepairBucket) WriteRepairedDocsToBucket(docId string, originalDoc, updat
 
 	//If the RepairedFileTTL is explicitly set to 0 then don't write the doc at all
 	if int(r.RepairedFileTTL.Seconds()) == 0 {
-		base.InfofCtx(context.TODO(), base.KeyCRUD, "Repair Doc: Doc %v repaired, TTL set to 0, doc will not be written to bucket", base.UD(backupOrDryRunDocId))
+		//		logger.InfofCtx(context.TODO(), logger.KeyCRUD, "Repair Doc: Doc %v repaired, TTL set to 0, doc will not be written to bucket", logger.UD(backupOrDryRunDocId))
+		logger.For(logger.CRUDKey).Info().Msgf("Repair Doc: Doc %v repaired, TTL set to 0, doc will not be written to bucket", logger.UD(backupOrDryRunDocId))
 		return backupOrDryRunDocId, nil
 	}
 
@@ -337,8 +348,10 @@ func (r RepairBucket) TransformBucketDoc(docId string, originalCBDoc []byte) (tr
 // Repairs rev tree cycles (see SG issue #2847)
 func RepairJobRevTreeCycles(docId string, originalCBDoc []byte) (transformedCBDoc []byte, transformed bool, err error) {
 
-	base.DebugfCtx(context.TODO(), base.KeyCRUD, "RepairJobRevTreeCycles() called with doc id: %v", base.UD(docId))
-	defer base.DebugfCtx(context.TODO(), base.KeyCRUD, "RepairJobRevTreeCycles() finished.  Doc id: %v.  transformed: %v.  err: %v", base.UD(docId), base.UD(transformed), err)
+	//	logger.DebugfCtx(context.TODO(), logger.KeyCRUD, "RepairJobRevTreeCycles() called with doc id: %v", logger.UD(docId))
+	logger.For(logger.CRUDKey).Debug().Msgf("RepairJobRevTreeCycles() called with doc id: %v", logger.UD(docId))
+	defer logger.For(logger.CRUDKey).Debug().Msgf("RepairJobRevTreeCycles() finished.  Doc id: %v.  transformed: %v.  err: %v", logger.UD(docId), logger.UD(transformed), err)
+	// defer logger.DebugfCtx(context.TODO(), logger.KeyCRUD, "RepairJobRevTreeCycles() finished.  Doc id: %v.  transformed: %v.  err: %v", logger.UD(docId), logger.UD(transformed), err)
 
 	doc, errUnmarshal := unmarshalDocument(docId, originalCBDoc)
 	if errUnmarshal != nil {

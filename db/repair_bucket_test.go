@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +68,7 @@ func TestRepairBucket(t *testing.T) {
 		t.Skip("This test only works against walrus (requires views)")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCRUD)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCRUD)
 
 	bucket, numDocs := testBucketWithViewsAndBrokenDoc(t)
 	defer bucket.Close()
@@ -97,7 +98,7 @@ func TestRepairBucketRevTreeCycles(t *testing.T) {
 		t.Skip("This test only works against walrus (requires views)")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCRUD)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCRUD)
 
 	bucket, _ := testBucketWithViewsAndBrokenDoc(t)
 	defer bucket.Close()
@@ -146,7 +147,7 @@ func TestRepairBucketDryRun(t *testing.T) {
 		t.Skip("This test only works against walrus (requires views)")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCRUD)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCRUD)
 
 	bucket, _ := testBucketWithViewsAndBrokenDoc(t)
 	defer bucket.Close()

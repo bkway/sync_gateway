@@ -6,6 +6,8 @@
 //  software will be governed by the Apache License, Version 2.0, included in
 //  the file licenses/APL2.txt.
 
+// FIXME this seems way too complex!
+
 package auth
 
 import (
@@ -18,7 +20,11 @@ import (
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
+
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	pkgerrors "github.com/pkg/errors"
+
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -144,13 +150,14 @@ func (auth *Authenticator) getPrincipal(docID string, factory func() Principal) 
 
 		princ = factory()
 		if err := json.Unmarshal(currentValue, princ); err != nil {
-			return nil, nil, false, pkgerrors.WithStack(base.RedactErrorf("json.Unmarshal() error for doc ID: %s in getPrincipal().  Error: %v", base.UD(docID), err))
+			return nil, nil, false, pkgerrors.WithStack(logger.RedactErrorf("json.Unmarshal() error for doc ID: %s in getPrincipal().  Error: %v", logger.UD(docID), err))
 		}
 		changed := false
 		if princ.Channels() == nil && !princ.IsDeleted() {
 			// Channel list has been invalidated by a doc update -- rebuild it:
 			if err := auth.rebuildChannels(princ); err != nil {
-				base.WarnfCtx(auth.LogCtx, "RebuildChannels returned error: %v", err)
+				// log.Ctx(auth.LogCtx).Warn().Err(err).Msg("RebuildChannels returned error")
+				logger.For(logger.AuthKey).Err(err).Msg("problem rebuilding channels")
 				return nil, nil, false, err
 			}
 			changed = true
@@ -158,7 +165,8 @@ func (auth *Authenticator) getPrincipal(docID string, factory func() Principal) 
 		if user, ok := princ.(User); ok {
 			if user.RoleNames() == nil {
 				if err := auth.rebuildRoles(user); err != nil {
-					base.WarnfCtx(auth.LogCtx, "RebuildRoles returned error: %v", err)
+					// log.Ctx(auth.LogCtx).Warn().Err(err).Msg("RebuildRoles returned error")
+					logger.For(logger.AuthKey).Err(err).Msg("problem rebuilding roles")
 					return nil, nil, false, err
 				}
 				changed = true
@@ -169,7 +177,7 @@ func (auth *Authenticator) getPrincipal(docID string, factory func() Principal) 
 			// Save the updated doc:
 			updatedBytes, marshalErr := json.Marshal(princ)
 			if marshalErr != nil {
-				marshalErr = pkgerrors.WithStack(base.RedactErrorf("json.Unmarshal() error for doc ID: %s in getPrincipal(). Error: %v", base.UD(docID), marshalErr))
+				marshalErr = pkgerrors.WithStack(logger.RedactErrorf("json.Unmarshal() error for doc ID: %s in getPrincipal(). Error: %v", logger.UD(docID), marshalErr))
 			}
 			return updatedBytes, nil, false, marshalErr
 		} else {
@@ -196,7 +204,8 @@ func (auth *Authenticator) rebuildChannels(princ Principal) error {
 	if auth.channelComputer != nil {
 		viewChannels, err := auth.channelComputer.ComputeChannelsForPrincipal(auth.LogCtx, princ)
 		if err != nil {
-			base.WarnfCtx(auth.LogCtx, "channelComputer.ComputeChannelsForPrincipal returned error for %v: %v", base.UD(princ), err)
+			// log.Ctx(auth.LogCtx).Warn().Err(err).Msgf("channelComputer.ComputeChannelsForPrincipal returned error for %v: %v", logger.UD(princ), err)
+			logger.For(logger.AuthKey).Err(err).Msgf("channelComputer.ComputeChannelsForPrincipal returned error for %v", logger.UD(princ))
 			return err
 		}
 		channels.Add(viewChannels)
@@ -209,8 +218,8 @@ func (auth *Authenticator) rebuildChannels(princ Principal) error {
 	if len(channelHistory) != 0 {
 		princ.SetChannelHistory(channelHistory)
 	}
-
-	base.InfofCtx(auth.LogCtx, base.KeyAccess, "Recomputed channels for %q: %s", base.UD(princ.Name()), base.UD(channels))
+	logger.For(logger.AccessKey).Info().Msgf("Recomputed channels for %q: %s", logger.UD(princ.Name()), logger.UD(channels))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAccess, )
 	princ.SetChannelInvalSeq(0)
 	princ.setChannels(channels)
 
@@ -251,7 +260,9 @@ func (auth *Authenticator) calculateHistory(princName string, invalSeq uint64, i
 	}
 
 	if prunedHistory := currentHistory.PruneHistory(auth.ClientPartitionWindow); len(prunedHistory) > 0 {
-		base.DebugfCtx(auth.LogCtx, base.KeyCRUD, "rebuildChannels: Pruned principal history on %s for %s", base.UD(princName), base.UD(prunedHistory))
+		// system.LogCtx?
+		logger.For(logger.CRUDKey).Info().Msgf("rebuildChannels: Pruned principal history on %s for %s", logger.UD(princName), logger.UD(prunedHistory))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyCRUD, "rebuildChannels: Pruned principal history on %s for %s", logger.UD(princName), logger.UD(prunedHistory))
 	}
 
 	// Ensure no entries are larger than the allowed threshold
@@ -289,7 +300,9 @@ func (auth *Authenticator) rebuildRoles(user User) error {
 		var err error
 		roles, err = auth.channelComputer.ComputeRolesForUser(auth.LogCtx, user)
 		if err != nil {
-			base.WarnfCtx(auth.LogCtx, "channelComputer.ComputeRolesForUser failed on user %s: %v", base.UD(user.Name()), err)
+			// TODO revisit if this is the right key to log to, the original didn't specify
+			logger.For(logger.AuthKey).Err(err).Msgf("channelComputer.ComputeRolesForUser failed on user %s", logger.UD(user.Name()))
+			// log.Ctx(auth.LogCtx).Warn().Err(err).Msgf("channelComputer.ComputeRolesForUser failed on user %s: %v", logger.UD(user.Name()), err)
 			return err
 		}
 	}
@@ -307,7 +320,8 @@ func (auth *Authenticator) rebuildRoles(user User) error {
 		user.SetRoleHistory(roleHistory)
 	}
 
-	base.InfofCtx(auth.LogCtx, base.KeyAccess, "Computed roles for %q: %s", base.UD(user.Name()), base.UD(roles))
+	logger.For(logger.AccessKey).Info().Msgf("Computed roles for %q: %s", logger.UD(user.Name()), logger.UD(roles))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAccess, )
 	user.SetRoleInvalSeq(0)
 	user.setRolesSince(roles)
 	return nil
@@ -348,7 +362,8 @@ func (auth *Authenticator) Save(p Principal) error {
 			// FIX: Unregister old email address if any
 		}
 	}
-	base.InfofCtx(auth.LogCtx, base.KeyAuth, "Saved principal w/ name:%s, seq: #%d", base.UD(p.Name()), p.Sequence())
+	logger.For(logger.AuthKey).Info().Msgf("Saved principal w/ name:%s, seq: #%d", logger.UD(p.Name()), p.Sequence())
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, )
 	return nil
 }
 
@@ -377,7 +392,8 @@ func (auth *Authenticator) InvalidateChannels(name string, isUser bool, invalSeq
 		docID = docIDForRole(name)
 	}
 
-	base.InfofCtx(auth.LogCtx, base.KeyAccess, "Invalidate access of %q", base.UD(name))
+	logger.For(logger.AccessKey).Info().Msgf("Invalidate access of %q", logger.UD(name))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAccess, )
 
 	if auth.bucket.IsSupported(sgbucket.DataStoreFeatureSubdocOperations) {
 		err := auth.bucket.SubdocInsert(docID, "channel_inval_seq", 0, invalSeq)
@@ -420,7 +436,8 @@ func (auth *Authenticator) InvalidateChannels(name string, isUser bool, invalSeq
 func (auth *Authenticator) InvalidateRoles(username string, invalSeq uint64) error {
 	docID := docIDForUser(username)
 
-	base.InfofCtx(auth.LogCtx, base.KeyAccess, "Invalidate roles of %q", base.UD(username))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAccess, "Invalidate roles of %q", logger.UD(username))
+	logger.For(logger.AccessKey).Info().Msgf("Invalidate roles of %q", logger.UD(username))
 
 	if auth.bucket.IsSupported(sgbucket.DataStoreFeatureSubdocOperations) {
 		err := auth.bucket.SubdocInsert(docID, "role_inval_seq", 0, invalSeq)
@@ -473,7 +490,8 @@ func (auth *Authenticator) UpdateUserEmail(u User, email string) error {
 			return currentUser, base.ErrUpdateCancel
 		}
 
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Updating user %s email to: %v", base.UD(u.Name()), base.UD(email))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Updating user %s email to: %v", logger.UD(u.Name()), logger.UD(email))
+		logger.For(logger.AuthKey).Info().Msgf("Updating user %s email to: %v", logger.UD(u.Name()), logger.UD(email))
 		err = currentUser.SetEmail(email)
 		if err != nil {
 			return nil, err
@@ -519,8 +537,10 @@ func (auth *Authenticator) rehashPassword(user User, password string) error {
 		return err
 	}
 
-	base.DebugfCtx(auth.LogCtx, base.KeyAuth, "User account %q changed password hash cost from %d to %d",
-		base.UD(user.Name()), hashCost, auth.BcryptCost)
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "User account %q changed password hash cost from %d to %d",
+	// 	logger.UD(user.Name()), hashCost, auth.BcryptCost)
+	logger.For(logger.AuthKey).Info().
+		Msgf("User account %q changed password hash cost from %d to %d", logger.UD(user.Name()), hashCost, auth.BcryptCost)
 	return nil
 }
 
@@ -549,7 +569,8 @@ func (auth *Authenticator) casUpdatePrincipal(p Principal, callback casUpdatePri
 			return err
 		}
 
-		base.InfofCtx(auth.LogCtx, base.KeyAuth, "CAS mismatch in casUpdatePrincipal, retrying.  Principal:%s", base.UD(p.Name()))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "CAS mismatch in casUpdatePrincipal, retrying.  Principal:%s", logger.UD(p.Name()))
+		logger.For(logger.AuthKey).Info().Msgf("CAS mismatch in casUpdatePrincipal, retrying.  Principal:%s", logger.UD(p.Name()))
 
 		switch p.(type) {
 		case User:
@@ -564,14 +585,18 @@ func (auth *Authenticator) casUpdatePrincipal(p Principal, callback casUpdatePri
 			return fmt.Errorf("Error reloading principal after CAS failure: %w", err)
 		}
 	}
-	base.InfofCtx(auth.LogCtx, base.KeyAuth, "Unable to update principal after %d attempts.  Principal:%s Error:%v", PrincipalUpdateMaxCasRetries, base.UD(p.Name()), err)
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Unable to update principal after %d attempts.  Principal:%s Error:%v", PrincipalUpdateMaxCasRetries, logger.UD(p.Name()), err)
+	// FIXME this is obviously misplaced
+	logger.For(logger.AuthKey).Err(err).Msgf("Unable to update principal after %d attempts.  Principal:%s", PrincipalUpdateMaxCasRetries, logger.UD(p.Name()))
 	return err
 }
 
 func (auth *Authenticator) DeleteUser(user User) error {
+	// TODO incoistent logging locations
 	if user.Email() != "" {
 		if err := auth.bucket.Delete(docIDForUserEmail(user.Email())); err != nil {
-			base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error deleting document ID for user email %s. Error: %v", base.UD(user.Email()), err)
+			// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error deleting document ID for user email %s. Error: %v", logger.UD(user.Email()), err)
+			logger.For(logger.AuthKey).Err(err).Msgf("Error deleting document ID for user email %s.", logger.UD(user.Email()))
 		}
 	}
 	return auth.bucket.Delete(user.DocID())
@@ -620,7 +645,9 @@ func (auth *Authenticator) AuthenticateUser(username string, password string) (U
 // creates the user when autoRegister=true.
 func (auth *Authenticator) AuthenticateUntrustedJWT(token string, providers OIDCProviderMap, callbackURLFunc OIDCCallbackURLFunc) (User, error) {
 
-	base.DebugfCtx(auth.LogCtx, base.KeyAuth, "AuthenticateUntrustedJWT called with token: %s", base.UD(token))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, )
+	logger.For(logger.AuthKey).Info().Msgf("AuthenticateUntrustedJWT called with token: %s", logger.UD(token))
+
 	var provider *OIDCProvider
 	var issuer string
 
@@ -630,26 +657,32 @@ func (auth *Authenticator) AuthenticateUntrustedJWT(token string, providers OIDC
 		// Parse JWT (needed to determine issuer/provider)
 		jwt, err := jwt.ParseSigned(token)
 		if err != nil {
-			base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error parsing JWT in AuthenticateUntrustedJWT: %v", err)
+			// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error parsing JWT in AuthenticateUntrustedJWT: %v", err)
+			logger.For(logger.AuthKey).Err(err).Msg("Error parsing JWT in AuthenticateUntrustedJWT")
 			return nil, err
 		}
 
 		// Extract issuer and audience(s) from JSON Web Token.
 		var audiences []string
 		issuer, audiences, err = getIssuerWithAudience(jwt)
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "JWT issuer: %v, audiences: %v", base.UD(issuer), base.UD(audiences))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "JWT issuer: %v, audiences: %v", logger.UD(issuer), logger.UD(audiences))
+		logger.For(logger.AuthKey).Info().Msgf("JWT issuer: %v, audiences: %v", logger.UD(issuer), logger.UD(audiences))
 		if err != nil {
-			base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error getting issuer and audience from token: %v", err)
+			// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error getting issuer and audience from token: %v", err)
+			logger.For(logger.AuthKey).Err(err).Msg("Error getting issuer and audience from token")
 			return nil, err
 		}
 
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Call GetProviderForIssuer w/ providers: %+v", base.UD(providers))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Call GetProviderForIssuer w/ providers: %+v", logger.UD(providers))
+		logger.For(logger.AuthKey).Info().Msgf("Call GetProviderForIssuer w/ providers: %+v", logger.UD(providers))
+
 		provider = providers.GetProviderForIssuer(auth.LogCtx, issuer, audiences)
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Provider for issuer: %+v", base.UD(provider))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Provider for issuer: %+v", logger.UD(provider))
+		logger.For(logger.AuthKey).Info().Msgf("Provider for issuer: %+v", logger.UD(provider))
 	}
 
 	if provider == nil {
-		return nil, base.RedactErrorf("No provider found for issuer %v", base.UD(issuer))
+		return nil, logger.RedactErrorf("No provider found for issuer %v", logger.UD(issuer))
 	}
 
 	identity, verifyErr := verifyToken(auth.LogCtx, token, provider, callbackURLFunc)
@@ -672,14 +705,16 @@ func verifyToken(ctx context.Context, token string, provider *OIDCProvider, call
 	// Verify claims and signature on the JWT; ensure that it's been signed by the provider.
 	idToken, err := client.verifyJWT(token)
 	if err != nil {
-		base.DebugfCtx(ctx, base.KeyAuth, "Client %v could not verify JWT. Error: %v", base.UD(client), err)
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyAuth, "Client %v could not verify JWT. Error: %v", logger.UD(client), err)
+		logger.For(logger.AuthKey).Err(err).Msgf("Client %v could not verify JWT", logger.UD(client))
 		return nil, err
 	}
 
 	identity, ok, err := getIdentity(idToken)
-	if err != nil {
-		base.DebugfCtx(ctx, base.KeyAuth, "Error getting identity from token (Identity: %v, Error: %v)", base.UD(identity), err)
-	}
+	logger.For(logger.AuthKey).Err(err).Msgf("getting identity from token: identity = %v", logger.UD(identity))
+	// if err != nil {
+	// 	log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyAuth, "Error getting identity from token (Identity: %v, Error: %v)", logger.UD(identity), err)
+	// }
 	if !ok {
 		return nil, err
 	}
@@ -693,14 +728,16 @@ func verifyToken(ctx context.Context, token string, provider *OIDCProvider, call
 // creates the user when autoRegister=true.
 func (auth *Authenticator) AuthenticateTrustedJWT(token string, provider *OIDCProvider, callbackURLFunc OIDCCallbackURLFunc) (user User,
 	tokenExpiry time.Time, err error) {
-	base.DebugfCtx(auth.LogCtx, base.KeyAuth, "AuthenticateTrustedJWT called with token: %s", base.UD(token))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "AuthenticateTrustedJWT called with token: %s", logger.UD(token))
+	logger.For(logger.AuthKey).Info().Msgf("AuthenticateTrustedJWT called with token: %s", logger.UD(token))
 
 	var identity *Identity
 	if provider.AllowUnsignedProviderTokens {
 		// Verify claims - ensures that the token we received from the provider is valid for Sync Gateway
 		identity, err = VerifyClaims(token, provider.ClientID, provider.Issuer)
 		if err != nil {
-			base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error verifying raw token in AuthenticateTrustedJWT: %v", err)
+			// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error verifying raw token in AuthenticateTrustedJWT: %v", err)
+			logger.For(logger.AuthKey).Err(err).Msg(" verifying raw token in AuthenticateTrustedJWT")
 			return nil, time.Time{}, err
 		}
 	} else {
@@ -718,19 +755,24 @@ func (auth *Authenticator) AuthenticateTrustedJWT(token string, provider *OIDCPr
 // Obtains a Sync Gateway User for the JWT. Expects that the JWT has already been verified for OIDC compliance.
 func (auth *Authenticator) authenticateOIDCIdentity(identity *Identity, provider *OIDCProvider) (user User, tokenExpiry time.Time, err error) {
 	if identity == nil || identity.Subject == "" {
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Empty subject found in OIDC identity: %v", base.UD(identity))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Empty subject found in OIDC identity: %v", logger.UD(identity))
+		logger.For(logger.AuthKey).Info().Msgf("Empty subject found in OIDC identity: %v", logger.UD(identity))
 		return nil, time.Time{}, errors.New("subject not found in OIDC identity")
 	}
 	username, err := getOIDCUsername(provider, identity)
+	// TODO merge the next 2 logger lines once redation is fixed
 	if err != nil {
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error retrieving OIDCUsername: %v", err)
+		logger.For(logger.AuthKey).Err(err).Msg("error retrieving OIDCUsername")
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error retrieving OIDCUsername: %v", err)
 		return nil, time.Time{}, err
 	}
-	base.DebugfCtx(auth.LogCtx, base.KeyAuth, "OIDCUsername: %v", base.UD(username))
+	// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "OIDCUsername: %v", logger.UD(username))
+	logger.For(logger.AuthKey).Info().Msgf("OIDCUsername: %v", logger.UD(username))
 
 	user, err = auth.GetUser(username)
 	if err != nil {
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error retrieving user for username %q: %v", base.UD(username), err)
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error retrieving user for username %q: %v", logger.UD(username), err)
+		logger.For(logger.AuthKey).Err(err).Msgf("Error retrieving user for username %q", logger.UD(username))
 		return nil, time.Time{}, err
 	}
 
@@ -738,18 +780,21 @@ func (auth *Authenticator) authenticateOIDCIdentity(identity *Identity, provider
 	if user != nil && identity.Email != "" && user.Email() != identity.Email {
 		err = auth.UpdateUserEmail(user, identity.Email)
 		if err != nil {
-			base.WarnfCtx(auth.LogCtx, "Unable to set user email to %v for OIDC", base.UD(identity.Email))
+			// log.Ctx(auth.LogCtx).Warn().Err(err).Msgf("Unable to set user email to %v for OIDC", logger.UD(identity.Email))
+			logger.For(logger.AuthKey).Err(err).Msgf("Unable to set user email to %v for OIDC", logger.UD(identity.Email))
 		}
 	}
 
 	// Auto-registration. This will normally be done when token is originally returned
 	// to client by oidc callback, but also needed here to handle clients obtaining their own tokens.
 	if user == nil && provider.Register {
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Registering new user: %v with email: %v", base.UD(username), base.UD(identity.Email))
+		// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Registering new user: %v with email: %v", logger.UD(username), logger.UD(identity.Email))
+		logger.For(logger.AuthKey).Info().Msgf("Registering new user: %v with email: %v", logger.UD(username), logger.UD(identity.Email))
 		var err error
 		user, err = auth.RegisterNewUser(username, identity.Email)
 		if err != nil && !base.IsCasMismatch(err) {
-			base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error registering new user: %v", err)
+			// log.Ctx(auth.LogCtx).Info().Msgf(logger.KeyAuth, "Error registering new user: %v", err)
+			logger.For(logger.AuthKey).Err(err).Msg("Error registering new user")
 			return nil, time.Time{}, err
 		}
 	}
@@ -766,14 +811,15 @@ func (auth *Authenticator) RegisterNewUser(username, email string) (User, error)
 		return nil, err
 	}
 
-	user, err := auth.NewUser(username, secret, base.Set{})
+	user, err := auth.NewUser(username, secret, utils.Set{})
 	if err != nil {
 		return nil, err
 	}
 
 	if len(email) > 0 {
 		if err := user.SetEmail(email); err != nil {
-			base.WarnfCtx(auth.LogCtx, "Skipping SetEmail for user %q - Invalid email address provided: %q", base.UD(username), base.UD(email))
+			// log.Ctx(auth.LogCtx).Warn().Err(err).Msgf("Skipping SetEmail for user %q - Invalid email address provided: %q", logger.UD(username), logger.UD(email))
+			logger.For(logger.AuthKey).Err(err).Msgf("Skipping SetEmail for user %q - Invalid email address provided: %q", logger.UD(username), logger.UD(email))
 		}
 	}
 

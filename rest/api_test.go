@@ -37,6 +37,8 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/couchbaselabs/walrus"
 	"github.com/robertkrimen/otto/underscore"
 	"github.com/stretchr/testify/assert"
@@ -109,8 +111,8 @@ func TestDisablePublicBasicAuth(t *testing.T) {
 	assert.NotContains(t, response.Header(), "WWW-Authenticate", "expected to not receive a WWW-Auth header when password auth is disabled")
 
 	// Double-check that even if we provide valid credentials we still won't be let in
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
-	user, err := a.NewUser("user1", "letmein", channels.SetOf(t, "foo"))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
+	user, err := a.NewUser("user1", "letmein", channels.SetOfTester(t, "foo"))
 	assert.NoError(t, err)
 	assert.NoError(t, a.Save(user))
 
@@ -157,7 +159,7 @@ func TestDocLifecycle(t *testing.T) {
 
 // Validate that Etag header value is surrounded with double quotes, see issue #808
 func TestDocEtag(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	rt := NewRestTester(t, &RestTesterConfig{guestEnabled: true})
 	defer rt.Close()
@@ -347,7 +349,7 @@ func TestDocAttachmentOnRemovedRev(t *testing.T) {
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	user, err := a.GetUser("")
 	assert.NoError(t, err)
 	user.SetDisabled(true)
@@ -355,7 +357,7 @@ func TestDocAttachmentOnRemovedRev(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a test user
-	user, err = a.NewUser("user1", "letmein", channels.SetOf(t, "foo"))
+	user, err = a.NewUser("user1", "letmein", channels.SetOfTester(t, "foo"))
 	assert.NoError(t, a.Save(user))
 
 	response := rt.Send(requestByUser("PUT", "/db/doc", `{"prop":true, "channels":["foo"]}`, "user1"))
@@ -385,7 +387,7 @@ func TestDocumentUpdateWithNullBody(t *testing.T) {
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	user, err := a.GetUser("")
 	assert.NoError(t, err)
 	user.SetDisabled(true)
@@ -393,7 +395,7 @@ func TestDocumentUpdateWithNullBody(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a test user
-	user, err = a.NewUser("user1", "letmein", channels.SetOf(t, "foo"))
+	user, err = a.NewUser("user1", "letmein", channels.SetOfTester(t, "foo"))
 	assert.NoError(t, a.Save(user))
 	// Create document
 	response := rt.Send(requestByUser("PUT", "/db/doc", `{"prop":true, "channels":["foo"]}`, "user1"))
@@ -476,10 +478,10 @@ func TestFunkyUsernames(t *testing.T) {
 			rt := NewRestTester(t, nil)
 			defer rt.Close()
 
-			a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+			a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 
 			// Create a test user
-			user, err := a.NewUser(tc.UserName, "letmein", channels.SetOf(t, "foo"))
+			user, err := a.NewUser(tc.UserName, "letmein", channels.SetOfTester(t, "foo"))
 			require.NoError(t, err)
 			require.NoError(t, a.Save(user))
 
@@ -536,10 +538,10 @@ func TestFunkyRoleNames(t *testing.T) {
 			})
 			defer rt.Close()
 
-			a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+			a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 
 			// Create a test user
-			user, err := a.NewUser(username, "letmein", channels.SetOf(t))
+			user, err := a.NewUser(username, "letmein", channels.SetOfTester(t))
 			require.NoError(t, err)
 			require.NoError(t, a.Save(user))
 
@@ -1490,13 +1492,13 @@ func TestBulkGetEmptyDocs(t *testing.T) {
 
 func TestBulkDocsChangeToAccess(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAccess)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAccess)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc) {if(doc.type == "setaccess") {channel(doc.channel); access(doc.owner, doc.channel);} else { requireAccess(doc.channel)}}`}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	user, err := a.GetUser("")
 	assert.NoError(t, err)
 	user.SetDisabled(true)
@@ -1524,7 +1526,7 @@ func TestBulkDocsChangeToAccess(t *testing.T) {
 
 func TestBulkDocsChangeToRoleAccess(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAccess)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAccess)
 
 	rtConfig := RestTesterConfig{SyncFn: `
 		function(doc) {
@@ -1539,7 +1541,7 @@ func TestBulkDocsChangeToRoleAccess(t *testing.T) {
 	defer rt.Close()
 
 	// Create a role with no channels assigned to it
-	authenticator := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	authenticator := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	role, err := authenticator.NewRole("role1", nil)
 	assert.NoError(t, authenticator.Save(role))
 
@@ -1932,7 +1934,7 @@ func TestLogin(t *testing.T) {
 	response := rt.SendRequest("PUT", "/db/doc", `{"hi": "there"}`)
 	assertStatus(t, response, 401)
 
-	user, err = a.NewUser("pupshaw", "letmein", channels.SetOf(t, "*"))
+	user, err = a.NewUser("pupshaw", "letmein", channels.SetOfTester(t, "*"))
 	assert.NoError(t, a.Save(user))
 
 	assertStatus(t, rt.SendRequest("GET", "/db/_session", ""), 200)
@@ -2077,9 +2079,9 @@ func TestAllDocsAccessControl(t *testing.T) {
 		ID    string `json:"id"`
 		Key   string `json:"key"`
 		Value struct {
-			Rev      string              `json:"rev"`
-			Channels []string            `json:"channels,omitempty"`
-			Access   map[string]base.Set `json:"access,omitempty"` // for admins only
+			Rev      string               `json:"rev"`
+			Channels []string             `json:"channels,omitempty"`
+			Access   map[string]utils.Set `json:"access,omitempty"` // for admins only
 		} `json:"value"`
 		Doc   db.Body `json:"doc,omitempty"`
 		Error string  `json:"error"`
@@ -2109,7 +2111,7 @@ func TestAllDocsAccessControl(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a user:
-	alice, err := a.NewUser("alice", "letmein", channels.SetOf(t, "Cinemax"))
+	alice, err := a.NewUser("alice", "letmein", channels.SetOfTester(t, "Cinemax"))
 	assert.NoError(t, a.Save(alice))
 
 	// Get a single doc the user has access to:
@@ -2305,13 +2307,13 @@ func TestAllDocsAccessControl(t *testing.T) {
 
 func TestChannelAccessChanges(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges, base.KeyCRUD)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges, logger.KeyCRUD)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc) {access(doc.owner, doc._id);channel(doc.channel)}`}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	assert.NoError(t, err)
 	guest.SetDisabled(false)
@@ -2319,9 +2321,9 @@ func TestChannelAccessChanges(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create users:
-	alice, err := a.NewUser("alice", "letmein", channels.SetOf(t, "zero"))
+	alice, err := a.NewUser("alice", "letmein", channels.SetOfTester(t, "zero"))
 	assert.NoError(t, a.Save(alice))
-	zegpold, err := a.NewUser("zegpold", "letmein", channels.SetOf(t, "zero"))
+	zegpold, err := a.NewUser("zegpold", "letmein", channels.SetOfTester(t, "zero"))
 	assert.NoError(t, a.Save(zegpold))
 
 	// Create some docs that give users access:
@@ -2484,7 +2486,7 @@ func TestChannelAccessChanges(t *testing.T) {
 
 func TestAccessOnTombstone(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges, base.KeyCRUD)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges, logger.KeyCRUD)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc,oldDoc) {
 			 if (doc.owner) {
@@ -2498,7 +2500,7 @@ func TestAccessOnTombstone(t *testing.T) {
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	assert.NoError(t, err)
 	guest.SetDisabled(false)
@@ -2506,7 +2508,7 @@ func TestAccessOnTombstone(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create user:
-	bernard, err := a.NewUser("bernard", "letmein", channels.SetOf(t, "zero"))
+	bernard, err := a.NewUser("bernard", "letmein", channels.SetOfTester(t, "zero"))
 	assert.NoError(t, a.Save(bernard))
 
 	// Create doc that gives user access to its channel
@@ -2561,7 +2563,7 @@ func TestAccessOnTombstone(t *testing.T) {
 // This can be used to introspect what properties ended up in the body passed to the sync function.
 func TestSyncFnBodyProperties(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyJavascript)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyJavascript)
 
 	const (
 		testDocID   = "testdoc"
@@ -2592,7 +2594,7 @@ func TestSyncFnBodyProperties(t *testing.T) {
 	response := rt.SendAdminRequest("PUT", "/db/"+testDocID, `{"`+testdataKey+`":true}`)
 	assertStatus(t, response, 201)
 
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), testDocID)
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), testDocID)
 	assert.NoError(t, err)
 
 	actualProperties := syncData.Channels.KeySet()
@@ -2603,7 +2605,7 @@ func TestSyncFnBodyProperties(t *testing.T) {
 // It creates a doc, and then tombstones it to see what properties are present in the body of the tombstone.
 func TestSyncFnBodyPropertiesTombstone(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyJavascript)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyJavascript)
 
 	const (
 		testDocID   = "testdoc"
@@ -2641,7 +2643,7 @@ func TestSyncFnBodyPropertiesTombstone(t *testing.T) {
 	response = rt.SendAdminRequest("DELETE", "/db/"+testDocID+"?rev="+revID, `{}`)
 	assertStatus(t, response, 200)
 
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), testDocID)
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), testDocID)
 	assert.NoError(t, err)
 
 	actualProperties := syncData.Channels.KeySet()
@@ -2652,7 +2654,7 @@ func TestSyncFnBodyPropertiesTombstone(t *testing.T) {
 // It creates a doc, and updates it to inspect what properties are present on the oldDoc body.
 func TestSyncFnOldDocBodyProperties(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyJavascript)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyJavascript)
 
 	const (
 		testDocID   = "testdoc"
@@ -2689,7 +2691,7 @@ func TestSyncFnOldDocBodyProperties(t *testing.T) {
 	response = rt.SendAdminRequest("PUT", "/db/"+testDocID+"?rev="+revID, `{"`+testdataKey+`":true,"update":2}`)
 	assertStatus(t, response, 201)
 
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), testDocID)
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), testDocID)
 	assert.NoError(t, err)
 
 	actualProperties := syncData.Channels.KeySet()
@@ -2700,7 +2702,7 @@ func TestSyncFnOldDocBodyProperties(t *testing.T) {
 // It creates a doc, tombstones it, and then resurrects it to inspect oldDoc properties on the tombstone.
 func TestSyncFnOldDocBodyPropertiesTombstoneResurrect(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyJavascript)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyJavascript)
 
 	const (
 		testDocID   = "testdoc"
@@ -2745,7 +2747,7 @@ func TestSyncFnOldDocBodyPropertiesTombstoneResurrect(t *testing.T) {
 	response = rt.SendAdminRequest("PUT", "/db/"+testDocID+"?rev="+revID, `{"`+testdataKey+`":true}`)
 	assertStatus(t, response, 201)
 
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), testDocID)
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), testDocID)
 	assert.NoError(t, err)
 
 	actualProperties := syncData.Channels.KeySet()
@@ -2762,7 +2764,7 @@ func TestSyncFnOldDocBodyPropertiesTombstoneResurrect(t *testing.T) {
 //                   └────────────── (T) 3-b
 func TestSyncFnDocBodyPropertiesSwitchActiveTombstone(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyJavascript)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyJavascript)
 
 	const (
 		testDocID   = "testdoc"
@@ -2835,13 +2837,13 @@ func TestUserJoiningPopulatedChannel(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache, base.KeyAccess, base.KeyCRUD, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache, logger.KeyAccess, logger.KeyCRUD, logger.KeyChanges)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc) {channel(doc.channels)}`}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	assert.NoError(t, err)
 	guest.SetDisabled(false)
@@ -2890,7 +2892,7 @@ func TestUserJoiningPopulatedChannel(t *testing.T) {
 	log.Printf("create user response: %s", getUserResponse.Body.Bytes())
 
 	// Get the sequence from the user doc to validate against the triggered by value in the changes results
-	user3, _ := rt.GetDatabase().Authenticator(base.TestCtx(t)).GetUser("user3")
+	user3, _ := rt.GetDatabase().Authenticator(logger.TestCtx(t)).GetUser("user3")
 	userSequence := user3.Sequence()
 
 	// Get first 50 document changes.
@@ -2911,7 +2913,7 @@ func TestUserJoiningPopulatedChannel(t *testing.T) {
 	response = rt.SendAdminRequest("PUT", "/db/_user/user4", `{"email":"user4@couchbase.com", "password":"letmein", "admin_channels":["alpha"]}`)
 	assertStatus(t, response, 201)
 	// Get the sequence from the user doc to validate against the triggered by value in the changes results
-	user4, _ := rt.GetDatabase().Authenticator(base.TestCtx(t)).GetUser("user4")
+	user4, _ := rt.GetDatabase().Authenticator(logger.TestCtx(t)).GetUser("user4")
 	user4Sequence := user4.Sequence()
 
 	changesResults, err = rt.WaitForChanges(50, fmt.Sprintf("/db/_changes?limit=%d", limit), "user4", false)
@@ -2931,13 +2933,13 @@ func TestUserJoiningPopulatedChannel(t *testing.T) {
 
 func TestRoleAssignmentBeforeUserExists(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAccess, base.KeyCRUD, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAccess, logger.KeyCRUD, logger.KeyChanges)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc) {role(doc.user, doc.role);channel(doc.channel)}`}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	assert.NoError(t, err)
 	guest.SetDisabled(false)
@@ -2977,13 +2979,13 @@ func TestRoleAssignmentBeforeUserExists(t *testing.T) {
 
 func TestRoleAccessChanges(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAccess, base.KeyCRUD, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAccess, logger.KeyCRUD, logger.KeyChanges)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc) {role(doc.user, doc.role);channel(doc.channel)}`}
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	require.NoError(t, err)
 
@@ -3001,12 +3003,12 @@ func TestRoleAccessChanges(t *testing.T) {
 	response = rt.SendAdminRequest("PUT", "/db/_role/hipster", `{"admin_channels":["gamma"]}`)
 	assertStatus(t, response, 201)
 	/*
-		alice, err := a.NewUser("alice", "letmein", channels.SetOf(t, "alpha"))
+		alice, err := a.NewUser("alice", "letmein", channels.SetOfTester(t, "alpha"))
 		assert.NoError(t, a.Save(alice))
-		zegpold, err := a.NewUser("zegpold", "letmein", channels.SetOf(t, "beta"))
+		zegpold, err := a.NewUser("zegpold", "letmein", channels.SetOfTester(t, "beta"))
 		assert.NoError(t, a.Save(zegpold))
 
-		hipster, err := a.NewRole("hipster", channels.SetOf(t, "gamma"))
+		hipster, err := a.NewRole("hipster", channels.SetOfTester(t, "gamma"))
 		assert.NoError(t, a.Save(hipster))
 	*/
 
@@ -3132,9 +3134,9 @@ func TestAllDocsChannelsAfterChannelMove(t *testing.T) {
 		ID    string `json:"id"`
 		Key   string `json:"key"`
 		Value struct {
-			Rev      string              `json:"rev"`
-			Channels []string            `json:"channels,omitempty"`
-			Access   map[string]base.Set `json:"access,omitempty"` // for admins only
+			Rev      string               `json:"rev"`
+			Channels []string             `json:"channels,omitempty"`
+			Access   map[string]utils.Set `json:"access,omitempty"` // for admins only
 		} `json:"value"`
 		Doc   db.Body `json:"doc,omitempty"`
 		Error string  `json:"error"`
@@ -3149,7 +3151,7 @@ func TestAllDocsChannelsAfterChannelMove(t *testing.T) {
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	assert.NoError(t, err)
 	guest.SetDisabled(false)
@@ -3362,7 +3364,7 @@ func TestOldDocHandling(t *testing.T) {
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	guest, err := a.GetUser("")
 	assert.NoError(t, err)
 	guest.SetDisabled(false)
@@ -3389,15 +3391,15 @@ func TestOldDocHandling(t *testing.T) {
 
 func TestStarAccess(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyChanges)
 
 	type allDocsRow struct {
 		ID    string `json:"id"`
 		Key   string `json:"key"`
 		Value struct {
-			Rev      string              `json:"rev"`
-			Channels []string            `json:"channels,omitempty"`
-			Access   map[string]base.Set `json:"access,omitempty"` // for admins only
+			Rev      string               `json:"rev"`
+			Channels []string             `json:"channels,omitempty"`
+			Access   map[string]utils.Set `json:"access,omitempty"` // for admins only
 		} `json:"value"`
 		Doc   db.Body `json:"doc,omitempty"`
 		Error string  `json:"error"`
@@ -3436,7 +3438,7 @@ func TestStarAccess(t *testing.T) {
 	//
 	// Part 1 - Tests for user with single channel access:
 	//
-	bernard, err := a.NewUser("bernard", "letmein", channels.SetOf(t, "books"))
+	bernard, err := a.NewUser("bernard", "letmein", channels.SetOfTester(t, "books"))
 	assert.NoError(t, a.Save(bernard))
 
 	// GET /db/docid - basic test for channel user has
@@ -3511,7 +3513,7 @@ func TestStarAccess(t *testing.T) {
 	//
 
 	// Create a user:
-	fran, err := a.NewUser("fran", "letmein", channels.SetOf(t, "*"))
+	fran, err := a.NewUser("fran", "letmein", channels.SetOfTester(t, "*"))
 	assert.NoError(t, a.Save(fran))
 
 	// GET /db/docid - basic test for doc that has channel
@@ -4150,7 +4152,7 @@ func TestLongpollWithWildcard(t *testing.T) {
 	// TODO: Test disabled because it fails with -race
 	t.Skip("WARNING: TEST DISABLED")
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyHTTP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyHTTP)
 
 	var changes struct {
 		Results  []db.ChangeEntry
@@ -4160,10 +4162,10 @@ func TestLongpollWithWildcard(t *testing.T) {
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 
 	// Create user:
-	bernard, err := a.NewUser("bernard", "letmein", channels.SetOf(t, "PBS"))
+	bernard, err := a.NewUser("bernard", "letmein", channels.SetOfTester(t, "PBS"))
 	assert.True(t, err == nil)
 	assert.NoError(t, a.Save(bernard))
 
@@ -4304,8 +4306,8 @@ func TestDocIDFilterResurrection(t *testing.T) {
 	defer rt.Close()
 
 	// Create User
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
-	jacques, err := a.NewUser("jacques", "letmein", channels.SetOf(t, "A", "B"))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
+	jacques, err := a.NewUser("jacques", "letmein", channels.SetOfTester(t, "A", "B"))
 	assert.NoError(t, err)
 	assert.NoError(t, a.Save(jacques))
 
@@ -4341,7 +4343,7 @@ func TestDocIDFilterResurrection(t *testing.T) {
 
 func TestSyncFunctionErrorLogging(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyJavascript)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyJavascript)
 
 	rtConfig := RestTesterConfig{SyncFn: `
 		function(doc) {
@@ -4642,10 +4644,10 @@ func TestNumAccessErrors(t *testing.T) {
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 
 	// Create a test user
-	user, err := a.NewUser("user", "letmein", channels.SetOf(t, "A"))
+	user, err := a.NewUser("user", "letmein", channels.SetOfTester(t, "A"))
 	assert.NoError(t, err)
 	assert.NoError(t, a.Save(user))
 
@@ -4676,7 +4678,7 @@ func TestNonImportedDuplicateID(t *testing.T) {
 
 func TestChanCacheActiveRevsStat(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -4966,7 +4968,7 @@ func TestWebhookPropsWithAttachments(t *testing.T) {
 // TestWebhookWinningRevChangedEvent ensures the winning_rev_changed event is only fired for a winning revision change, and checks that document_changed is always fired.
 func TestWebhookWinningRevChangedEvent(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeyEvents)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeyEvents)
 
 	wg := sync.WaitGroup{}
 
@@ -5057,7 +5059,7 @@ func TestWebhookWinningRevChangedEvent(t *testing.T) {
 
 func Benchmark_RestApiGetDocPerformance(b *testing.B) {
 
-	base.SetUpBenchmarkLogging(b, base.LevelInfo, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelInfo, logger.KeyHTTP)
 
 	prt := NewRestTester(b, nil)
 	defer prt.Close()
@@ -5078,7 +5080,7 @@ func Benchmark_RestApiGetDocPerformance(b *testing.B) {
 var threekdoc = `{"cols":["Name","Address","Location","phone"],"data":[["MelyssaF.Stokes","Ap#166-9804ProinSt.","52.01352,-9.4151","(306)773-3853"],["RuthT.Richards","Ap#180-8417TemporRoad","8.07909,-118.55952","(662)733-8043"],["CedricN.Witt","Ap#575-4625NuncSt.","74.419,153.71285","(850)995-0417"],["ElianaF.Ashley","Ap#169-2030Nibh.St.","87.98632,97.47442","(903)272-5949"],["ChesterJ.Holland","2905ProinSt.","-43.14706,-64.25893","(911)435-9200"],["AleaT.Bishop","Ap#493-4894ConvallisRd.","42.54157,64.98534","(479)848-2988"],["HerrodT.Barron","Ap#822-1444EtAvenue","9.50706,-111.54064","(390)300-8534"],["YoshiP.Sanchez","Ap#796-4679Arcu.Avenue","-16.49557,-137.69","(913)606-8930"],["GrahamO.Velazquez","415EratRd.","-5.30634,171.81751","(691)700-3072"],["BryarF.Sargent","Ap#180-6507Lacus.St.","17.64959,-19.93008","(516)890-6469"],["XerxesM.Gaines","370-1967NislStreet","-39.28978,-23.74924","(461)907-9563"],["KayI.Jones","565-351ElitAve","25.58317,17.43545","(145)441-5007"],["ImaZ.Curry","Ap#143-8377MagnaAve","-86.72025,-161.94081","(484)924-8145"],["GiselleW.Macdonald","962AdipiscingRoad","-21.55826,-121.06657","(137)255-2241"],["TarikJ.Kane","P.O.Box447,5949PhasellusSt.","57.28914,-125.89595","(356)758-8271"],["ChristopherJ.Travis","5246InRd.","-69.12682,31.20181","(298)963-1855"],["QuinnT.Pace","P.O.Box935,212Laoreet,St.","-62.00241,1.31111","(157)419-0182"],["BrentK.Guy","156-417LoremSt.","26.67571,-29.35786","(125)687-6610"],["JocelynN.Cash","Ap#502-9209VehiculaSt.","-26.05925,160.61357","(782)351-4211"],["DaphneS.King","571-1485FringillaRoad","-76.33262,-142.5655","(356)476-4508"],["MicahJ.Eaton","3468ProinRd.","61.30187,-128.8584","(942)467-7558"],["ChaneyM.Gay","444-1647Pede.Rd.","84.32739,-43.59781","(386)231-0872"],["LacotaM.Guerra","9863NuncRoad","21.81253,-54.90423","(694)443-8520"],["KimberleyY.Jensen","6403PurusSt.","67.5704,65.90554","(181)309-7780"],["JenaY.Brennan","Ap#533-7088MalesuadaStreet","78.58624,-172.89351","(886)688-0617"],["CarterK.Dotson","Ap#828-1931IpsumAve","59.54845,53.30366","(203)546-8704"],["EllaU.Buckner","Ap#141-1401CrasSt.","78.34425,-172.24474","(214)243-6054"],["HamiltonE.Estrada","8676Iaculis,St.","11.67468,-130.12233","(913)624-2612"],["IanT.Saunders","P.O.Box519,3762DictumRd.","-10.97019,73.47059","(536)391-7018"],["CairoK.Craft","6619Sem.St.","9.28931,-5.69682","(476)804-7898"],["JohnB.Norman","Ap#865-7121CubiliaAve","50.96552,-126.5271","(309)323-6975"],["SawyerD.Hale","Ap#512-820EratRd.","-65.1931,166.14822","(180)527-8987"],["CiaranQ.Cole","P.O.Box262,9220SedAvenue","69.753,121.39921","(272)654-8755"],["BrandenJ.Thompson","Ap#846-5470MetusAv.","44.61386,-44.18375","(388)776-0689"]]}`
 
 func Benchmark_RestApiPutDocPerformanceDefaultSyncFunc(b *testing.B) {
-	base.SetUpBenchmarkLogging(b, base.LevelInfo, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelInfo, logger.KeyHTTP)
 
 	prt := NewRestTester(b, nil)
 	defer prt.Close()
@@ -5097,7 +5099,7 @@ func Benchmark_RestApiPutDocPerformanceDefaultSyncFunc(b *testing.B) {
 
 func Benchmark_RestApiPutDocPerformanceExplicitSyncFunc(b *testing.B) {
 
-	base.SetUpBenchmarkLogging(b, base.LevelInfo, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelInfo, logger.KeyHTTP)
 
 	qrtConfig := RestTesterConfig{SyncFn: `function(doc, oldDoc){channel(doc.channels);}`}
 	qrt := NewRestTester(b, &qrtConfig)
@@ -5116,7 +5118,7 @@ func Benchmark_RestApiPutDocPerformanceExplicitSyncFunc(b *testing.B) {
 }
 
 func Benchmark_RestApiGetDocPerformanceFullRevCache(b *testing.B) {
-	base.SetUpBenchmarkLogging(b, base.LevelWarn, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelWarn, logger.KeyHTTP)
 	// Create test documents
 	rt := NewRestTester(b, nil)
 	defer rt.Close()
@@ -5371,7 +5373,7 @@ func TestSessionFail(t *testing.T) {
 }
 
 func TestImportOnWriteMigration(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	if base.UnitTestUrlIsWalrus() {
 		t.Skip("Test doesn't work with Walrus")
 	}
@@ -5636,7 +5638,7 @@ func TestTombstonedBulkDocsWithPriorPurge(t *testing.T) {
 		t.Skip("Test requires xattrs to be enabled")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	rt := NewRestTester(t, &RestTesterConfig{
 		SyncFn: `function(doc,oldDoc){
 			console.log("doc:"+JSON.stringify(doc))
@@ -5675,7 +5677,7 @@ func TestTombstonedBulkDocsWithExistingTombstone(t *testing.T) {
 		t.Skip("Test requires xattrs to be enabled")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	rt := NewRestTester(t, &RestTesterConfig{
 		SyncFn: `function(doc,oldDoc){
 			console.log("doc:"+JSON.stringify(doc))
@@ -5799,7 +5801,7 @@ func TestDocumentChannelHistory(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	err := json.Unmarshal(resp.BodyBytes(), &body)
 	assert.NoError(t, err)
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), "doc")
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), "doc")
 	assert.NoError(t, err)
 
 	require.Len(t, syncData.ChannelSet, 1)
@@ -5812,7 +5814,7 @@ func TestDocumentChannelHistory(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	err = json.Unmarshal(resp.BodyBytes(), &body)
 	assert.NoError(t, err)
-	syncData, err = rt.GetDatabase().GetDocSyncData(base.TestCtx(t), "doc")
+	syncData, err = rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), "doc")
 	assert.NoError(t, err)
 
 	require.Len(t, syncData.ChannelSet, 1)
@@ -5825,7 +5827,7 @@ func TestDocumentChannelHistory(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	err = json.Unmarshal(resp.BodyBytes(), &body)
 	assert.NoError(t, err)
-	syncData, err = rt.GetDatabase().GetDocSyncData(base.TestCtx(t), "doc")
+	syncData, err = rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), "doc")
 	assert.NoError(t, err)
 
 	require.Len(t, syncData.ChannelSet, 2)
@@ -5890,7 +5892,7 @@ func TestChannelHistoryLegacyDoc(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	err = json.Unmarshal(resp.BodyBytes(), &body)
 	assert.NoError(t, err)
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), "doc1")
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), "doc1")
 	assert.NoError(t, err)
 	require.Len(t, syncData.ChannelSet, 1)
 	assert.Contains(t, syncData.ChannelSet, db.ChannelSetEntry{
@@ -7318,7 +7320,7 @@ func TestChannelHistoryPruning(t *testing.T) {
 	}
 
 	// Validate history is pruned properly with first entry merged to span a wider period
-	authenticator := rt.GetDatabase().Authenticator(base.TestCtx(t))
+	authenticator := rt.GetDatabase().Authenticator(logger.TestCtx(t))
 	role, err := authenticator.GetRole("foo")
 	assert.NoError(t, err)
 	require.Contains(t, role.ChannelHistory(), "a")
@@ -7405,7 +7407,7 @@ func TestDocChannelSetPruning(t *testing.T) {
 		revID = rt.createDocReturnRev(t, "doc", revID, map[string]interface{}{"channels": []string{"a"}})
 	}
 
-	syncData, err := rt.GetDatabase().GetDocSyncData(base.TestCtx(t), "doc")
+	syncData, err := rt.GetDatabase().GetDocSyncData(logger.TestCtx(t), "doc")
 	assert.NoError(t, err)
 
 	require.Len(t, syncData.ChannelSetHistory, db.DocumentHistoryMaxEntriesPerChannel)
@@ -7415,7 +7417,7 @@ func TestDocChannelSetPruning(t *testing.T) {
 }
 
 func TestBasicAttachmentRemoval(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	rt := NewRestTester(t, &RestTesterConfig{guestEnabled: true})
 	defer rt.Close()
 
@@ -8709,7 +8711,7 @@ func TestTombstoneCompactionAPI(t *testing.T) {
 }
 
 func TestAttachmentsMissing(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -8734,7 +8736,7 @@ func TestAttachmentsMissing(t *testing.T) {
 }
 
 func TestAttachmentsMissingNoBody(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()

@@ -17,14 +17,15 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInitRole(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	// Check initializing role with legal role name.
 	role := &roleImpl{}
-	assert.NoError(t, role.initRole("Music", channels.SetOf(t, "Spotify", "Youtube")))
+	assert.NoError(t, role.initRole("Music", channels.SetOfTester(t, "Spotify", "Youtube")))
 	assert.Equal(t, "Music", role.Name_)
 	assert.Equal(t, channels.TimedSet{
 		"Spotify": channels.NewVbSimpleSequence(0x1),
@@ -32,11 +33,11 @@ func TestInitRole(t *testing.T) {
 
 	// Check initializing role with illegal role name.
 	role = &roleImpl{}
-	assert.Error(t, role.initRole("Music/", channels.SetOf(t, "Spotify", "Youtube")))
-	assert.Error(t, role.initRole("Music:", channels.SetOf(t, "Spotify", "Youtube")))
-	assert.Error(t, role.initRole("Music,", channels.SetOf(t, "Spotify", "Youtube")))
-	assert.Error(t, role.initRole(".", channels.SetOf(t, "Spotify", "Youtube")))
-	assert.Error(t, role.initRole("\xf7,", channels.SetOf(t, "Spotify", "Youtube")))
+	assert.Error(t, role.initRole("Music/", channels.SetOfTester(t, "Spotify", "Youtube")))
+	assert.Error(t, role.initRole("Music:", channels.SetOfTester(t, "Spotify", "Youtube")))
+	assert.Error(t, role.initRole("Music,", channels.SetOfTester(t, "Spotify", "Youtube")))
+	assert.Error(t, role.initRole(".", channels.SetOfTester(t, "Spotify", "Youtube")))
+	assert.Error(t, role.initRole("\xf7,", channels.SetOfTester(t, "Spotify", "Youtube")))
 }
 
 func TestAuthorizeChannelsRole(t *testing.T) {
@@ -44,15 +45,15 @@ func TestAuthorizeChannelsRole(t *testing.T) {
 	defer testBucket.Close()
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
 
-	role, err := auth.NewRole("root", channels.SetOf(t, "superuser"))
+	role, err := auth.NewRole("root", channels.SetOfTester(t, "superuser"))
 	assert.NoError(t, err)
 	err = auth.Save(role)
 	assert.NoError(t, err)
 
-	assert.NoError(t, role.AuthorizeAllChannels(channels.SetOf(t, "superuser")))
-	assert.Error(t, role.AuthorizeAllChannels(channels.SetOf(t, "unknown")))
-	assert.NoError(t, role.AuthorizeAnyChannel(channels.SetOf(t, "superuser", "unknown")))
-	assert.Error(t, role.AuthorizeAllChannels(channels.SetOf(t, "unknown1", "unknown2")))
+	assert.NoError(t, role.AuthorizeAllChannels(channels.SetOfTester(t, "superuser")))
+	assert.Error(t, role.AuthorizeAllChannels(channels.SetOfTester(t, "unknown")))
+	assert.NoError(t, role.AuthorizeAnyChannel(channels.SetOfTester(t, "superuser", "unknown")))
+	assert.Error(t, role.AuthorizeAllChannels(channels.SetOfTester(t, "unknown1", "unknown2")))
 }
 
 func BenchmarkIsValidPrincipalName(b *testing.B) {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,7 @@ func getRevTreeList(bucket base.Bucket, key string, useXattrs bool) (revTreeList
 // Tests simple retrieval of rev not resident in the cache
 func TestRevisionCacheLoad(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	db := setupTestDBWithViewsEnabled(t)
 	defer db.Close()
@@ -102,7 +103,7 @@ func TestRevisionCacheLoad(t *testing.T) {
 }
 
 func TestHasAttachmentsFlag(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	db := setupTestDB(t)
 	defer db.Close()
 
@@ -130,7 +131,7 @@ func TestHasAttachmentsFlag(t *testing.T) {
 
 	// Retrieve the document:
 	log.Printf("Retrieve doc 2-a...")
-	gotDoc, err := db.GetDocument(base.TestCtx(t), "doc1", DocUnmarshalSync)
+	gotDoc, err := db.GetDocument(logger.TestCtx(t), "doc1", DocUnmarshalSync)
 	assert.NoError(t, err)
 	require.Contains(t, gotDoc.Attachments, "hello.txt")
 	attachmentData, ok := gotDoc.Attachments["hello.txt"].(map[string]interface{})
@@ -156,7 +157,7 @@ func TestHasAttachmentsFlag(t *testing.T) {
 
 	// Retrieve the document:
 	log.Printf("Retrieve doc, verify rev 2-b")
-	gotDoc, err = db.GetDocument(base.TestCtx(t), "doc1", DocUnmarshalSync)
+	gotDoc, err = db.GetDocument(logger.TestCtx(t), "doc1", DocUnmarshalSync)
 	assert.NoError(t, err)
 	require.Contains(t, gotDoc.Attachments, "hello.txt")
 	attachmentData, ok = gotDoc.Attachments["hello.txt"].(map[string]interface{})
@@ -180,7 +181,7 @@ func TestHasAttachmentsFlagForLegacyAttachments(t *testing.T) {
 	if base.UnitTestUrlIsWalrus() || !base.TestUseXattrs() {
 		t.Skip("Test only works with a Couchbase server and Xattrs")
 	}
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	db := setupTestDB(t)
 	defer db.Close()
 
@@ -300,7 +301,7 @@ func TestHasAttachmentsFlagForLegacyAttachments(t *testing.T) {
 // Tests permutations of inline and external storage of conflicts and tombstones
 func TestRevisionStorageConflictAndTombstones(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -941,7 +942,7 @@ func TestLargeSequence(t *testing.T) {
 	_, _, err := db.PutExistingRevWithBody("largeSeqDoc", body, []string{"1-a"}, false)
 	assert.NoError(t, err, "add largeSeqDoc")
 
-	syncData, err := db.GetDocSyncData(base.TestCtx(t), "largeSeqDoc")
+	syncData, err := db.GetDocSyncData(logger.TestCtx(t), "largeSeqDoc")
 	assert.NoError(t, err, "Error retrieving document sync data")
 	assert.Equal(t, uint64(9223372036854775808), syncData.Sequence)
 }

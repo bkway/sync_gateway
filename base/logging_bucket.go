@@ -17,7 +17,28 @@ import (
 	"time"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 )
+
+// make sure we're implementing the interface
+var _ sgbucket.DataStore = &LoggingBucket{}
+
+// bucketCtx extends the parent context with a bucket name.
+func bucketCtx(parent context.Context, b Bucket) context.Context {
+	return bucketNameCtx(parent, b.GetName())
+}
+
+// bucketNameCtx extends the parent context with a bucket name.
+func bucketNameCtx(parent context.Context, bucketName string) context.Context {
+	// FIXME this clearly does something
+	// parentLogCtx, _ := parent.Value(logger.LogContextKey{}).(logger.LogContext)
+	// newCtx := logger.LogContext{
+	// 	TestName:       parentLogCtx.TestName,
+	// 	TestBucketName: bucketName,
+	// }
+	// return context.WithValue(parent, logger.LogContextKey{}, newCtx)
+	return parent
+}
 
 // A wrapper around a Bucket that transparently adds logging of all the API calls.
 type LoggingBucket struct {
@@ -34,8 +55,9 @@ func (b *LoggingBucket) ctx() context.Context {
 }
 
 func (b *LoggingBucket) log(start time.Time, args ...interface{}) {
-	caller := GetCallersName(1, false)
-	TracefCtx(b.ctx(), KeyBucket, "%s(%v) [%v]", caller, UD(args), time.Since(start))
+	// caller := logger.GetCallersName(1, false)
+	logger.For(logger.BucketKey).Trace().Msgf("%v [%v]", logger.UD(args), time.Since(start))
+	// logger.TracefCtx(b.ctx(), logger.KeyBucket, "%s(%v) [%v]", caller, logger.UD(args), time.Since(start))
 }
 
 func (b *LoggingBucket) GetName() string {

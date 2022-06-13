@@ -9,7 +9,6 @@
 package db
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -19,6 +18,7 @@ import (
 	"net/http"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const (
@@ -203,15 +203,15 @@ func (db *Database) loadAttachmentsData(attachments AttachmentsMeta, minRevpos i
 		if ok && revpos >= int64(minRevpos) {
 			digest, ok := meta["digest"]
 			if !ok {
-				return nil, base.RedactErrorf("Unable to load attachment for doc: %v with name: %v and revpos: %v due to missing digest field", base.UD(docid), base.UD(attachmentName), revpos)
+				return nil, logger.RedactErrorf("Unable to load attachment for doc: %v with name: %v and revpos: %v due to missing digest field", logger.UD(docid), logger.UD(attachmentName), revpos)
 			}
 			digestStr, ok := digest.(string)
 			if !ok {
-				return nil, base.RedactErrorf("Unable to load attachment for doc: %v with name: %v and revpos: %v due to unexpected digest field: %v", base.UD(docid), base.UD(attachmentName), revpos, digest)
+				return nil, logger.RedactErrorf("Unable to load attachment for doc: %v with name: %v and revpos: %v due to unexpected digest field: %v", logger.UD(docid), logger.UD(attachmentName), revpos, digest)
 			}
 			version, ok := GetAttachmentVersion(meta)
 			if !ok {
-				return nil, base.RedactErrorf("Unable to load attachment for doc: %v with name: %v, revpos: %v and digest: %v due to unexpected version value: %v", base.UD(docid), base.UD(attachmentName), revpos, digest, version)
+				return nil, logger.RedactErrorf("Unable to load attachment for doc: %v with name: %v, revpos: %v and digest: %v due to unexpected version value: %v", logger.UD(docid), logger.UD(attachmentName), revpos, digest, version)
 			}
 			attachmentKey := MakeAttachmentKey(version, docid, digestStr)
 			data, err := db.GetAttachment(attachmentKey)
@@ -244,7 +244,8 @@ func (db *Database) GetAttachment(key string) ([]byte, error) {
 func (db *Database) setAttachment(key string, value []byte) error {
 	_, err := db.Bucket.AddRaw(key, 0, value)
 	if err == nil {
-		base.InfofCtx(db.Ctx, base.KeyCRUD, "\tAdded attachment %q", base.UD(key))
+		//		logger.InfofCtx(db.Ctx, logger.KeyCRUD, "\tAdded attachment %q", logger.UD(key))
+		logger.For(logger.CRUDKey).Info().Msgf("\tAdded attachment %q", logger.UD(key))
 	}
 	return err
 }
@@ -257,7 +258,8 @@ func (db *Database) setAttachments(attachments AttachmentData) error {
 		}
 		_, err := db.Bucket.AddRaw(key, 0, data)
 		if err == nil {
-			base.InfofCtx(db.Ctx, base.KeyCRUD, "\tAdded attachment %q", base.UD(key))
+			//			logger.InfofCtx(db.Ctx, logger.KeyCRUD, "\tAdded attachment %q", logger.UD(key))
+			logger.For(logger.CRUDKey).Info().Msgf("\tAdded attachment %q", logger.UD(key))
 			db.DbStats.CBLReplicationPush().AttachmentPushCount.Add(1)
 			db.DbStats.CBLReplicationPush().AttachmentPushBytes.Add(attachmentSize)
 		} else {
@@ -334,7 +336,8 @@ func GenerateProofOfAttachment(attachmentData []byte) (nonce []byte, proof strin
 		return nil, "", base.HTTPErrorf(http.StatusInternalServerError, fmt.Sprintf("Failed to generate random data: %s", err))
 	}
 	proof = ProveAttachment(attachmentData, nonce)
-	base.TracefCtx(context.Background(), base.KeyCRUD, "Generated nonce %v and proof %q for attachment: %v", nonce, proof, attachmentData)
+	//	logger.TracefCtx(context.Background(), logger.KeyCRUD, "Generated nonce %v and proof %q for attachment: %v", nonce, proof, attachmentData)
+	logger.For(logger.CRUDKey).Trace().Msgf("Generated nonce %v and proof %q for attachment: %v", nonce, proof, attachmentData)
 	return nonce, proof, nil
 }
 
@@ -345,7 +348,8 @@ func ProveAttachment(attachmentData, nonce []byte) (proof string) {
 	d.Write(nonce)
 	d.Write(attachmentData)
 	proof = "sha1-" + base64.StdEncoding.EncodeToString(d.Sum(nil))
-	base.TracefCtx(context.Background(), base.KeyCRUD, "Generated proof %q using nonce %v for attachment: %v", proof, nonce, attachmentData)
+	//	logger.TracefCtx(context.Background(), logger.KeyCRUD, "Generated proof %q using nonce %v for attachment: %v", proof, nonce, attachmentData)
+	logger.For(logger.CRUDKey).Trace().Msgf("Generated proof %q using nonce %v for attachment: %v", proof, nonce, attachmentData)
 	return proof
 }
 

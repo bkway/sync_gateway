@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +50,7 @@ func TestGetSoftFDLimitWithCurrent(t *testing.T) {
 }
 
 func TestSetMaxFileDescriptors(t *testing.T) {
-	SetUpTestLogging(t, LevelDebug, KeyAll)
+	SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	// grab current limits
 	var startLimits syscall.Rlimit

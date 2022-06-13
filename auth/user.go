@@ -21,6 +21,9 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
+	// "github.com/rs/zerolog/log"
 )
 
 // Actual implementation of User interface
@@ -63,7 +66,7 @@ func IsValidEmail(email string) bool {
 func (auth *Authenticator) defaultGuestUser() User {
 	user := &userImpl{
 		roleImpl: roleImpl{
-			ExplicitChannels_: ch.AtSequence(make(base.Set, 0), 1),
+			ExplicitChannels_: ch.AtSequence(make(utils.Set, 0), 1),
 		},
 		userImplBody: userImplBody{
 			Disabled_: true,
@@ -75,7 +78,7 @@ func (auth *Authenticator) defaultGuestUser() User {
 }
 
 // Creates a new User object.
-func (auth *Authenticator) NewUser(username string, password string, channels base.Set) (User, error) {
+func (auth *Authenticator) NewUser(username string, password string, channels utils.Set) (User, error) {
 	user := &userImpl{
 		auth:         auth,
 		userImplBody: userImplBody{RolesSince_: ch.TimedSet{}},
@@ -271,7 +274,8 @@ func (user *userImpl) RevokedChannels(since uint64, lowSeq uint64, triggeredBy u
 	for roleName, roleRevokeSeq := range rolesToRevoke {
 		role, err := user.auth.GetRoleIncDeleted(roleName)
 		if err != nil || role == nil {
-			base.WarnfCtx(user.auth.LogCtx, "unable to obtain role %s to calculate channel revocation: %v. Will continue", base.UD(roleName), err)
+			// log.Ctx(user.auth.LogCtx, "unable to obtain role %s to calculate channel revocation: %v. Will continue").Warn().Err(err).Msgf(logger.UD(roleName), err)
+			logger.For(logger.AuthKey).Err(err).Msgf("unable to obtain role %s to calculate channel revocation: %v. Will continue", logger.UD(roleName))
 			continue
 		}
 
@@ -417,7 +421,8 @@ func (user *userImpl) Authenticate(password string) bool {
 
 	// exit early if old hash is present
 	if user.OldPasswordHash_ != nil {
-		base.WarnfCtx(user.auth.LogCtx, "User account %q still has pre-beta password hash; need to reset password", base.UD(user.Name_))
+		// log.Ctx(user.auth.LogCtx, "User account %q still has pre-beta password hash; need to reset password").Warn().Err(err).Msgf(logger.UD(user.Name_))
+		logger.For(logger.AuthKey).Warn().Msgf("%s", logger.UD(user.Name_))
 		return false // Password must be reset to use new (bcrypt) password hash
 	}
 
@@ -432,7 +437,8 @@ func (user *userImpl) Authenticate(password string) bool {
 		// e.g: in the case of bcryptCost changes
 		if err := user.auth.rehashPassword(user, password); err != nil {
 			// rehash is best effort, just log a warning on error.
-			base.WarnfCtx(user.auth.LogCtx, "Error when rehashing password for user %s: %v", base.UD(user.Name()), err)
+			// log.Ctx(user.auth.LogCtx, "Error when rehashing password for user %s: %v").Warn().Err(err).Msgf(logger.UD(user.Name()), err)
+			logger.For(logger.AuthKey).Err(err).Msgf("%s", "Error when rehashing password for user %s", logger.UD(user.Name()))
 		}
 	} else {
 		// no hash, but (incorrect) password provided
@@ -465,7 +471,7 @@ func (user *userImpl) GetRoles() []Role {
 		roles := make([]Role, 0, len(user.RoleNames()))
 		for name := range user.RoleNames() {
 			role, err := user.auth.GetRole(name)
-			// base.InfofCtx(user.auth.LogCtx, base.KeyAccess, "User %s role %q = %v", base.UD(user.Name_), base.UD(name), base.UD(role))
+			// logger.InfofCtx(user.auth.LogCtx, logger.KeyAccess, "User %s role %q = %v", base.UD(user.Name_), base.UD(name), base.UD(role))
 			if err != nil {
 				panic(fmt.Sprintf("Error getting user role %q: %v", name, err))
 			} else if role != nil {
@@ -503,11 +509,11 @@ func (user *userImpl) CanSeeChannelSince(channel string) uint64 {
 	return minSeq
 }
 
-func (user *userImpl) AuthorizeAllChannels(channels base.Set) error {
+func (user *userImpl) AuthorizeAllChannels(channels utils.Set) error {
 	return authorizeAllChannels(user, channels)
 }
 
-func (user *userImpl) AuthorizeAnyChannel(channels base.Set) error {
+func (user *userImpl) AuthorizeAnyChannel(channels utils.Set) error {
 	return authorizeAnyChannel(user, channels)
 }
 
@@ -522,8 +528,10 @@ func (user *userImpl) InheritedChannels() ch.TimedSet {
 		if channelsPerUserThreshold := user.auth.ChannelsWarningThreshold; channelsPerUserThreshold != nil {
 			channelCount := len(channels)
 			if uint32(channelCount) >= *channelsPerUserThreshold {
-				base.WarnfCtx(user.auth.LogCtx, "User ID: %v channel count: %d exceeds %d for channels per user warning threshold",
-					base.UD(user.Name()), channelCount, *channelsPerUserThreshold)
+				// log.Ctx(user.auth.LogCtx).Warn().Err(err).Msgf("User ID: %v channel count: %d exceeds %d for channels per user warning threshold",
+				// 	logger.UD(user.Name()), channelCount, *channelsPerUserThreshold)
+				logger.For(logger.AuthKey).Warn().
+					Msgf("User ID: %v channel count: %d exceeds %d for channels per user warning threshold", logger.UD(user.Name()), channelCount, *channelsPerUserThreshold)
 			}
 		}
 	})
@@ -532,14 +540,14 @@ func (user *userImpl) InheritedChannels() ch.TimedSet {
 }
 
 // If a channel list contains the all-channel wildcard, replace it with all the user's accessible channels.
-func (user *userImpl) ExpandWildCardChannel(channels base.Set) base.Set {
+func (user *userImpl) ExpandWildCardChannel(channels utils.Set) utils.Set {
 	if channels.Contains(ch.AllChannelWildcard) {
 		channels = user.InheritedChannels().AsSet()
 	}
 	return channels
 }
 
-func (user *userImpl) FilterToAvailableChannels(channels base.Set) (filtered ch.TimedSet, removed []string) {
+func (user *userImpl) FilterToAvailableChannels(channels utils.Set) (filtered ch.TimedSet, removed []string) {
 	filtered = ch.TimedSet{}
 	for channel := range channels {
 		if channel == ch.AllChannelWildcard {
@@ -553,8 +561,8 @@ func (user *userImpl) FilterToAvailableChannels(channels base.Set) (filtered ch.
 	return filtered, removed
 }
 
-func (user *userImpl) GetAddedChannels(channels ch.TimedSet) base.Set {
-	output := base.Set{}
+func (user *userImpl) GetAddedChannels(channels ch.TimedSet) utils.Set {
+	output := utils.Set{}
 	for userChannel := range user.InheritedChannels() {
 		_, found := channels[userChannel]
 		if !found {
@@ -598,7 +606,7 @@ func (user *userImpl) UnmarshalJSON(data []byte) error {
 
 	// Migrate "admin_roles" field:
 	if user.OldExplicitRoles_ != nil {
-		user.ExplicitRoles_ = ch.AtSequence(base.SetFromArray(user.OldExplicitRoles_), 1)
+		user.ExplicitRoles_ = ch.AtSequence(utils.SetFromArray(user.OldExplicitRoles_), 1)
 		user.OldExplicitRoles_ = nil
 	}
 

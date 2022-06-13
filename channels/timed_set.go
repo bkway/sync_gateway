@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // Vb and Sequence struct that's compatible with sequence-only (global sequence) mode
@@ -72,7 +72,7 @@ func (vbs VbSequence) Equals(other VbSequence) bool {
 type TimedSet map[string]VbSequence
 
 // Creates a new TimedSet from a Set plus a sequence
-func AtSequence(set base.Set, sequence uint64) TimedSet {
+func AtSequence(set utils.Set, sequence uint64) TimedSet {
 	result := make(TimedSet, len(set))
 	for name := range set {
 		result[name] = NewVbSimpleSequence(sequence)
@@ -81,7 +81,7 @@ func AtSequence(set base.Set, sequence uint64) TimedSet {
 }
 
 // Converts a TimedSet to a Set
-func (set TimedSet) AsSet() base.Set {
+func (set TimedSet) AsSet() utils.Set {
 	if set == nil {
 		return nil
 	}
@@ -89,7 +89,7 @@ func (set TimedSet) AsSet() base.Set {
 	for ch := range set {
 		result = append(result, ch)
 	}
-	return base.SetFromArray(result)
+	return utils.SetFromArray(result)
 }
 
 func (set TimedSet) Validate() error {
@@ -124,7 +124,7 @@ func (set TimedSet) Contains(ch string) bool {
 }
 
 // Updates membership to match the given Set. Newly added members will have the given sequence.
-func (set TimedSet) UpdateAtSequence(other base.Set, sequence uint64) bool {
+func (set TimedSet) UpdateAtSequence(other utils.Set, sequence uint64) bool {
 	changed := false
 	for name := range set {
 		if !other.Contains(name) {
@@ -142,7 +142,7 @@ func (set TimedSet) UpdateAtSequence(other base.Set, sequence uint64) bool {
 }
 
 // Check for matching entry names, ignoring sequence
-func (set TimedSet) Equals(other base.Set) bool {
+func (set TimedSet) Equals(other utils.Set) bool {
 
 	for name := range set {
 		if !other.Contains(name) {

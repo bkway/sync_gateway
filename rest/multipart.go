@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/pkg/errors"
 
 	"github.com/couchbase/sync_gateway/base"
@@ -136,7 +137,7 @@ func WriteMultipartDocument(ctx context.Context, cblReplicationPullStats *base.C
 			info.contentType, _ = meta["content_type"].(string)
 			info.data, err = db.DecodeAttachment(meta["data"])
 			if info.data == nil {
-				base.WarnfCtx(ctx, "Couldn't decode attachment %q of doc %q: %v", base.UD(name), base.UD(body[db.BodyId]), err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Couldn't decode attachment %q of doc %q: %v", logger.UD(name), logger.UD(body[db.BodyId]), err)
 				meta["stub"] = true
 				delete(meta, "data")
 			} else if len(info.data) > kMaxInlineAttachmentSize {

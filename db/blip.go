@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/couchbase/go-blip"
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const (
@@ -41,8 +41,8 @@ func NewSGBlipContextWithProtocols(ctx context.Context, id string, protocol ...s
 		bc, err = blip.NewContextCustomID(id, protocol...)
 	}
 
-	bc.LogMessages = base.LogDebugEnabled(base.KeyWebSocket)
-	bc.LogFrames = base.LogDebugEnabled(base.KeyWebSocketFrame)
+	// bc.LogMessages = logger.LogDebugEnabled(logger.KeyWebSocket)
+	// bc.LogFrames = logger.LogDebugEnabled(logger.KeyWebSocketFrame)
 	bc.Logger = defaultBlipLogger(ctx)
 
 	return bc, err
@@ -53,11 +53,14 @@ func defaultBlipLogger(ctx context.Context) blip.LogFn {
 	return func(eventType blip.LogEventType, format string, params ...interface{}) {
 		switch eventType {
 		case blip.LogFrame:
-			base.DebugfCtx(ctx, base.KeyWebSocketFrame, format, params...)
+			//			logger.UnknownKey(ctx, logger.KeyWebSocketFrame, format, params...)
+			logger.For(logger.SyncKey).Debug().Msgf(format, params...)
 		case blip.LogMessage:
-			base.DebugfCtx(ctx, base.KeyWebSocket, format, params...)
+			//			logger.UnknownKey(ctx, logger.KeyWebSocket, format, params...)
+			logger.For(logger.UnknownKey).Debug().Msgf(format, params...)
 		default:
-			base.InfofCtx(ctx, base.KeyWebSocket, format, params...)
+			//			logger.InfofCtx(ctx, logger.KeyWebSocket, format, params...)
+			logger.For(logger.UnknownKey).Info().Msgf(format, params...)
 		}
 	}
 }

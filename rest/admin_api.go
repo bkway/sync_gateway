@@ -22,6 +22,8 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	pkgerrors "github.com/pkg/errors"
@@ -70,7 +72,7 @@ func (h *handler) handleCreateDB() error {
 
 		// copy config before setup to persist the raw config the user supplied
 		var persistedDbConfig DbConfig
-		if err := base.DeepCopyInefficient(&persistedDbConfig, config); err != nil {
+		if err := utils.DeepCopyInefficient(&persistedDbConfig, config); err != nil {
 			return base.HTTPErrorf(http.StatusInternalServerError, "couldn't create copy of db config: %v", err)
 		}
 
@@ -110,7 +112,8 @@ func (h *handler) handleCreateDB() error {
 			} else if errors.Is(err, base.ErrAlreadyExists) {
 				// on-demand config load if someone else beat us to db creation
 				if _, err := h.server._fetchAndLoadDatabase(dbName); err != nil {
-					base.WarnfCtx(h.rq.Context(), "Couldn't load database after conflicting create: %v", err)
+					logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Couldn't load database after conflicting create")
+					// log.Ctx(h.rq.Context()).Warn().Err(err).Msgf("Couldn't load database after conflicting create: %v", err)
 				}
 				return base.HTTPErrorf(http.StatusPreconditionFailed, // what CouchDB returns
 					"Duplicate database name %q", dbName)
@@ -128,7 +131,7 @@ func (h *handler) handleCreateDB() error {
 		// load database in-memory for non-persistent nodes
 		if _, err := h.server.AddDatabaseFromConfigFailFast(DatabaseConfig{DbConfig: *config}); err != nil {
 			if errors.Is(err, base.ErrAuthError) {
-				return base.HTTPErrorf(http.StatusForbidden, "auth failure using provided bucket credentials for database %s", base.MD(config.Name))
+				return base.HTTPErrorf(http.StatusForbidden, "auth failure using provided bucket credentials for database %s", logger.MD(config.Name))
 			}
 			return err
 		}
@@ -182,7 +185,8 @@ func (h *handler) handleDbOnline() error {
 
 	_ = json.Unmarshal(body, &input)
 
-	base.InfofCtx(h.ctx(), base.KeyCRUD, "Taking Database : %v, online in %v seconds", base.MD(h.db.Name), input.Delay)
+	logger.For(logger.CRUDKey).Info().Msgf("Taking Database : %v, online in %v seconds", logger.MD(h.db.Name), input.Delay)
+	// log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyCRUD, "Taking Database : %v, online in %v seconds", logger.MD(h.db.Name), input.Delay)
 	go func() {
 		time.Sleep(time.Duration(input.Delay) * time.Second)
 		h.server.TakeDbOnline(h.db.DatabaseContext)
@@ -196,7 +200,8 @@ func (h *handler) handleDbOffline() error {
 	h.assertAdminOnly()
 	var err error
 	if err = h.db.TakeDbOffline("ADMIN Request"); err != nil {
-		base.InfofCtx(h.ctx(), base.KeyCRUD, "Unable to take Database : %v, offline", base.MD(h.db.Name))
+		logger.For(logger.CRUDKey).Info().Err(err).Msgf("Unable to take Database : %v, offline", logger.MD(h.db.Name))
+		// log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyCRUD, "Unable to take Database : %v, offline", logger.MD(h.db.Name))
 	}
 
 	return err
@@ -345,7 +350,8 @@ func (h *handler) handleGetConfig() error {
 			}
 		}
 
-		cfg.Logging = *base.BuildLoggingConfigFromLoggers(h.server.config.Logging.RedactionLevel, h.server.config.Logging.LogFilePath)
+		// FIXME what would this even do?
+		// cfg.Logging = *logger.BuildLoggingConfigFromLoggers(h.server.config.Logging.RedactionLevel, h.server.config.Logging.LogFilePath)
 		cfg.Databases = databaseMap
 
 		h.writeJSON(cfg)
@@ -367,8 +373,8 @@ func (h *handler) handlePutConfig() error {
 	}
 
 	type ConsoleLoggerPutConfig struct {
-		LogLevel *base.LogLevel `json:"log_level,omitempty"`
-		LogKeys  []string       `json:"log_keys,omitempty"`
+		// LogLevel *logger.LogLevel `json:"log_level,omitempty"`
+		LogKeys []string `json:"log_keys,omitempty"`
 	}
 
 	// Probably need to make our own to remove log file path / redaction level
@@ -395,9 +401,9 @@ func (h *handler) handlePutConfig() error {
 
 	// Go over all loggers and use
 	if config.Logging.Console != nil {
-		if config.Logging.Console.LogLevel != nil {
-			base.ConsoleLogLevel().Set(*config.Logging.Console.LogLevel)
-		}
+		// if config.Logging.Console.LogLevel != nil {
+		// 	logger.ConsoleLogLevel().Set(*config.Logging.Console.LogLevel)
+		// }
 
 		if config.Logging.Console.LogKeys != nil {
 			testMap := make(map[string]bool)
@@ -405,33 +411,33 @@ func (h *handler) handlePutConfig() error {
 				testMap[key] = true
 			}
 
-			base.UpdateLogKeys(testMap, true)
+			// logger.UpdateLogKeys(testMap, true)
 		}
 	}
 
-	if config.Logging.Error.Enabled != nil {
-		base.EnableErrorLogger(*config.Logging.Error.Enabled)
-	}
+	// if config.Logging.Error.Enabled != nil {
+	// 	logger.EnableErrorLogger(*config.Logging.Error.Enabled)
+	// }
 
-	if config.Logging.Warn.Enabled != nil {
-		base.EnableWarnLogger(*config.Logging.Warn.Enabled)
-	}
+	// if config.Logging.Warn.Enabled != nil {
+	// 	logger.EnableWarnLogger(*config.Logging.Warn.Enabled)
+	// }
 
-	if config.Logging.Info.Enabled != nil {
-		base.EnableInfoLogger(*config.Logging.Info.Enabled)
-	}
+	// if config.Logging.Info.Enabled != nil {
+	// 	logger.EnableInfoLogger(*config.Logging.Info.Enabled)
+	// }
 
-	if config.Logging.Debug.Enabled != nil {
-		base.EnableDebugLogger(*config.Logging.Debug.Enabled)
-	}
+	// if config.Logging.Debug.Enabled != nil {
+	// 	logger.EnableDebugLogger(*config.Logging.Debug.Enabled)
+	// }
 
-	if config.Logging.Trace.Enabled != nil {
-		base.EnableTraceLogger(*config.Logging.Trace.Enabled)
-	}
+	// if config.Logging.Trace.Enabled != nil {
+	// 	logger.EnableTraceLogger(*config.Logging.Trace.Enabled)
+	// }
 
-	if config.Logging.Stats.Enabled != nil {
-		base.EnableStatsLogger(*config.Logging.Stats.Enabled)
-	}
+	// if config.Logging.Stats.Enabled != nil {
+	// 	logger.EnableStatsLogger(*config.Logging.Stats.Enabled)
+	// }
 
 	return base.HTTPErrorf(http.StatusOK, "Updated")
 }
@@ -531,12 +537,14 @@ func (h *handler) handlePutDbConfig() (err error) {
 			}
 
 			if h.rq.Method == http.MethodPost {
-				base.TracefCtx(h.rq.Context(), base.KeyConfig, "merging upserted config into bucket config")
+				//logger.TracefCtx(h.rq.Context(), logger.KeyConfig, "merging upserted config into bucket config")
+				logger.For(logger.ConfigKey).Trace().Msgf("merging upserted config into bucket config")
 				if err := base.ConfigMerge(&bucketDbConfig.DbConfig, dbConfig); err != nil {
 					return nil, err
 				}
 			} else {
-				base.TracefCtx(h.rq.Context(), base.KeyConfig, "using config as-is without merge")
+				//logger.TracefCtx(h.rq.Context(), logger.KeyConfig, "using config as-is without merge")
+				logger.For(logger.ConfigKey).Trace().Msgf("using config as-is without merge")
 				bucketDbConfig.DbConfig = *dbConfig
 			}
 
@@ -556,7 +564,7 @@ func (h *handler) handlePutDbConfig() (err error) {
 
 			// take a copy to stamp credentials and load before we persist
 			var tmpConfig DatabaseConfig
-			if err = base.DeepCopyInefficient(&tmpConfig, bucketDbConfig); err != nil {
+			if err = utils.DeepCopyInefficient(&tmpConfig, bucketDbConfig); err != nil {
 				return nil, err
 			}
 			dbCreds, _ := h.server.config.DatabaseCredentials[dbName]
@@ -573,10 +581,12 @@ func (h *handler) handlePutDbConfig() (err error) {
 			return json.Marshal(bucketDbConfig)
 		})
 	if err != nil {
-		base.WarnfCtx(h.rq.Context(), "Couldn't update config for database - rolling back: %v", err)
+		logger.For(logger.ConfigKey).Warn().Err(err).Msg("Couldn't update config for database - rolling back")
+		// log.Ctx(h.rq.Context()).Warn().Err(err).Msgf("Couldn't update config for database - rolling back: %v", err)
 		// failed to start the new database config - rollback and return the original error for the user
 		if _, err := h.server.fetchAndLoadDatabase(dbName); err != nil {
-			base.WarnfCtx(h.rq.Context(), "got error rolling back database %q after failed update: %v", base.UD(dbName), err)
+			// log.Ctx(h.rq.Context()).Warn().Err(err).Msgf("got error rolling back database %q after failed update: %v", logger.UD(dbName), err)
+			logger.For(logger.ConfigKey).Warn().Err(err).Msgf("got error rolling back database %q after failed update", logger.UD(dbName))
 		}
 		return err
 	}
@@ -894,7 +904,7 @@ func (h *handler) handleDeleteDB() error {
 			return nil, nil
 		})
 		if err != nil {
-			return base.HTTPErrorf(http.StatusInternalServerError, "couldn't remove database %q from bucket %q: %s", base.MD(h.db.Name), base.MD(bucket), err.Error())
+			return base.HTTPErrorf(http.StatusInternalServerError, "couldn't remove database %q from bucket %q: %s", logger.MD(h.db.Name), logger.MD(bucket), err.Error())
 		}
 	}
 
@@ -984,9 +994,11 @@ func (h *handler) handleGetRevTree() error {
 }
 
 func (h *handler) handleGetLogging() error {
-	h.writeJSON(base.GetLogKeys())
-	base.WarnfCtx(h.ctx(), "Deprecation notice: Current _logging endpoints are now deprecated. Using _config endpoints "+
-		"instead")
+	// h.writeJSON(logger.GetLogKeys())
+	logger.For(logger.SystemKey).Warn().
+		Msgf("Deprecation notice: Current _logging endpoints are now deprecated. Using _config endpoints instead")
+	// log.Ctx(h.ctx()).Warn().Err(err).Msgf("Deprecation notice: Current _logging endpoints are now deprecated. Using _config endpoints " +
+	// "instead")
 	return nil
 }
 
@@ -1052,37 +1064,41 @@ func (h *handler) handleGetStatus() error {
 }
 
 func (h *handler) handleSetLogging() error {
-	base.WarnfCtx(h.ctx(), "Deprecation notice: Current _logging endpoints are now deprecated. Using _config endpoints "+
-		"instead")
+	logger.For(logger.SystemKey).Warn().
+		Msgf("Deprecation notice: Current _logging endpoints are now deprecated. Using _config endpoints instead")
+	// log.Ctx(h.ctx()).Warn().Err(err).Msgf("Deprecation notice: Current _logging endpoints are now deprecated. Using _config endpoints " +
+	// 	"instead")
 
 	body, err := h.readBody()
 	if err != nil {
 		return nil
 	}
 
-	var newLogLevel base.LogLevel
 	var setLogLevel bool
-	if level := h.getQuery("logLevel"); level != "" {
-		if err := newLogLevel.UnmarshalText([]byte(level)); err != nil {
-			return base.HTTPErrorf(http.StatusBadRequest, err.Error())
-		}
-		setLogLevel = true
-	} else if level := h.getIntQuery("level", 0); level != 0 {
-		base.WarnfCtx(h.ctx(), "Using deprecated query parameter: %q. Use %q instead.", "level", "logLevel")
-		switch base.GetRestrictedInt(&level, 0, 1, 3, false) {
-		case 1:
-			newLogLevel = base.LevelInfo
-		case 2:
-			newLogLevel = base.LevelWarn
-		case 3:
-			newLogLevel = base.LevelError
-		}
-		setLogLevel = true
-	}
+	// var newLogLevel logger.LogLevel
+	// if level := h.getQuery("logLevel"); level != "" {
+	// 	if err := newLogLevel.UnmarshalText([]byte(level)); err != nil {
+	// 		return base.HTTPErrorf(http.StatusBadRequest, err.Error())
+	// 	}
+	// 	setLogLevel = true
+	// } else if level := h.getIntQuery("level", 0); level != 0 {
+	// 	logger.For(logger.SystemKey).Warn().Msgf("Using deprecated query parameter: %q. Use %q instead.", "level", "logLevel")
+	// 	// log.Ctx(h.ctx()).Warn().Err(err).Msgf("Using deprecated query parameter: %q. Use %q instead.", "level", "logLevel")
+	// 	switch base.GetRestrictedInt(&level, 0, 1, 3, false) {
+	// 	case 1:
+	// 		newLogLevel = logger.LevelInfo
+	// 	case 2:
+	// 		newLogLevel = logger.LevelWarn
+	// 	case 3:
+	// 		newLogLevel = logger.LevelError
+	// 	}
+	// 	setLogLevel = true
+	// }
 
 	if setLogLevel {
-		base.InfofCtx(h.ctx(), base.KeyAll, "Setting log level to: %v", newLogLevel)
-		base.ConsoleLogLevel().Set(newLogLevel)
+		// log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "Setting log level to: %v", newLogLevel)
+		// logger.For(logger.SystemKey).Info().Msgf("Setting log level to: %v", newLogLevel)
+		// logger.ConsoleLogLevel().Set(newLogLevel)
 
 		// empty body is OK if request is just setting the log level
 		if len(body) == 0 {
@@ -1104,7 +1120,8 @@ func (h *handler) handleSetLogging() error {
 		return base.HTTPErrorf(http.StatusBadRequest, "Invalid JSON or non-boolean values for log key map")
 	}
 
-	base.UpdateLogKeys(keys, h.rq.Method == "PUT")
+	// FIXME what did this do?
+	// logger.UpdateLogKeys(keys, h.rq.Method == "PUT")
 	return nil
 }
 
@@ -1148,7 +1165,7 @@ func (h *handler) handleSGCollect() error {
 
 	zipFilename := sgcollectFilename()
 
-	logFilePath := h.server.config.Logging.LogFilePath
+	logFilePath := "" // FIXME was: h.server.config.Logging.LogFilePath
 
 	if err := sgcollectInstance.Start(logFilePath, h.serialNumber, zipFilename, params); err != nil {
 		return base.HTTPErrorf(http.StatusInternalServerError, "Error running sgcollect_info: %v", err)
@@ -1380,18 +1397,21 @@ func (h *handler) handlePurge() error {
 
 	for key, value := range input {
 		// For each one validate that the revision list is set to ["*"], otherwise skip doc and log warning
-		base.InfofCtx(h.db.Ctx, base.KeyCRUD, "purging document = %v", base.UD(key))
+		// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "purging document = %v", logger.UD(key))
+		logger.For(logger.CRUDKey).Info().Msgf("purging document = %v", logger.UD(key))
 
 		if revisionList, ok := value.([]interface{}); ok {
 
 			// There should only be a single revision entry of "*"
 			if len(revisionList) != 1 {
-				base.InfofCtx(h.db.Ctx, base.KeyCRUD, "Revision list for doc ID %v, should contain exactly one entry", base.UD(key))
+				logger.For(logger.CRUDKey).Info().Msgf("Revision list for doc ID %v, should contain exactly one entry", logger.UD(key))
+				// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Revision list for doc ID %v, should contain exactly one entry", logger.UD(key))
 				continue // skip this entry its not valid
 			}
 
 			if revisionList[0] != "*" {
-				base.InfofCtx(h.db.Ctx, base.KeyCRUD, "Revision entry for doc ID %v, should be the '*' revison", base.UD(key))
+				logger.For(logger.CRUDKey).Info().Msgf("Revision entry for doc ID %v, should be the '*' revison", logger.UD(key))
+				// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Revision entry for doc ID %v, should be the '*' revison", logger.UD(key))
 				continue // skip this entry its not valid
 			}
 
@@ -1411,19 +1431,22 @@ func (h *handler) handlePurge() error {
 				_, _ = h.response.Write([]byte(s))
 
 			} else {
-				base.InfofCtx(h.db.Ctx, base.KeyCRUD, "Failed to purge document %v, err = %v", base.UD(key), err)
+				logger.For(logger.CRUDKey).Info().Err(err).Msgf("Failed to purge document %v", logger.UD(key))
+				// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Failed to purge document %v, err = %v", logger.UD(key), err)
 				continue // skip this entry its not valid
 			}
 
 		} else {
-			base.InfofCtx(h.db.Ctx, base.KeyCRUD, "Revision list for doc ID %v, is not an array, ", base.UD(key))
+			logger.For(logger.CRUDKey).Info().Msgf("Revision list for doc ID %v, is not an array, ", logger.UD(key))
+			// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Revision list for doc ID %v, is not an array, ", logger.UD(key))
 			continue // skip this entry its not valid
 		}
 	}
 
 	if len(docIDs) > 0 {
 		count := h.db.GetChangeCache().Remove(docIDs, startTime)
-		base.DebugfCtx(h.db.Ctx, base.KeyCache, "Purged %d items from caches", count)
+		logger.For(logger.CacheKey).Info().Msgf("Purged %d items from caches", count)
+		// log.Ctx(h.db.Ctx).Info().Err(err).Msgf(logger.KeyCache, "Purged %d items from caches", count)
 	}
 
 	_, _ = h.response.Write([]byte("}\n}\n"))

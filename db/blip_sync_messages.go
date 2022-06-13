@@ -21,6 +21,8 @@ import (
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // Message types
@@ -147,7 +149,8 @@ func NewSubChangesParams(logCtx context.Context, rq *blip.Message, zeroSeq Seque
 		sinceSequenceId, err = latestSeq()
 	} else if sinceStr, found := rq.Properties[SubChangesSince]; found {
 		if sinceSequenceId, err = sequenceIDParser(base.ConvertJSONString(sinceStr)); err != nil {
-			base.InfofCtx(logCtx, base.KeySync, "%s: Invalid sequence ID in 'since': %s", rq, sinceStr)
+			//			logger.InfofCtx(logCtx, logger.KeySync, "%s: Invalid sequence ID in 'since': %s", rq, sinceStr)
+			logger.For(logger.SyncKey).Info().Msgf("%s: Invalid sequence ID in 'since': %s", rq, sinceStr)
 		}
 	}
 	if err != nil {
@@ -158,7 +161,8 @@ func NewSubChangesParams(logCtx context.Context, rq *blip.Message, zeroSeq Seque
 	// rq.BodyReader() returns an EOF for a non-existent body, so using rq.Body() here
 	docIDs, err := readDocIDsFromRequest(rq)
 	if err != nil {
-		base.InfofCtx(logCtx, base.KeySync, "%s: Error reading doc IDs on subChanges request: %s", rq, err)
+		//		logger.InfofCtx(logCtx, logger.KeySync, "%s: Error reading doc IDs on subChanges request: %s", rq, err)
+		logger.For(logger.SyncKey).Info().Msgf("%s: Error reading doc IDs on subChanges request: %s", rq, err)
 		return params, err
 	}
 	params._docIDs = docIDs
@@ -224,7 +228,7 @@ func (s *SubChangesParams) channels() (channels string, found bool) {
 	return channels, found
 }
 
-func (s *SubChangesParams) channelsExpandedSet() (resultChannels base.Set, err error) {
+func (s *SubChangesParams) channelsExpandedSet() (resultChannels utils.Set, err error) {
 	channelsParam, found := s.rq.Properties[SubChangesChannels]
 	if !found {
 		return nil, fmt.Errorf("Missing 'channels' filter parameter")
@@ -396,7 +400,7 @@ func (rm *RevMessage) String() string {
 	buffer := bytes.NewBufferString("")
 
 	if id, foundId := rm.ID(); foundId {
-		buffer.WriteString(fmt.Sprintf("Id:%v ", base.UD(id).Redact()))
+		buffer.WriteString(fmt.Sprintf("Id:%v ", logger.UD(id).Redact()))
 	}
 
 	if rev, foundRev := rm.Rev(); foundRev {
@@ -472,7 +476,7 @@ func (g *getAttachmentParams) docID() string {
 }
 
 func (g *getAttachmentParams) String() string {
-	return fmt.Sprintf("Digest:%v, DocID: %v ", g.digest(), base.UD(g.docID()))
+	return fmt.Sprintf("Digest:%v, DocID: %v ", g.digest(), logger.UD(g.docID()))
 }
 
 type IncludeConflictRevEntry struct {

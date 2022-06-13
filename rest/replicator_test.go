@@ -27,13 +27,15 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestActiveReplicatorBlipsync uses an ActiveReplicator with another RestTester instance to connect and cleanly disconnect.
 func TestActiveReplicatorBlipsync(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyHTTPResp)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyHTTPResp)
 
 	rt := NewRestTester(t, &RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
@@ -93,7 +95,7 @@ func TestActiveReplicatorBlipsync(t *testing.T) {
 
 // TestActiveReplicatorHeartbeats uses an ActiveReplicator with another RestTester instance to connect, and waits for several websocket ping/pongs.
 func TestActiveReplicatorHeartbeats(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyWebSocket, base.KeyWebSocketFrame)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyWebSocket, logger.KeyWebSocketFrame)
 
 	rt := NewRestTester(t, &RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
@@ -152,7 +154,7 @@ func TestActiveReplicatorPullBasic(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -168,7 +170,7 @@ func TestActiveReplicatorPullBasic(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				username: {
 					Password:         base.StringPtr(password),
-					ExplicitChannels: base.SetOf(username),
+					ExplicitChannels: utils.SetOf(username),
 				},
 			},
 		}},
@@ -180,7 +182,7 @@ func TestActiveReplicatorPullBasic(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	revID := respRevID(t, resp)
 
-	remoteDoc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	remoteDoc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	// Make rt2 listen on an actual HTTP port, so it can receive the blipsync request from rt1.
@@ -225,7 +227,7 @@ func TestActiveReplicatorPullBasic(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -247,7 +249,7 @@ func TestActiveReplicatorPullAttachments(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -258,7 +260,7 @@ func TestActiveReplicatorPullAttachments(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -314,7 +316,7 @@ func TestActiveReplicatorPullAttachments(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -335,7 +337,7 @@ func TestActiveReplicatorPullAttachments(t *testing.T) {
 	require.Len(t, changesResults.Results, 2)
 	assert.Equal(t, docID, changesResults.Results[1].ID)
 
-	doc2, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc2, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc2.SyncData.CurrentRev)
@@ -361,7 +363,7 @@ func TestActiveReplicatorPullFromCheckpoint(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	const (
 		changesBatchSize  = 10
@@ -377,7 +379,7 @@ func TestActiveReplicatorPullFromCheckpoint(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -439,7 +441,7 @@ func TestActiveReplicatorPullFromCheckpoint(t *testing.T) {
 		docID := fmt.Sprintf("%s%d", docIDPrefix, i)
 		assert.True(t, docIDsSeen[docID])
 
-		doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		body, err := doc.GetDeepMutableBody()
@@ -492,7 +494,7 @@ func TestActiveReplicatorPullFromCheckpoint(t *testing.T) {
 		docID := fmt.Sprintf("%s%d", docIDPrefix, i)
 		assert.True(t, docIDsSeen[docID])
 
-		doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		body, err := doc.GetDeepMutableBody()
@@ -526,7 +528,7 @@ func TestActiveReplicatorPullFromCheckpointIgnored(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	const (
 		changesBatchSize  = 10
@@ -542,7 +544,7 @@ func TestActiveReplicatorPullFromCheckpointIgnored(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -613,7 +615,7 @@ func TestActiveReplicatorPullFromCheckpointIgnored(t *testing.T) {
 		docID := fmt.Sprintf("%s%d", docIDPrefix, i)
 		assert.True(t, docIDsSeen[docID])
 
-		_, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		_, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 	}
 
@@ -685,7 +687,7 @@ func TestActiveReplicatorPullOneshot(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyReplicate)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyReplicate)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -696,7 +698,7 @@ func TestActiveReplicatorPullOneshot(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -708,7 +710,7 @@ func TestActiveReplicatorPullOneshot(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	revID := respRevID(t, resp)
 
-	remoteDoc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	remoteDoc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	// Make rt2 listen on an actual HTTP port, so it can receive the blipsync request from rt1.
@@ -758,7 +760,7 @@ func TestActiveReplicatorPullOneshot(t *testing.T) {
 	}
 	assert.True(t, replicationStopped, "One-shot replication status should go to stopped on completion")
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -778,7 +780,7 @@ func TestActiveReplicatorPushBasic(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -789,7 +791,7 @@ func TestActiveReplicatorPushBasic(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -809,7 +811,7 @@ func TestActiveReplicatorPushBasic(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	revID := respRevID(t, resp)
 
-	localDoc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	localDoc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	// Make rt2 listen on an actual HTTP port, so it can receive the blipsync request from rt1.
@@ -845,7 +847,7 @@ func TestActiveReplicatorPushBasic(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -867,7 +869,7 @@ func TestActiveReplicatorPushAttachments(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Active
 	tb1 := base.GetTestBucket(t)
@@ -884,7 +886,7 @@ func TestActiveReplicatorPushAttachments(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -932,7 +934,7 @@ func TestActiveReplicatorPushAttachments(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -954,7 +956,7 @@ func TestActiveReplicatorPushAttachments(t *testing.T) {
 	require.Len(t, changesResults.Results, 2)
 	assert.Equal(t, docID, changesResults.Results[1].ID)
 
-	doc2, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc2, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc2.SyncData.CurrentRev)
@@ -980,7 +982,7 @@ func TestActiveReplicatorPushFromCheckpoint(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	const (
 		changesBatchSize  = 10
@@ -1010,7 +1012,7 @@ func TestActiveReplicatorPushFromCheckpoint(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -1058,7 +1060,7 @@ func TestActiveReplicatorPushFromCheckpoint(t *testing.T) {
 		docID := fmt.Sprintf("%s%d", docIDPrefix, i)
 		assert.True(t, docIDsSeen[docID])
 
-		doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		body, err := doc.GetDeepMutableBody()
@@ -1109,7 +1111,7 @@ func TestActiveReplicatorPushFromCheckpoint(t *testing.T) {
 		docID := fmt.Sprintf("%s%d", docIDPrefix, i)
 		assert.True(t, docIDsSeen[docID])
 
-		doc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		body, err := doc.GetDeepMutableBody()
@@ -1142,7 +1144,7 @@ func TestActiveReplicatorEdgeCheckpointNameCollisions(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 3)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	const (
 		changesBatchSize  = 10
@@ -1157,7 +1159,7 @@ func TestActiveReplicatorEdgeCheckpointNameCollisions(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -1221,7 +1223,7 @@ func TestActiveReplicatorEdgeCheckpointNameCollisions(t *testing.T) {
 		docID := fmt.Sprintf("%s%d", docIDPrefix, i)
 		assert.True(t, docIDsSeen[docID])
 
-		doc, err := edge1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := edge1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		body, err := doc.GetDeepMutableBody()
@@ -1312,7 +1314,7 @@ func TestActiveReplicatorPushFromCheckpointIgnored(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	const (
 		changesBatchSize  = 10
@@ -1335,7 +1337,7 @@ func TestActiveReplicatorPushFromCheckpointIgnored(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -1452,7 +1454,7 @@ func TestActiveReplicatorPushOneshot(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -1463,7 +1465,7 @@ func TestActiveReplicatorPushOneshot(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -1483,7 +1485,7 @@ func TestActiveReplicatorPushOneshot(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	revID := respRevID(t, resp)
 
-	localDoc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	localDoc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	// Make rt2 listen on an actual HTTP port, so it can receive the blipsync request from rt1.
@@ -1525,7 +1527,7 @@ func TestActiveReplicatorPushOneshot(t *testing.T) {
 	}
 	assert.True(t, replicationStopped, "One-shot replication status should go to stopped on completion")
 
-	doc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -1547,7 +1549,7 @@ func TestActiveReplicatorPullTombstone(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -1558,7 +1560,7 @@ func TestActiveReplicatorPullTombstone(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -1610,7 +1612,7 @@ func TestActiveReplicatorPullTombstone(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -1630,7 +1632,7 @@ func TestActiveReplicatorPullTombstone(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err = rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err = rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.True(t, doc.IsDeleted())
@@ -1647,7 +1649,7 @@ func TestActiveReplicatorPullPurgeOnRemoval(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeyReplicate)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeyReplicate)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -1658,7 +1660,7 @@ func TestActiveReplicatorPullPurgeOnRemoval(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -1711,7 +1713,7 @@ func TestActiveReplicatorPullPurgeOnRemoval(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -1729,7 +1731,7 @@ func TestActiveReplicatorPullPurgeOnRemoval(t *testing.T) {
 		return stats.DocsPurged
 	}, 1)
 
-	doc, err = rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err = rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.Error(t, err)
 	assert.True(t, base.IsDocNotFoundError(err), "Error returned wasn't a DocNotFound error")
 	assert.Nil(t, doc)
@@ -1823,7 +1825,7 @@ func TestActiveReplicatorPullConflict(t *testing.T) {
 	for _, test := range conflictResolutionTests {
 		t.Run(test.name, func(t *testing.T) {
 			base.RequireNumTestBuckets(t, 2)
-			base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD)
+			base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD)
 
 			// Passive
 			tb2 := base.GetTestBucket(t)
@@ -1834,7 +1836,7 @@ func TestActiveReplicatorPullConflict(t *testing.T) {
 					Users: map[string]*db.PrincipalConfig{
 						"alice": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("*"),
+							ExplicitChannels: utils.SetOf("*"),
 						},
 					},
 				}},
@@ -1922,7 +1924,7 @@ func TestActiveReplicatorPullConflict(t *testing.T) {
 			assert.Equal(t, test.expectedLocalRevID, changesResults.Results[0].Changes[0]["rev"])
 			log.Printf("Changes response is %+v", changesResults)
 
-			doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+			doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedLocalRevID, doc.SyncData.CurrentRev)
 
@@ -2030,7 +2032,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 	for _, test := range conflictResolutionTests {
 		t.Run(test.name, func(t *testing.T) {
 			base.RequireNumTestBuckets(t, 2)
-			base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD)
+			base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD)
 
 			// Passive
 			rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2039,7 +2041,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 					Users: map[string]*db.PrincipalConfig{
 						"alice": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("*"),
+							ExplicitChannels: utils.SetOf("*"),
 						},
 					},
 				}},
@@ -2072,7 +2074,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 			rt2revID := respRevID(t, resp)
 			assert.Equal(t, test.remoteRevID, rt2revID)
 
-			remoteDoc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalSync)
+			remoteDoc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalSync)
 			require.NoError(t, err)
 
 			// Make rt2 listen on an actual HTTP port, so it can receive the blipsync request from rt1.
@@ -2106,7 +2108,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 			rt1revID := respRevID(t, resp)
 			assert.Equal(t, test.localRevID, rt1revID)
 
-			localDoc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalSync)
+			localDoc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalSync)
 			require.NoError(t, err)
 
 			customConflictResolver, err := db.NewCustomConflictResolver(test.conflictResolver)
@@ -2147,7 +2149,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 			docResponse := rt1.SendAdminRequest(http.MethodGet, "/db/"+docID, "")
 			log.Printf("Non-raw response: %s", docResponse.Body.Bytes())
 
-			doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+			doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedRevID, doc.SyncData.CurrentRev)
 			assert.Equal(t, expectedLocalBody, doc.Body())
@@ -2187,7 +2189,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 			assert.Equal(t, test.expectedRevID, changesResults.Results[0].Changes[0]["rev"])
 			log.Printf("Changes response is %+v", changesResults)
 
-			doc, err = rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+			doc, err = rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedRevID, doc.SyncData.CurrentRev)
 			assert.Equal(t, expectedLocalBody, doc.Body())
@@ -2224,7 +2226,7 @@ func TestActiveReplicatorPushAndPullConflict(t *testing.T) {
 //   - Uses an ActiveReplicator configured for push to start pushing changes to rt2.
 func TestActiveReplicatorPushBasicWithInsecureSkipVerifyEnabled(t *testing.T) {
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2233,7 +2235,7 @@ func TestActiveReplicatorPushBasicWithInsecureSkipVerifyEnabled(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2284,7 +2286,7 @@ func TestActiveReplicatorPushBasicWithInsecureSkipVerifyEnabled(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, revID, doc.SyncData.CurrentRev)
@@ -2301,7 +2303,7 @@ func TestActiveReplicatorPushBasicWithInsecureSkipVerifyEnabled(t *testing.T) {
 //   - Uses an ActiveReplicator configured for push to start pushing changes to rt2.
 func TestActiveReplicatorPushBasicWithInsecureSkipVerifyDisabled(t *testing.T) {
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2310,7 +2312,7 @@ func TestActiveReplicatorPushBasicWithInsecureSkipVerifyDisabled(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2365,7 +2367,7 @@ func TestActiveReplicatorRecoverFromLocalFlush(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 3)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	// Passive
 	rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2374,7 +2376,7 @@ func TestActiveReplicatorRecoverFromLocalFlush(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2428,7 +2430,7 @@ func TestActiveReplicatorRecoverFromLocalFlush(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	body, err := doc.GetDeepMutableBody()
@@ -2483,7 +2485,7 @@ func TestActiveReplicatorRecoverFromLocalFlush(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err = rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err = rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	require.NoError(t, err)
 
 	body, err = doc.GetDeepMutableBody()
@@ -2519,7 +2521,7 @@ func TestActiveReplicatorRecoverFromRemoteFlush(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 3)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -2529,7 +2531,7 @@ func TestActiveReplicatorRecoverFromRemoteFlush(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2585,7 +2587,7 @@ func TestActiveReplicatorRecoverFromRemoteFlush(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	body, err := doc.GetDeepMutableBody()
@@ -2624,7 +2626,7 @@ func TestActiveReplicatorRecoverFromRemoteFlush(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2653,7 +2655,7 @@ func TestActiveReplicatorRecoverFromRemoteFlush(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 
-	doc, err = rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err = rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	require.NoError(t, err)
 
 	body, err = doc.GetDeepMutableBody()
@@ -2692,7 +2694,7 @@ func TestActiveReplicatorRecoverFromRemoteRollback(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyBucket, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyBucket, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	// Passive
 	rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2701,7 +2703,7 @@ func TestActiveReplicatorRecoverFromRemoteRollback(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2758,7 +2760,7 @@ func TestActiveReplicatorRecoverFromRemoteRollback(t *testing.T) {
 	assert.Equal(t, docID, changesResults.Results[0].ID)
 	lastSeq := changesResults.Last_Seq.(string)
 
-	doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	body, err := doc.GetDeepMutableBody()
@@ -2793,7 +2795,7 @@ func TestActiveReplicatorRecoverFromRemoteRollback(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID+"2", changesResults.Results[0].ID)
 
-	doc, err = rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err = rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	require.NoError(t, err)
 
 	body, err = doc.GetDeepMutableBody()
@@ -2826,7 +2828,7 @@ func TestActiveReplicatorRecoverFromRemoteRollback(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, docID+"2", changesResults.Results[0].ID)
 
-	doc, err = rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err = rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	require.NoError(t, err)
 
 	body, err = doc.GetDeepMutableBody()
@@ -2848,7 +2850,7 @@ func TestActiveReplicatorRecoverFromMismatchedRev(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyBucket, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyBucket, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	// Passive
 	rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2857,7 +2859,7 @@ func TestActiveReplicatorRecoverFromMismatchedRev(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -2947,7 +2949,7 @@ func TestActiveReplicatorIgnoreNoConflicts(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket)
 
 	// Passive
 	rt2 := NewRestTester(t, &RestTesterConfig{
@@ -2957,7 +2959,7 @@ func TestActiveReplicatorIgnoreNoConflicts(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -3012,7 +3014,7 @@ func TestActiveReplicatorIgnoreNoConflicts(t *testing.T) {
 	require.Len(t, changesResults.Results, 1)
 	assert.Equal(t, rt1docID, changesResults.Results[0].ID)
 
-	doc, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), rt1docID, db.DocUnmarshalAll)
+	doc, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), rt1docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, rt1revID, doc.SyncData.CurrentRev)
@@ -3034,7 +3036,7 @@ func TestActiveReplicatorIgnoreNoConflicts(t *testing.T) {
 	assert.Equal(t, rt1docID, changesResults.Results[0].ID)
 	assert.Equal(t, rt2docID, changesResults.Results[1].ID)
 
-	doc, err = rt1.GetDatabase().GetDocument(base.TestCtx(t), rt2docID, db.DocUnmarshalAll)
+	doc, err = rt1.GetDatabase().GetDocument(logger.TestCtx(t), rt2docID, db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, rt2revID, doc.SyncData.CurrentRev)
@@ -3053,7 +3055,7 @@ func TestActiveReplicatorPullModifiedHash(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	const (
 		changesBatchSize         = 10
@@ -3070,7 +3072,7 @@ func TestActiveReplicatorPullModifiedHash(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("chan1", "chan2"),
+					ExplicitChannels: utils.SetOf("chan1", "chan2"),
 				},
 			},
 		}},
@@ -3187,7 +3189,7 @@ func TestActiveReplicatorPullModifiedHash(t *testing.T) {
 		docID := fmt.Sprintf("%s_%s_%d", docIDPrefix, "chan2", i)
 		assert.True(t, docIDsSeen[docID])
 
-		doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		body, err := doc.GetDeepMutableBody()
@@ -3259,7 +3261,7 @@ func TestActiveReplicatorReconnectOnStart(t *testing.T) {
 			for _, timeoutVal := range timeoutVals {
 				t.Run(test.name+" with timeout "+timeoutVal.String(), func(t *testing.T) {
 
-					base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+					base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 					// Passive
 					tb2 := base.GetTestBucket(t)
@@ -3269,7 +3271,7 @@ func TestActiveReplicatorReconnectOnStart(t *testing.T) {
 							Users: map[string]*db.PrincipalConfig{
 								"alice": {
 									Password:         base.StringPtr("pass"),
-									ExplicitChannels: base.SetOf("alice"),
+									ExplicitChannels: utils.SetOf("alice"),
 								},
 							},
 						}},
@@ -3362,7 +3364,7 @@ func TestActiveReplicatorReconnectOnStartEventualSuccess(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -3441,7 +3443,7 @@ func TestActiveReplicatorReconnectSendActions(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp)
 
 	// Passive
 	tb2 := base.GetTestBucket(t)
@@ -3451,7 +3453,7 @@ func TestActiveReplicatorReconnectSendActions(t *testing.T) {
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("alice"),
+					ExplicitChannels: utils.SetOf("alice"),
 				},
 			},
 		}},
@@ -3562,7 +3564,7 @@ func waitAndAssertCondition(t *testing.T, fn func() bool, failureMsgAndArgs ...i
 }
 
 func TestBlipSyncNonUpgradableConnection(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyHTTPResp)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyHTTPResp)
 	rt := NewRestTester(t, &RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
 			Users: map[string]*db.PrincipalConfig{
@@ -3780,7 +3782,7 @@ func TestActiveReplicatorPullConflictReadWriteIntlProps(t *testing.T) {
 	for _, test := range conflictResolutionTests {
 		t.Run(test.name, func(t *testing.T) {
 			base.RequireNumTestBuckets(t, 2)
-			base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+			base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 			// Passive
 			tb2 := base.GetTestBucket(t)
@@ -3791,7 +3793,7 @@ func TestActiveReplicatorPullConflictReadWriteIntlProps(t *testing.T) {
 					Users: map[string]*db.PrincipalConfig{
 						"alice": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("*"),
+							ExplicitChannels: utils.SetOf("*"),
 						},
 					},
 				}},
@@ -3870,7 +3872,7 @@ func TestActiveReplicatorPullConflictReadWriteIntlProps(t *testing.T) {
 			assert.Equal(t, test.expectedLocalRevID, changesResults.Results[0].Changes[0]["rev"])
 			log.Printf("Changes response is %+v", changesResults)
 
-			doc, err := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+			doc, err := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedLocalRevID, doc.SyncData.CurrentRev)
 			log.Printf("doc.Body(): %v", doc.Body())
@@ -3997,7 +3999,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 	for _, test := range tombstoneTests {
 
 		t.Run(test.name, func(t *testing.T) {
-			base.SetUpTestLogging(t, base.LevelDebug, base.KeyImport, base.KeyHTTP, base.KeySync, base.KeyChanges, base.KeyCRUD, base.KeyBucket, base.KeyReplicate)
+			base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyImport, logger.KeyHTTP, logger.KeySync, logger.KeyChanges, logger.KeyCRUD, logger.KeyBucket, logger.KeyReplicate)
 
 			if test.sdkResurrect && !base.TestUseXattrs() {
 				t.Skip("SDK resurrect test cases require xattrs to be enabled")
@@ -4051,7 +4053,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 
 			// Wait for document to arrive on the doc is was put on
 			err := localActiveRT.WaitForConditionShouldRetry(func() (shouldRetry bool, err error, value interface{}) {
-				doc, _ := localActiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+				doc, _ := localActiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 				if doc != nil {
 					return compareDocRev(doc.SyncData.CurrentRev, "3-abc")
 				}
@@ -4061,7 +4063,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 
 			// Wait for document to be replicated
 			err = remotePassiveRT.WaitForConditionShouldRetry(func() (shouldRetry bool, err error, value interface{}) {
-				doc, _ := remotePassiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+				doc, _ := remotePassiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 				if doc != nil {
 					return compareDocRev(doc.SyncData.CurrentRev, "3-abc")
 				}
@@ -4081,7 +4083,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 
 				// Validate document revision created to prevent race conditions
 				err = remotePassiveRT.WaitForConditionShouldRetry(func() (shouldRetry bool, err error, value interface{}) {
-					doc, docErr := remotePassiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+					doc, docErr := remotePassiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 					if assert.NoError(t, docErr) {
 						if shouldRetry, err, value = compareDocRev(doc.SyncData.CurrentRev, "4-cc0337d9d38c8e5fc930ae3deda62bf8"); value != nil {
 							requireTombstone(t, passiveBucket, "docid2")
@@ -4107,7 +4109,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 
 				// Validate document revision created to prevent race conditions
 				err = localActiveRT.WaitForConditionShouldRetry(func() (shouldRetry bool, err error, value interface{}) {
-					doc, docErr := localActiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+					doc, docErr := localActiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 					if assert.NoError(t, docErr) {
 						if shouldRetry, err, value = compareDocRev(doc.SyncData.CurrentRev, "4-cc0337d9d38c8e5fc930ae3deda62bf8"); value != nil {
 							requireTombstone(t, activeBucket, "docid2")
@@ -4133,7 +4135,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 
 			// Wait for the recently longest branch to show up on both sides
 			err = localActiveRT.WaitForConditionShouldRetry(func() (shouldRetry bool, err error, value interface{}) {
-				doc, docErr := localActiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+				doc, docErr := localActiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 				if assert.NoError(t, docErr) {
 					if shouldRetry, err, value = compareDocRev(doc.SyncData.CurrentRev, "5-4a5f5a35196c37c117737afd5be1fc9b"); value != nil {
 						// Validate local is CBS tombstone, expect not found error
@@ -4147,7 +4149,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 			assert.NoError(t, err)
 
 			err = remotePassiveRT.WaitForConditionShouldRetry(func() (shouldRetry bool, err error, value interface{}) {
-				doc, docErr := remotePassiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+				doc, docErr := remotePassiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 				if assert.NoError(t, docErr) {
 					if shouldRetry, err, value = compareDocRev(doc.SyncData.CurrentRev, "5-4a5f5a35196c37c117737afd5be1fc9b"); value != nil {
 						// Validate remote is CBS tombstone
@@ -4173,7 +4175,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 					err = activeBucket.Set("docid2", 0, nil, updatedBody)
 					assert.NoError(t, err, "Unable to resurrect doc docid2")
 					// force on-demand import
-					_, getErr := localActiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+					_, getErr := localActiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 					assert.NoError(t, getErr, "Unable to retrieve resurrected doc docid2")
 				} else {
 					resp = localActiveRT.SendAdminRequest("PUT", "/db/docid2", `{"resurrection": true}`)
@@ -4185,7 +4187,7 @@ func TestSGR2TombstoneConflictHandling(t *testing.T) {
 					err = passiveBucket.Set("docid2", 0, nil, updatedBody)
 					assert.NoError(t, err, "Unable to resurrect doc docid2")
 					// force on-demand import
-					_, getErr := remotePassiveRT.GetDatabase().GetDocument(base.TestCtx(t), "docid2", db.DocUnmarshalSync)
+					_, getErr := remotePassiveRT.GetDatabase().GetDocument(logger.TestCtx(t), "docid2", db.DocUnmarshalSync)
 					assert.NoError(t, getErr, "Unable to retrieve resurrected doc docid2")
 				} else {
 					resp = remotePassiveRT.SendAdminRequest("PUT", "/db/docid2", `{"resurrection": true}`)
@@ -4230,7 +4232,7 @@ func TestDefaultConflictResolverWithTombstoneLocal(t *testing.T) {
 	if !base.TestUseXattrs() {
 		t.Skip("This test only works with XATTRS enabled")
 	}
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	defaultConflictResolverWithTombstoneTests := []struct {
 		name             string   // A unique name to identify the unit test.
@@ -4280,7 +4282,7 @@ func TestDefaultConflictResolverWithTombstoneLocal(t *testing.T) {
 					Users: map[string]*db.PrincipalConfig{
 						"alice": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("alice"),
+							ExplicitChannels: utils.SetOf("alice"),
 						},
 					},
 				}},
@@ -4330,7 +4332,7 @@ func TestDefaultConflictResolverWithTombstoneLocal(t *testing.T) {
 			// Wait for the original document revision written to rt1 to arrive at rt2.
 			rt2RevIDCreated := rt1RevIDCreated
 			require.NoError(t, rt2.WaitForCondition(func() bool {
-				doc, _ := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+				doc, _ := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 				return doc != nil && len(doc.Body()) > 0
 			}))
 			requireRevID(t, rt2, docID, rt2RevIDCreated)
@@ -4382,7 +4384,7 @@ func TestDefaultConflictResolverWithTombstoneRemote(t *testing.T) {
 	if !base.TestUseXattrs() {
 		t.Skip("This test only works with XATTRS enabled")
 	}
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	defaultConflictResolverWithTombstoneTests := []struct {
 		name            string   // A unique name to identify the unit test.
@@ -4432,7 +4434,7 @@ func TestDefaultConflictResolverWithTombstoneRemote(t *testing.T) {
 					Users: map[string]*db.PrincipalConfig{
 						"alice": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("alice"),
+							ExplicitChannels: utils.SetOf("alice"),
 						},
 					},
 				}},
@@ -4482,7 +4484,7 @@ func TestDefaultConflictResolverWithTombstoneRemote(t *testing.T) {
 			// Wait for the original document revision written to rt2 to arrive at rt1.
 			rt1RevIDCreated := rt2RevIDCreated
 			require.NoError(t, rt1.WaitForCondition(func() bool {
-				doc, _ := rt1.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+				doc, _ := rt1.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 				return doc != nil && len(doc.Body()) > 0
 			}))
 			requireRevID(t, rt1, docID, rt1RevIDCreated)
@@ -4521,7 +4523,7 @@ func TestDefaultConflictResolverWithTombstoneRemote(t *testing.T) {
 			// Wait for conflict resolved doc (tombstone) to be pulled to passive bucket
 			// Then require it is the expected rev
 			require.NoError(t, rt2.WaitForCondition(func() bool {
-				doc, _ := rt2.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+				doc, _ := rt2.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 				return doc != nil && doc.SyncData.CurrentRev == test.expectedRevID
 			}))
 
@@ -4871,7 +4873,7 @@ func TestReplicatorRevocationsMultipleAlternateAccess(t *testing.T) {
 }
 
 func TestConflictResolveMergeWithMutatedRev(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	base.RequireNumTestBuckets(t, 2)
 
@@ -5118,7 +5120,7 @@ func TestReplicatorRevocationsFromZero(t *testing.T) {
 }
 
 func TestReplicatorSwitchPurgeNoReset(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	defer db.SuspendSequenceBatching()()
 
@@ -5246,7 +5248,7 @@ func TestReplicatorSwitchPurgeNoReset(t *testing.T) {
 func TestReplicatorIgnoreRemovalBodies(t *testing.T) {
 	// Copies the behaviour of TestGetRemovedAsUser but with replication and no user
 	defer db.SuspendSequenceBatching()()
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	// Passive //
 	passiveBucket := base.GetTestBucket(t)
@@ -5451,7 +5453,7 @@ func createOrUpdateDoc(t *testing.T, rt *RestTester, docID, revID, bodyValue str
 func waitForTombstone(t *testing.T, rt *RestTester, docID string) {
 	require.NoError(t, rt.WaitForPendingChanges())
 	require.NoError(t, rt.WaitForCondition(func() bool {
-		doc, _ := rt.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, _ := rt.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		return doc.IsDeleted() && len(doc.Body()) == 0
 	}))
 }
@@ -5468,7 +5470,7 @@ func requireErrorKeyNotFound(t *testing.T, rt *RestTester, docID string) {
 // requireRevID asserts that the specified document revision is written to the
 // underlying bucket backed by the given RestTester instance.
 func requireRevID(t *testing.T, rt *RestTester, docID, revID string) {
-	doc, err := rt.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+	doc, err := rt.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 	require.NoError(t, err, "Error reading document from bucket")
 	require.Equal(t, revID, doc.SyncData.CurrentRev)
 }

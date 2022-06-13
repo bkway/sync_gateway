@@ -6,6 +6,7 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // DatabaseConfig is a 3.x/persisted database config that represents a config stored in the bucket.
@@ -25,7 +26,7 @@ type DatabaseConfig struct {
 func (dbc *DatabaseConfig) Redacted() (*DatabaseConfig, error) {
 	var config DatabaseConfig
 
-	err := base.DeepCopyInefficient(&config, dbc)
+	err := utils.DeepCopyInefficient(&config, dbc)
 	if err != nil {
 		return nil, err
 	}

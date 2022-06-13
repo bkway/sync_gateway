@@ -18,6 +18,7 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -173,9 +174,9 @@ func TestViewQueryUserAccess(t *testing.T) {
 	assert.Equal(t, &sgbucket.ViewRow{ID: "doc2", Key: "state2", Value: "doc2"}, result.Rows[1])
 
 	// Create a user:
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	password := "123456"
-	testUser, _ := a.NewUser("testUser", password, channels.SetOf(t, "*"))
+	testUser, _ := a.NewUser("testUser", password, channels.SetOfTester(t, "*"))
 	assert.NoError(t, a.Save(testUser))
 
 	result, err = rt.WaitForNUserViewResults(2, "/db/_design/foo/_view/bar?stale=false", testUser, password)
@@ -240,7 +241,7 @@ func TestUserViewQuery(t *testing.T) {
 	rt := NewRestTester(t, &rtConfig)
 	defer rt.Close()
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
 	rt.ServerContext().Database("db").SetUserViewsEnabled(true)
 
 	// Create a view:
@@ -255,7 +256,7 @@ func TestUserViewQuery(t *testing.T) {
 
 	// Create a user:
 	password := "123456"
-	quinn, _ := a.NewUser("quinn", password, channels.SetOf(t, "Q", "q"))
+	quinn, _ := a.NewUser("quinn", password, channels.SetOfTester(t, "Q", "q"))
 	assert.NoError(t, a.Save(quinn))
 
 	// Have the user query the view:
@@ -652,8 +653,8 @@ func TestViewQueryWrappers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 3, result.Len())
 
-	a := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t))
-	testUser, err := a.NewUser("testUser", "password", channels.SetOf(t, "userchannel"))
+	a := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t))
+	testUser, err := a.NewUser("testUser", "password", channels.SetOfTester(t, "userchannel"))
 	assert.NoError(t, err)
 	err = a.Save(testUser)
 	assert.NoError(t, err)

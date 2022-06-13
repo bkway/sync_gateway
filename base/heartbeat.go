@@ -11,7 +11,6 @@ licenses/APL2.txt.
 package base
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +18,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const (
@@ -115,7 +116,7 @@ func (h *couchbaseHeartBeater) Start() error {
 		return err
 	}
 
-	DebugfCtx(context.TODO(), KeyCluster, "Sending node heartbeats at interval: %v", h.heartbeatSendInterval)
+	logger.For(logger.ClusterKey).Info().Msgf("Sending node heartbeats at interval: %v", h.heartbeatSendInterval)
 
 	return nil
 
@@ -136,7 +137,7 @@ func (h *couchbaseHeartBeater) Stop() {
 	for h.sendActive.IsTrue() || h.checkActive.IsTrue() {
 		waitTimeMs += 10
 		if waitTimeMs > maxWaitTimeMs {
-			WarnfCtx(context.Background(), "couchbaseHeartBeater didn't complete Stop() within expected elapsed time")
+			logger.For(logger.ClusterKey).Warn().Msgf("couchbaseHeartBeater didn't complete Stop() within expected elapsed time")
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -163,7 +164,7 @@ func (h *couchbaseHeartBeater) StartSendingHeartbeats() error {
 				return
 			case <-ticker.C:
 				if err := h.sendHeartbeat(); err != nil {
-					WarnfCtx(context.Background(), "Unexpected error sending heartbeat - will be retried: %v", err)
+					logger.For(logger.ClusterKey).Warn().Err(err).Msgf("Unexpected error sending heartbeat - will be retried")
 				}
 			}
 		}
@@ -176,7 +177,7 @@ func (h *couchbaseHeartBeater) StartSendingHeartbeats() error {
 func (h *couchbaseHeartBeater) StartCheckingHeartbeats() error {
 
 	if err := h.checkStaleHeartbeats(); err != nil {
-		WarnfCtx(context.Background(), "Error checking for stale heartbeats: %v", err)
+		logger.For(logger.ClusterKey).Err(err).Msgf("Error checking for stale heartbeats: %v", err)
 	}
 
 	ticker := time.NewTicker(h.heartbeatPollInterval)
@@ -190,7 +191,7 @@ func (h *couchbaseHeartBeater) StartCheckingHeartbeats() error {
 				return
 			case <-ticker.C:
 				if err := h.checkStaleHeartbeats(); err != nil {
-					WarnfCtx(context.Background(), "Error checking for stale heartbeats: %v", err)
+					logger.For(logger.ClusterKey).Err(err).Msgf("Error checking for stale heartbeats: %v", err)
 				}
 			}
 		}
@@ -254,7 +255,7 @@ func (h *couchbaseHeartBeater) getNodeListenerMap() ListenerMap {
 	for _, listener := range h.heartbeatListeners {
 		listenerNodes, err := listener.GetNodes()
 		if err != nil {
-			WarnfCtx(context.Background(), "Error obtaining node set for listener %s - will be omitted for this heartbeat iteration.  Error: %v", listener.Name(), err)
+			logger.For(logger.ClusterKey).Warn().Err(err).Msgf("Error obtaining node set for listener %s - will be omitted for this heartbeat iteration.  Error: %v", listener.Name(), err)
 		}
 		for _, nodeUUID := range listenerNodes {
 			_, ok := nodeToListenerMap[nodeUUID]
@@ -272,7 +273,7 @@ func (h *couchbaseHeartBeater) checkStaleHeartbeats() error {
 
 	// Build set of all nodes
 	nodeListenerMap := h.getNodeListenerMap()
-	TracefCtx(context.Background(), KeyCluster, "Checking heartbeats for node set: %s", nodeListenerMap)
+	logger.For(logger.ClusterKey).Trace().Msgf("Checking heartbeats for node set: %s", nodeListenerMap)
 
 	for heartbeatNodeUUID, listeners := range nodeListenerMap {
 		if heartbeatNodeUUID == h.nodeUUID {
@@ -447,7 +448,7 @@ func (dh *documentBackedListener) updateNodeList(nodeID string, remove bool) err
 			dh.nodeIDs = append(dh.nodeIDs, nodeID)
 		}
 
-		InfofCtx(context.TODO(), KeyCluster, "Updating nodeList document (%s) with node IDs: %v", dh.nodeListKey, dh.nodeIDs)
+		logger.For(logger.BucketKey).Info().Msgf("Updating nodeList document (%s) with node IDs: %v", dh.nodeListKey, dh.nodeIDs)
 
 		casOut, err := dh.bucket.WriteCas(dh.nodeListKey, 0, 0, dh.cas, dh.nodeIDs, 0)
 

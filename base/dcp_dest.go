@@ -21,6 +21,7 @@ import (
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/gomemcached"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // vbucketIdStrings is a memorized array of 1024 entries for fast
@@ -81,14 +82,16 @@ func NewDCPDest(callback sgbucket.FeedEventCallbackFunc, bucket Bucket, maxVbNo 
 
 	if d.partitionCountStat != nil {
 		d.partitionCountStat.Add(1)
-		InfofCtx(d.loggingCtx, KeyDCP, "Starting sharded feed for %s.  Total partitions:%v", d.feedID, d.partitionCountStat.String())
+		logger.For(logger.DCPKey).Info().Msgf("Starting sharded feed for %s.  Total partitions:%v", d.feedID, d.partitionCountStat.String())
+		// logger.InfofCtx(d.loggingCtx, logger.KeyDCP, "Starting sharded feed for %s.  Total partitions:%v", d.feedID, d.partitionCountStat.String())
 	}
 
-	if LogDebugEnabled(KeyDCP) {
-		InfofCtx(d.loggingCtx, KeyDCP, "Using DCP Logging Receiver")
-		logRec := &DCPLoggingDest{dest: d}
-		return logRec, d.loggingCtx
-	}
+	// TODO shouldn't this just alway work?
+	// if logger.LogDebugEnabled(logger.KeyDCP) {
+	logger.For(logger.DCPKey).Info().Msg("Using DCP Logging Receiver")
+	logRec := &DCPLoggingDest{dest: d}
+	return logRec, d.loggingCtx
+	// }
 
 	return d, d.loggingCtx
 }
@@ -96,9 +99,11 @@ func NewDCPDest(callback sgbucket.FeedEventCallbackFunc, bucket Bucket, maxVbNo 
 func (d *DCPDest) Close() error {
 	if d.partitionCountStat != nil {
 		d.partitionCountStat.Add(-1)
-		InfofCtx(d.loggingCtx, KeyDCP, "Closing sharded feed for %s. Total partitions:%v", d.feedID, d.partitionCountStat.String())
+		logger.For(logger.DCPKey).Info().Msgf("Closing sharded feed for %s. Total partitions:%v", d.feedID, d.partitionCountStat.String())
+		// logger.InfofCtx(d.loggingCtx, logger.KeyDCP, "Closing sharded feed for %s. Total partitions:%v", d.feedID, d.partitionCountStat.String())
 	}
-	DebugfCtx(d.loggingCtx, KeyDCP, "Closing DCPDest for %s", d.feedID)
+	logger.For(logger.DCPKey).Debug().Msgf("Closing DCPDest for %s", d.feedID)
+	// logger.DebugfCtx(d.loggingCtx, logger.KeyDCP, "Closing DCPDest for %s", d.feedID)
 	return nil
 }
 
@@ -217,20 +222,28 @@ func (d *DCPDest) RollbackEx(partition string, vbucketUUID uint64, rollbackSeq u
 }
 
 // TODO: Not implemented, review potential usage
-func (d *DCPDest) ConsistencyWait(partition, partitionUUID string,
-	consistencyLevel string, consistencySeq uint64, cancelCh <-chan bool) error {
-	WarnfCtx(d.loggingCtx, "Dest.ConsistencyWait being invoked by cbgt - not supported by Sync Gateway")
+func (d *DCPDest) ConsistencyWait(partition,
+	partitionUUID string,
+	consistencyLevel string,
+	consistencySeq uint64,
+	cancelCh <-chan bool) error {
+	logger.For(logger.DCPKey).Warn().Msg("Dest.ConsistencyWait being invoked by cbgt - not supported by Sync Gateway")
+	// log.Ctx(d.loggingCtx).Warn().Err(err).Msgf("Dest.ConsistencyWait being invoked by cbgt - not supported by Sync Gateway")
 	return nil
 }
 
 func (d *DCPDest) Count(pindex *cbgt.PIndex, cancelCh <-chan bool) (uint64, error) {
-	WarnfCtx(d.loggingCtx, "Dest.Count being invoked by cbgt - not supported by Sync Gateway")
+	logger.For(logger.DCPKey).Warn().Msg("Dest.Count being invoked by cbgt - not supported by Sync Gateway")
+	// log.Ctx(d.loggingCtx).Warn().Err(err).Msgf("Dest.Count being invoked by cbgt - not supported by Sync Gateway")
 	return 0, nil
 }
 
-func (d *DCPDest) Query(pindex *cbgt.PIndex, req []byte, w io.Writer,
+func (d *DCPDest) Query(pindex *cbgt.PIndex,
+	req []byte,
+	w io.Writer,
 	cancelCh <-chan bool) error {
-	WarnfCtx(d.loggingCtx, "Dest.Query being invoked by cbgt - not supported by Sync Gateway")
+	logger.For(logger.DCPKey).Warn().Msg("Dest.Query being invoked by cbgt - not supported by Sync Gateway")
+	// log.Ctx(d.loggingCtx).Warn().Err(err).Msgf("Dest.Query being invoked by cbgt - not supported by Sync Gateway")
 	return nil
 }
 
@@ -242,7 +255,7 @@ func (d *DCPDest) Stats(io.Writer) error {
 func partitionToVbNo(partition string) uint16 {
 	vbNo, err := strconv.Atoi(partition)
 	if err != nil {
-		ErrorfCtx(context.Background(), "Unexpected non-numeric partition value %s, ignoring: %v", partition, err)
+		logger.For(logger.DCPKey).Err(err).Msgf("Unexpected non-numeric partition value %s, ignoring", partition)
 		return 0
 	}
 	return uint16(vbNo)
@@ -301,7 +314,7 @@ func StartCbgtGocbFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArgumen
 
 	feedID := args.ID
 	if feedID == "" {
-		Infof(KeyDCP, "DCP feed started without feedID specified - defaulting to %s", DCPCachingFeedID)
+		Infof(logger.KeyDCP, "DCP feed started without feedID specified - defaulting to %s", DCPCachingFeedID)
 		feedID = DCPCachingFeedID
 	}
 
@@ -346,15 +359,15 @@ func StartCbgtGocbFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArgumen
 		return pkgerrors.WithStack(RedactErrorf("Error starting gocb DCP Feed.  Feed:%s URLs:%s, bucket:%s.  Error: %v", feedName, UD(serverURL), MD(spec.BucketName), err))
 	}
 
-	InfofCtx(loggingCtx, KeyDCP, "Caching DCP feed started successfully: %s", feedName)
+	logger.InfofCtx(loggingCtx, logger.KeyDCP, "Caching DCP feed started successfully: %s", feedName)
 
 	// Close the feed if feed terminator is closed
 	if args.Terminator != nil {
 		go func() {
 			<-args.Terminator
-			Tracef(KeyDCP, "Closing DCP Feed [%s-%s] based on termination notification", MD(spec.BucketName), feedName)
+			Tracef(logger.KeyDCP, "Closing DCP Feed [%s-%s] based on termination notification", MD(spec.BucketName), feedName)
 			if err = feed.Close(); err != nil {
-				Debugf(KeyDCP, "Error closing DCP Feed [%s-%s] based on termination notification, Error: %v", MD(spec.BucketName), feedName, err)
+				Debugf(logger.KeyDCP, "Error closing DCP Feed [%s-%s] based on termination notification, Error: %v", MD(spec.BucketName), feedName, err)
 			}
 			if args.DoneChan != nil {
 				close(args.DoneChan)
@@ -427,7 +440,7 @@ func StartCbgtCbdatasourceFeed(bucket Bucket, spec BucketSpec, args sgbucket.Fee
 
 	feedID := args.ID
 	if feedID == "" {
-		Infof(KeyDCP, "DCP feed started without feedID specified - defaulting to %s", DCPCachingFeedID)
+		Infof(logger.KeyDCP, "DCP feed started without feedID specified - defaulting to %s", DCPCachingFeedID)
 		feedID = DCPCachingFeedID
 	}
 
@@ -490,21 +503,21 @@ func StartCbgtCbdatasourceFeed(bucket Bucket, spec BucketSpec, args sgbucket.Fee
 		return pkgerrors.WithStack(RedactErrorf("Error instantiating gocb DCP Feed.  Feed:%s URL:%s, bucket:%s.  Error: %v", feedName, UD(serverURLsString), MD(spec.BucketName), err))
 	}
 
-	InfofCtx(loggingCtx, KeyDCP, "DCP feed starting with name %s", feedName)
+	logger.InfofCtx(loggingCtx, logger.KeyDCP, "DCP feed starting with name %s", feedName)
 
 	if err = feed.Start(); err != nil {
 		return pkgerrors.WithStack(RedactErrorf("Error starting gocb DCP Feed.  Feed:%s URLs:%s, bucket:%s.  Error: %v", feedName, UD(serverURLsString), MD(spec.BucketName), err))
 	}
 
-	InfofCtx(loggingCtx, KeyDCP, "DCP feed started successfully with name %s", feedName)
+	logger.InfofCtx(loggingCtx, logger.KeyDCP, "DCP feed started successfully with name %s", feedName)
 
 	// Close the feed if feed terminator is closed
 	if args.Terminator != nil {
 		go func() {
 			<-args.Terminator
-			Tracef(KeyDCP, "Closing DCP Feed [%s-%s] based on termination notification", MD(spec.BucketName), feedName)
+			Tracef(logger.KeyDCP, "Closing DCP Feed [%s-%s] based on termination notification", MD(spec.BucketName), feedName)
 			if err = feed.Close(); err != nil {
-				Debugf(KeyDCP, "Error closing DCP Feed [%s-%s] based on termination notification, Error: %v", MD(spec.BucketName), feedName, err)
+				Debugf(logger.KeyDCP, "Error closing DCP Feed [%s-%s] based on termination notification, Error: %v", MD(spec.BucketName), feedName, err)
 			}
 			if args.DoneChan != nil {
 				close(args.DoneChan)
@@ -532,53 +545,60 @@ func (d *DCPLoggingDest) Close() error {
 
 func (d *DCPLoggingDest) DataUpdate(partition string, key []byte, seq uint64,
 	val []byte, cas uint64, extrasType cbgt.DestExtrasType, extras []byte) error {
-
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "DataUpdate:%s, %s, %d", partition, UD(string(key)), seq)
+	logger.For(logger.DCPKey).Trace().Msgf("DataUpdate:%s, %s, %d", partition, logger.UD(string(key)), seq)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "DataUpdate:%s, %s, %d", partition, logger.UD(string(key)), seq)
 	return d.dest.DataUpdate(partition, key, seq, val, cas, extrasType, extras)
 }
 
 func (d *DCPLoggingDest) DataUpdateEx(partition string, key []byte, seq uint64, val []byte,
 	cas uint64, extrasType cbgt.DestExtrasType, req interface{}) error {
-
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "DataUpdateEx:%s, %s, %d", partition, UD(string(key)), seq)
+	logger.For(logger.DCPKey).Trace().Msgf("DataUpdateEx:%s, %s, %d", partition, logger.UD(string(key)), seq)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "DataUpdateEx:%s, %s, %d", partition, logger.UD(string(key)), seq)
 	return d.dest.DataUpdateEx(partition, key, seq, val, cas, extrasType, req)
 }
 
 func (d *DCPLoggingDest) DataDelete(partition string, key []byte, seq uint64,
 	cas uint64, extrasType cbgt.DestExtrasType, extras []byte) error {
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "DataDelete:%s, %s, %d", partition, UD(string(key)), seq)
+	logger.For(logger.DCPKey).Trace().Msgf("DataDelete:%s, %s, %d", partition, logger.UD(string(key)), seq)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "DataDelete:%s, %s, %d", partition, logger.UD(string(key)), seq)
 	return d.dest.DataDelete(partition, key, seq, cas, extrasType, extras)
 }
 
 func (d *DCPLoggingDest) DataDeleteEx(partition string, key []byte, seq uint64,
 	cas uint64, extrasType cbgt.DestExtrasType, req interface{}) error {
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "DataDeleteEx:%s, %s, %d", partition, UD(string(key)), seq)
+	logger.For(logger.DCPKey).Trace().Msgf("DataDeleteEx:%s, %s, %d", partition, logger.UD(string(key)), seq)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "DataDeleteEx:%s, %s, %d", partition, logger.UD(string(key)), seq)
 	return d.dest.DataDeleteEx(partition, key, seq, cas, extrasType, req)
 }
 
 func (d *DCPLoggingDest) SnapshotStart(partition string,
 	snapStart, snapEnd uint64) error {
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "SnapshotStart:%d, %d, %d", partition, snapStart, snapEnd)
+	logger.For(logger.DCPKey).Trace().Msgf("SnapshotStart:%d, %d, %d", partition, snapStart, snapEnd)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "SnapshotStart:%d, %d, %d", partition, snapStart, snapEnd)
 	return d.dest.SnapshotStart(partition, snapStart, snapEnd)
 }
 
 func (d *DCPLoggingDest) OpaqueGet(partition string) (value []byte, lastSeq uint64, err error) {
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "OpaqueGet:%s", partition)
+	logger.For(logger.DCPKey).Trace().Msgf("OpaqueGet:%s", partition)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "OpaqueGet:%s", partition)
 	return d.dest.OpaqueGet(partition)
 }
 
 func (d *DCPLoggingDest) OpaqueSet(partition string, value []byte) error {
-	TracefCtx(d.dest.loggingCtx, KeyDCP, "OpaqueSet:%s, %s", partition, value)
+	logger.For(logger.DCPKey).Trace().Msgf("OpaqueSet:%s, %s", partition, value)
+	// logger.TracefCtx(d.dest.loggingCtx, logger.KeyDCP, "OpaqueSet:%s, %s", partition, value)
 	return d.dest.OpaqueSet(partition, value)
 }
 
 func (d *DCPLoggingDest) Rollback(partition string, rollbackSeq uint64) error {
-	InfofCtx(d.dest.loggingCtx, KeyDCP, "Rollback:%s, %d", partition, rollbackSeq)
+	logger.For(logger.DCPKey).Info().Msgf("Rollback:%s, %d", partition, rollbackSeq)
+	// logger.InfofCtx(d.dest.loggingCtx, logger.KeyDCP, "Rollback:%s, %d", partition, rollbackSeq)
 	return d.dest.Rollback(partition, rollbackSeq)
 }
 
 func (d *DCPLoggingDest) RollbackEx(partition string, vbucketUUID uint64, rollbackSeq uint64) error {
-	InfofCtx(d.dest.loggingCtx, KeyDCP, "RollbackEx:%s, %v, %d", partition, vbucketUUID, rollbackSeq)
+	logger.For(logger.DCPKey).Info().Msgf("RollbackEx:%s, %v, %d", partition, vbucketUUID, rollbackSeq)
+	// logger.InfofCtx(d.dest.loggingCtx, logger.KeyDCP, "RollbackEx:%s, %v, %d", partition, vbucketUUID, rollbackSeq)
 	return d.dest.RollbackEx(partition, vbucketUUID, rollbackSeq)
 }
 

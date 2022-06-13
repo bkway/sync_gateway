@@ -16,6 +16,7 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const kDefaultSessionTTL = 24 * time.Hour
@@ -157,7 +158,8 @@ func (h *handler) makeSessionFromNameAndEmail(username, email string, createUser
 			if email != user.Email() {
 				if err = h.db.Authenticator(h.db.Ctx).UpdateUserEmail(user, email); err != nil {
 					// Failure to update email during session creation is non-critical, log and continue.
-					base.InfofCtx(h.ctx(), base.KeyAuth, "Unable to update email for user %s during session creation.  Session will still be created. Error:%v,", base.UD(username), err)
+					//logger.InfofCtx(h.ctx(), logger.KeyAuth, "Unable to update email for user %s during session creation.  Session will still be created. Error:%v,", logger.UD(username), err)
+					logger.For(logger.AuthKey).Info().Msgf("Unable to update email for user %s during session creation.  Session will still be created. Error:%v,", logger.UD(username), err)
 				}
 			}
 		} else {

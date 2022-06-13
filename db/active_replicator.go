@@ -11,7 +11,6 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // ActiveReplicator is a wrapper to encapsulate separate push and pull active replicators.
@@ -53,14 +53,15 @@ func NewActiveReplicator(config *ActiveReplicatorConfig) *ActiveReplicator {
 		}
 	}
 
-	base.InfofCtx(config.ActiveDB.Ctx, base.KeyReplicate, "Created active replicator ID:%s statusKey: %s", config.ID, ar.statusKey)
+	//	logger.InfofCtx(config.ActiveDB.Ctx, logger.KeyReplicate, "Created active replicator ID:%s statusKey: %s", config.ID, ar.statusKey)
+	logger.For(logger.ReplicateKey).Info().Msgf("Created active replicator ID:%s statusKey: %s", config.ID, ar.statusKey)
 	return ar
 }
 
 func (ar *ActiveReplicator) Start() error {
 
 	if ar.Push == nil && ar.Pull == nil {
-		return fmt.Errorf("Attempted to start activeReplicator for %s with neither Push nor Pull defined", base.UD(ar.ID))
+		return fmt.Errorf("Attempted to start activeReplicator for %s with neither Push nor Pull defined", logger.UD(ar.ID))
 	}
 
 	var pushErr error
@@ -87,7 +88,7 @@ func (ar *ActiveReplicator) Start() error {
 func (ar *ActiveReplicator) Stop() error {
 
 	if ar.Push == nil && ar.Pull == nil {
-		return fmt.Errorf("Attempted to stop activeReplicator for %s with neither Push nor Pull defined", base.UD(ar.ID))
+		return fmt.Errorf("Attempted to stop activeReplicator for %s with neither Push nor Pull defined", logger.UD(ar.ID))
 	}
 
 	var pushErr error
@@ -206,9 +207,10 @@ func connect(arc *activeReplicatorCommon, idSuffix string) (blipSender *blip.Sen
 	}
 
 	bsc = NewBlipSyncContext(blipContext, arc.config.ActiveDB, blipContext.ID, arc.replicationStats)
-	bsc.loggingCtx = context.WithValue(context.Background(), base.LogContextKey{},
-		base.LogContext{CorrelationID: arc.config.ID + idSuffix},
-	)
+	// FIXME reintroduce context
+	// bsc.loggingCtx = context.WithValue(context.Background(), logger.LogContextKey{},
+	// 	logger.LogContext{CorrelationID: arc.config.ID + idSuffix},
+	// )
 
 	// NewBlipSyncContext has already set deltas as disabled/enabled based on config.ActiveDB.
 	// If deltas have been disabled in the replication config, override this value
@@ -311,7 +313,8 @@ func combinedState(state1, state2 string) (combinedState string) {
 		return ReplicationStateReconnecting
 	}
 
-	base.InfofCtx(context.Background(), base.KeyReplicate, "Unhandled combination of replication states (%s, %s), returning %s", state1, state2, state1)
+	//	logger.InfofCtx(context.Background(), logger.KeyReplicate, "Unhandled combination of replication states (%s, %s), returning %s", state1, state2, state1)
+	logger.For(logger.ReplicateKey).Info().Msgf("Unhandled combination of replication states (%s, %s), returning %s", state1, state2, state1)
 	return state1
 }
 

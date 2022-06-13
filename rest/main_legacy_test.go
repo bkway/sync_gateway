@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestLegacyFlagsValid(t *testing.T) {
 	assert.Equal(t, "admin-interface:123", config.API.AdminInterface)
 	assert.Equal(t, "prof", config.API.ProfileInterface)
 	assert.Equal(t, base.BoolPtr(true), config.API.Pretty)
-	assert.Equal(t, base.LogLevelPtr(base.LevelInfo), config.Logging.Console.LogLevel)
+	assert.Equal(t, base.LogLevelPtr(logger.LevelInfo), config.Logging.Console.LogLevel)
 	assert.Equal(t, "server-url.com", config.Bootstrap.Server)
 	assert.Equal(t, "cert", config.API.HTTPS.TLSCertPath)
 	assert.Equal(t, "key", config.API.HTTPS.TLSKeyPath)

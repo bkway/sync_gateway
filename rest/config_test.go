@@ -31,6 +31,8 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -349,7 +351,7 @@ func TestAutoImportEnabled(t *testing.T) {
 }
 
 func TestMergeWith(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	defaultInterface := "4984"
 	adminInterface := "127.0.0.1:4985"
 	profileInterface := "127.0.0.1:4985"
@@ -420,7 +422,7 @@ func TestMergeWith(t *testing.T) {
 
 func TestSetupAndValidateLogging(t *testing.T) {
 	t.Skip("Skipping TestSetupAndValidateLogging")
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	sc := &StartupConfig{}
 	err := sc.SetupAndValidateLogging()
 	assert.NoError(t, err, "Setup and validate logging should be successful")
@@ -429,16 +431,16 @@ func TestSetupAndValidateLogging(t *testing.T) {
 
 func TestSetupAndValidateLoggingWithLoggingConfig(t *testing.T) {
 	t.Skip("Skipping TestSetupAndValidateLoggingWithLoggingConfig")
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	logFilePath := "/var/log/sync_gateway"
-	sc := &StartupConfig{Logging: base.LoggingConfig{LogFilePath: logFilePath, RedactionLevel: base.RedactFull}}
+	sc := &StartupConfig{Logging: logger.LoggingConfig{LogFilePath: logFilePath, RedactionLevel: logger.RedactFull}}
 	err := sc.SetupAndValidateLogging()
 	assert.NoError(t, err, "Setup and validate logging should be successful")
-	assert.Equal(t, base.RedactFull, sc.Logging.RedactionLevel)
+	assert.Equal(t, logger.RedactFull, sc.Logging.RedactionLevel)
 }
 
 func TestServerConfigValidate(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	// unsupported.stats_log_freq_secs
 	statsLogFrequencySecs := uint(9)
 	unsupported := &UnsupportedServerConfigLegacy{StatsLogFrequencySecs: &statsLogFrequencySecs}
@@ -671,7 +673,7 @@ func TestParseCommandLineWithConfigContent(t *testing.T) {
 	guest := db1.Users["GUEST"]
 	require.NotNil(t, guest.Disabled)
 	assert.False(t, *guest.Disabled)
-	assert.Equal(t, base.SetFromArray([]string{"*"}), guest.ExplicitChannels)
+	assert.Equal(t, utils.SetFromArray([]string{"*"}), guest.ExplicitChannels)
 }
 
 func TestValidateServerContextSharedBuckets(t *testing.T) {
@@ -681,7 +683,7 @@ func TestValidateServerContextSharedBuckets(t *testing.T) {
 		t.Skip("Skipping this test; requires Couchbase Bucket")
 	}
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	tb1 := base.GetTestBucket(t)
 	defer tb1.Close()
@@ -1065,25 +1067,25 @@ func deleteTempFile(t *testing.T, file *os.File) {
 }
 
 func TestDefaultLogging(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	config := DefaultStartupConfig("")
-	assert.Equal(t, base.RedactPartial, config.Logging.RedactionLevel)
-	assert.Equal(t, true, base.RedactUserData)
+	assert.Equal(t, logger.RedactPartial, config.Logging.RedactionLevel)
+	assert.Equal(t, true, logger.RedactUserData)
 
 	require.NoError(t, config.SetupAndValidateLogging())
-	assert.Equal(t, base.LevelNone, *base.ConsoleLogLevel())
-	assert.Equal(t, []string{"HTTP"}, base.ConsoleLogKey().EnabledLogKeys())
+	assert.Equal(t, logger.LevelNone, *logger.ConsoleLogLevel())
+	assert.Equal(t, []string{"HTTP"}, logger.ConsoleLogKey().EnabledLogKeys())
 
 	// setting just a log key should enable logging
-	config.Logging.Console = &base.ConsoleLoggerConfig{LogKeys: []string{"CRUD"}}
+	config.Logging.Console = &logger.ConsoleLoggerConfig{LogKeys: []string{"CRUD"}}
 	require.NoError(t, config.SetupAndValidateLogging())
-	assert.Equal(t, base.LevelInfo, *base.ConsoleLogLevel())
-	assert.Equal(t, []string{"CRUD", "HTTP"}, base.ConsoleLogKey().EnabledLogKeys())
+	assert.Equal(t, logger.LevelInfo, *logger.ConsoleLogLevel())
+	assert.Equal(t, []string{"CRUD", "HTTP"}, logger.ConsoleLogKey().EnabledLogKeys())
 }
 
 func TestSetupServerContext(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	t.Run("Create server context with a valid configuration", func(t *testing.T) {
 		config := DefaultStartupConfig("")
 		config.Bootstrap.Server = base.UnitTestUrl() // Valid config requires server to be explicitly defined
@@ -1137,7 +1139,7 @@ func TestConfigGroupIDValidation(t *testing.T) {
 
 // CBG-1599
 func TestClientTLSMissing(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	errorTLSOneMissing := "both TLS Key Path and TLS Cert Path must be provided when using client TLS. Disable client TLS by not providing either of these options"
 	testCases := []struct {
 		name        string
@@ -2001,7 +2003,7 @@ func TestInvalidJavascriptFunctions(t *testing.T) {
 				dbConfig.ImportFilter = testCase.ImportFilter
 			}
 
-			err := dbConfig.validate(base.TestCtx(t), false)
+			err := dbConfig.validate(logger.TestCtx(t), false)
 
 			if testCase.ExpectErrorCount == 0 {
 				assert.NoError(t, err)

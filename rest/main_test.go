@@ -16,6 +16,7 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +62,7 @@ func TestConfigOverwritesLegacyFlags(t *testing.T) {
 
 	require.NotNil(t, sc)
 	// Overwrote
-	assert.Equal(t, base.LogLevelPtr(base.LevelDebug), sc.Logging.Console.LogLevel)
+	assert.Equal(t, base.LogLevelPtr(logger.LevelDebug), sc.Logging.Console.LogLevel)
 	assert.Equal(t, "localhost", sc.Bootstrap.Server)
 	// Not overwrote
 	assert.Equal(t, "1.2.3.4", sc.API.PublicInterface)

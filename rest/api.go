@@ -23,6 +23,7 @@ import (
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/felixge/fgprof"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -438,7 +439,8 @@ func (h *handler) handleProfiling() error {
 	// Handle no file
 	if params.File == "" {
 		if isCPUProfile {
-			base.InfofCtx(h.ctx(), base.KeyAll, "... ending CPU profile")
+			//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "... ending CPU profile")
+			logger.For(logger.SystemKey).Info().Err(err).Msgf("... ending CPU profile")
 			pprof.StopCPUProfile()
 			h.server.CloseCpuPprofFile()
 			return nil
@@ -452,24 +454,28 @@ func (h *handler) handleProfiling() error {
 	}
 
 	if isCPUProfile {
-		base.InfofCtx(h.ctx(), base.KeyAll, "Starting CPU profile to %s ...", base.UD(params.File))
+		//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "Starting CPU profile to %s ...", logger.UD(params.File))
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("Starting CPU profile to %s ...", logger.UD(params.File))
 		if err = pprof.StartCPUProfile(f); err != nil {
 			if fileError := os.Remove(params.File); fileError != nil {
-				base.InfofCtx(h.ctx(), base.KeyAll, "Error removing file: %s", base.UD(params.File))
+				//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "Error removing file: %s", logger.UD(params.File))
+				logger.For(logger.SystemKey).Info().Err(err).Msgf("Error removing file: %s", logger.UD(params.File))
 			}
 			return err
 		}
 		h.server.SetCpuPprofFile(f)
 		return err
 	} else if profile := pprof.Lookup(profileName); profile != nil {
-		base.InfofCtx(h.ctx(), base.KeyAll, "Writing %q profile to %s ...", profileName, base.UD(params.File))
+		//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "Writing %q profile to %s ...", profileName, logger.UD(params.File))
+		logger.For(logger.SystemKey).Info().Err(err).Msgf("Writing %q profile to %s ...", profileName, logger.UD(params.File))
 		err = profile.WriteTo(f, 0)
 	} else {
 		err = base.HTTPErrorf(http.StatusNotFound, "No such profile %q", profileName)
 	}
 
 	if fileCloseError := f.Close(); fileCloseError != nil {
-		base.WarnfCtx(h.ctx(), "Error closing profile file: %v", fileCloseError)
+		//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Error closing profile file: %v", fileCloseError)
+		logger.For(logger.SystemKey).Warn().Err(fileCloseError).Msgf("Error closing profile file")
 	}
 
 	return err
@@ -488,7 +494,8 @@ func (h *handler) handleHeapProfiling() error {
 		return err
 	}
 
-	base.InfofCtx(h.ctx(), base.KeyAll, "Dumping heap profile to %s ...", base.UD(params.File))
+	//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "Dumping heap profile to %s ...", logger.UD(params.File))
+	logger.For(logger.SystemKey).Info().Err(err).Msgf("Dumping heap profile to %s ...", logger.UD(params.File))
 	f, err := os.Create(params.File)
 	if err != nil {
 		return err
@@ -496,7 +503,8 @@ func (h *handler) handleHeapProfiling() error {
 	err = pprof.WriteHeapProfile(f)
 
 	if fileCloseError := f.Close(); fileCloseError != nil {
-		base.WarnfCtx(h.ctx(), "Error closing profile file: %v", fileCloseError)
+		//log.Ctx(h.ctx()).Warn().Err(err).Msgf("Error closing profile file: %v", fileCloseError)
+		logger.For(logger.SystemKey).Info().Err(fileCloseError).Msgf("Error closing profile file")
 	}
 
 	return err

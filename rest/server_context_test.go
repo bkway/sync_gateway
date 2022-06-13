@@ -23,6 +23,7 @@ import (
 
 	"github.com/couchbase/gocbcore/v10/connstr"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,7 +223,7 @@ func TestGetOrAddDatabaseFromConfig(t *testing.T) {
 }
 
 func TestStatsLoggerStopped(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	sc := DefaultStartupConfig("")
 
@@ -328,7 +329,7 @@ outerLoop:
 }
 
 func TestStartAndStopHTTPServers(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	tb := base.GetTestBucket(t)
 	defer tb.Close()
@@ -482,7 +483,7 @@ func TestTLSSkipVerifyGetBucketSpec(t *testing.T) {
 
 // CBG-1535 - test Bootstrap.UseTLSServer option
 func TestUseTLSServer(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	errorMustBeSecure := "Must use secure scheme in Couchbase Server URL, or opt out by setting bootstrap.use_tls_server to false. Current URL: %v"
 	errorAllowInsecureAndBeSecure := "Couchbase server URL cannot use secure protocol when bootstrap.use_tls_server is false. Current URL: %v"
 	testCases := []struct {
@@ -576,7 +577,7 @@ func TestLogFlush(t *testing.T) {
 			"Add trace",
 			5,
 			func(config StartupConfig) StartupConfig {
-				config.Logging.Trace = &base.FileLoggerConfig{
+				config.Logging.Trace = &logger.FileLoggerConfig{
 					Enabled: base.BoolPtr(true),
 				}
 				return config
@@ -586,10 +587,10 @@ func TestLogFlush(t *testing.T) {
 			"Add debug and trace",
 			6,
 			func(config StartupConfig) StartupConfig {
-				config.Logging.Debug = &base.FileLoggerConfig{
+				config.Logging.Debug = &logger.FileLoggerConfig{
 					Enabled: base.BoolPtr(true),
 				}
-				config.Logging.Trace = &base.FileLoggerConfig{
+				config.Logging.Trace = &logger.FileLoggerConfig{
 					Enabled: base.BoolPtr(true),
 				}
 				return config
@@ -599,7 +600,7 @@ func TestLogFlush(t *testing.T) {
 			"Disable error",
 			3,
 			func(config StartupConfig) StartupConfig {
-				config.Logging.Error = &base.FileLoggerConfig{
+				config.Logging.Error = &logger.FileLoggerConfig{
 					Enabled: base.BoolPtr(false),
 				}
 				return config
@@ -609,10 +610,10 @@ func TestLogFlush(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+			base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 			// Setup memory logging
-			base.InitializeMemoryLoggers()
+			logger.InitializeMemoryLoggers()
 
 			// Add temp dir to save log files to
 			tempPath, err := ioutil.TempDir("", "logs"+testCase.Name)
@@ -620,13 +621,14 @@ func TestLogFlush(t *testing.T) {
 			testDirName := filepath.Base(tempPath)
 
 			// Log some stuff (which will go into the memory loggers)
-			ctx := base.TestCtx(t)
-			base.ErrorfCtx(ctx, "error: "+testDirName)
-			base.WarnfCtx(ctx, "warn: "+testDirName)
-			base.InfofCtx(ctx, base.KeyAll, "info: "+testDirName)
-			base.DebugfCtx(ctx, base.KeyAll, "debug: "+testDirName)
-			base.TracefCtx(ctx, base.KeyAll, "trace: "+testDirName)
-			base.RecordStats("{}")
+			ctx := logger.TestCtx(t)
+			logger.ErrorfCtx(ctx, "error: "+testDirName)
+			// 			log.Ctx(ctx).Warn().Err(err).Msgf("warn: " + testDirName)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("warn: " + testDirName)
+			logger.InfofCtx(ctx, logger.KeyAll, "info: "+testDirName)
+			logger.DebugfCtx(ctx, logger.KeyAll, "debug: "+testDirName)
+			logger.TracefCtx(ctx, logger.KeyAll, "trace: "+testDirName)
+			logger.RecordStats("{}")
 
 			config := DefaultStartupConfig(tempPath)
 			config = testCase.EnableFunc(config)
@@ -636,7 +638,7 @@ func TestLogFlush(t *testing.T) {
 			assert.NoError(t, err)
 
 			// Flush memory loggers
-			base.FlushLoggerBuffers()
+			logger.FlushLoggerBuffers()
 
 			// Concurrent calls to FlushLogBuffers should not cause data race or wait group reuse issues
 			// Wait for concurrent calls so they don't cause issues with SetupAndValidateLogging from next t.Run
@@ -646,7 +648,7 @@ func TestLogFlush(t *testing.T) {
 				go func() {
 					defer flushCallsWg.Done()
 					// Flush collation buffers to ensure the files that will be built do get written
-					base.FlushLogBuffers()
+					logger.FlushLogBuffers()
 				}()
 			}
 			flushCallsWg.Wait()

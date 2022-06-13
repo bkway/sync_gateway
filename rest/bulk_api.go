@@ -22,6 +22,8 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -100,9 +102,9 @@ func (h *handler) handleAllDocs() error {
 	}
 
 	type allDocsRowValue struct {
-		Rev      string              `json:"rev"`
-		Channels []string            `json:"channels,omitempty"`
-		Access   map[string]base.Set `json:"access,omitempty"` // for admins only
+		Rev      string               `json:"rev"`
+		Channels []string             `json:"channels,omitempty"`
+		Access   map[string]utils.Set `json:"access,omitempty"` // for admins only
 	}
 	type allDocsRow struct {
 		Key       string           `json:"key"`
@@ -150,7 +152,7 @@ func (h *handler) handleAllDocs() error {
 				row.Doc = bodyBytes
 			}
 			if includeAccess && (access != nil || roleAccess != nil) {
-				value.Access = map[string]base.Set{}
+				value.Access = map[string]utils.Set{}
 				for userName, channels := range access {
 					value.Access[userName] = channels.AsSet()
 				}
@@ -230,7 +232,8 @@ func (h *handler) handleAllDocs() error {
 // HTTP handler for _dump
 func (h *handler) handleDump() error {
 	viewName := h.PathVar("view")
-	base.InfofCtx(h.ctx(), base.KeyHTTP, "Dump view %q", base.MD(viewName))
+	//logger.InfofCtx(h.ctx(), logger.KeyHTTP, "Dump view %q", logger.MD(viewName))
+	logger.For(logger.HTTPKey).Info().Msgf("Dump view %q", logger.MD(viewName))
 	opts := db.Body{"stale": false, "reduce": false}
 	result, err := h.db.Bucket.View(db.DesignDocSyncGateway(), viewName, opts)
 	if err != nil {
@@ -264,7 +267,8 @@ func (h *handler) handleRepair() error {
 		return errors.New("_repair endpoint disabled")
 	}
 
-	base.InfofCtx(h.ctx(), base.KeyHTTP, "Repair bucket")
+	//logger.InfofCtx(h.ctx(), logger.KeyHTTP, "Repair bucket")
+	logger.For(logger.HTTPKey).Info().Msgf("Repair bucket")
 
 	// Todo: is this actually needed or does something else in the handler do it?  I can't find that..
 	defer func() {
@@ -305,7 +309,8 @@ func (h *handler) handleRepair() error {
 func (h *handler) handleDumpChannel() error {
 	channelName := h.PathVar("channel")
 	since := h.getIntQuery("since", 0)
-	base.InfofCtx(h.ctx(), base.KeyHTTP, "Dump channel %q", base.UD(channelName))
+	//logger.InfofCtx(h.ctx(), logger.KeyHTTP, "Dump channel %q", logger.UD(channelName))
+	logger.For(logger.HTTPKey).Info().Msgf("Dump channel %q", logger.UD(channelName))
 
 	chanLog := h.db.GetChangeLog(channelName, since)
 	if chanLog == nil {
@@ -519,7 +524,8 @@ func (h *handler) handleBulkDocs() error {
 			status["status"] = code
 			status["error"] = base.CouchHTTPErrorName(code)
 			status["reason"] = msg
-			base.InfofCtx(h.ctx(), base.KeyAll, "\tBulkDocs: Doc %q --> %d %s (%v)", base.UD(docid), code, msg, err)
+			//logger.InfofCtx(h.ctx(), logger.KeyAll, "\tBulkDocs: Doc %q --> %d %s (%v)", logger.UD(docid), code, msg, err)
+			logger.For(logger.SystemKey).Info().Msgf("\tBulkDocs: Doc %q --> %d %s (%v)", logger.UD(docid), code, msg, err)
 			err = nil // wrote it to output already; not going to return it
 		} else {
 			status["rev"] = revid
@@ -545,7 +551,8 @@ func (h *handler) handleBulkDocs() error {
 			status["status"] = code
 			status["error"] = base.CouchHTTPErrorName(code)
 			status["reason"] = msg
-			base.InfofCtx(h.ctx(), base.KeyAll, "\tBulkDocs: Local Doc %q --> %d %s (%v)", base.UD(docid), code, msg, err)
+			//logger.InfofCtx(h.ctx(), logger.KeyAll, "\tBulkDocs: Local Doc %q --> %d %s (%v)", logger.UD(docid), code, msg, err)
+			logger.For(logger.SystemKey).Info().Msgf("\tBulkDocs: Local Doc %q --> %d %s (%v)", logger.UD(docid), code, msg, err)
 			err = nil
 		} else {
 			status["rev"] = revid

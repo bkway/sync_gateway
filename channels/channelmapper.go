@@ -13,13 +13,13 @@ import (
 	"strconv"
 
 	sgbucket "github.com/couchbase/sg-bucket"
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 	_ "github.com/robertkrimen/otto/underscore"
 )
 
 /** Result of running a channel-mapper function. */
 type ChannelMapperOutput struct {
-	Channels  base.Set  // channels assigned to the document via channel() callback
+	Channels  utils.Set // channels assigned to the document via channel() callback
 	Roles     AccessMap // roles granted to users via role() callback
 	Access    AccessMap // channels granted to users via access() callback
 	Rejection error     // Error associated with failed validate (require callbacks, etc)
@@ -31,7 +31,7 @@ type ChannelMapper struct {
 }
 
 // Maps user names (or role names prefixed with "role:") to arrays of channel or role names
-type AccessMap map[string]base.Set
+type AccessMap map[string]utils.Set
 
 // Number of SyncRunner tasks (and Otto contexts) to cache
 // Should be larger than sequence_allocator.maxBatchSize, to avoid pool overflow under some load scenarios (CBG-436)

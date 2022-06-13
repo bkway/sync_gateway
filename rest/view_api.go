@@ -18,14 +18,15 @@ import (
 	"net/http"
 
 	sgbucket "github.com/couchbase/sg-bucket"
-	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // HTTP handler for GET _design/$ddoc
 func (h *handler) handleGetDesignDoc() error {
 	ddocID := h.PathVar("ddoc")
-	base.DebugfCtx(h.ctx(), base.KeyAll, "GetDesignDoc %v", base.MD(ddocID))
+	//logger.DebugfCtx(h.ctx(), logger.KeyAll, "GetDesignDoc %v", logger.MD(ddocID))
+	logger.For(logger.SystemKey).Debug().Msgf("GetDesignDoc %v", logger.MD(ddocID))
 	var result interface{}
 	if ddocID == db.DesignDocSyncGateway() {
 		// we serve this content here so that CouchDB 1.2 has something to
@@ -112,7 +113,8 @@ func (h *handler) handleView() error {
 		}
 	}
 
-	base.InfofCtx(h.ctx(), base.KeyHTTP, "JSON view %q/%q - opts %v", base.MD(ddocName), base.MD(viewName), base.MD(opts))
+	//logger.InfofCtx(h.ctx(), logger.KeyHTTP, "JSON view %q/%q - opts %v", logger.MD(ddocName), logger.MD(viewName), logger.MD(opts))
+	logger.For(logger.HTTPKey).Info().Msgf("JSON view %q/%q - opts %v", logger.MD(ddocName), logger.MD(viewName), logger.MD(opts))
 
 	result, err := h.db.QueryDesignDoc(ddocName, viewName, opts)
 	if err != nil {

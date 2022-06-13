@@ -11,11 +11,11 @@ licenses/APL2.txt.
 package rest
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
@@ -25,7 +25,8 @@ import (
 func (h *handler) handleBLIPSync() error {
 	// Exit early when the connection can't be switched to websocket protocol.
 	if _, ok := h.response.(http.Hijacker); !ok {
-		base.DebugfCtx(h.db.Ctx, base.KeyHTTP, "Non-upgradable request received for BLIP+WebSocket protocol")
+		//logger.DebugfCtx(h.db.Ctx, logger.KeyHTTP, "Non-upgradable request received for BLIP+WebSocket protocol")
+		logger.For(logger.HTTPKey).Debug().Msgf("Non-upgradable request received for BLIP+WebSocket protocol")
 		return base.HTTPErrorf(http.StatusUpgradeRequired, "Can't upgrade this request to websocket connection")
 	}
 
@@ -44,9 +45,10 @@ func (h *handler) handleBLIPSync() error {
 	}
 
 	// Overwrite the existing logging context with the blip context ID
-	h.db.Ctx = context.WithValue(h.db.Ctx, base.LogContextKey{},
-		base.LogContext{CorrelationID: base.FormatBlipContextID(blipContext.ID)},
-	)
+	// FIXME reintroduce the context
+	// h.db.Ctx = context.WithValue(h.db.Ctx, logger.LogContextKey{},
+	// 	logger.LogContext{CorrelationID: logger.FormatBlipContextID(blipContext.ID)},
+	// )
 
 	// Create a new BlipSyncContext attached to the given blipContext.
 	ctx := db.NewBlipSyncContext(blipContext, h.db, h.formatSerialNumber(), db.BlipSyncStatsForCBL(h.db.DbStats))
@@ -65,7 +67,8 @@ func (h *handler) handleBLIPSync() error {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				h.logStatus(http.StatusSwitchingProtocols, fmt.Sprintf("[%s] Upgraded to WebSocket protocol %s+%s%s", blipContext.ID, blip.WebSocketSubProtocolPrefix, blipContext.ActiveSubprotocol(), h.formattedEffectiveUserName()))
-				defer base.InfofCtx(h.db.Ctx, base.KeyHTTP, "%s:    --> BLIP+WebSocket connection closed", h.formatSerialNumber())
+				defer //logger.InfofCtx(h.db.Ctx, logger.KeyHTTP, "%s:    --> BLIP+WebSocket connection closed", h.formatSerialNumber())
+				logger.For(logger.HTTPKey).Info().Msgf("%s:    --> BLIP+WebSocket connection closed", h.formatSerialNumber())
 				next.ServeHTTP(w, r)
 			})
 	}

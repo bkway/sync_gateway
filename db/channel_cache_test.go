@@ -19,13 +19,14 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChannelCacheMaxSize(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	bucket := base.GetTestBucket(t)
 
@@ -74,7 +75,7 @@ func getCacheUtilization(stats *base.CacheStats) (active, tombstones, removals i
 
 func TestChannelCacheSimpleCompact(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	// Define cache with max channels 20, hwm will be 16, low water mark will be 12
 	options := DefaultCacheOptions().ChannelCacheOptions
@@ -108,7 +109,7 @@ func TestChannelCacheSimpleCompact(t *testing.T) {
 
 func TestChannelCacheCompactInactiveChannels(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	// Define cache with max channels 20, watermarks 50/90
 	options := DefaultCacheOptions().ChannelCacheOptions
@@ -163,7 +164,7 @@ func TestChannelCacheCompactInactiveChannels(t *testing.T) {
 // between compact triggers.  In the second compact, NRU channels should have eviction priority.
 func TestChannelCacheCompactNRU(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	// Define cache with max channels 20, watermarks 50/90
 	options := DefaultCacheOptions().ChannelCacheOptions
@@ -256,7 +257,7 @@ func TestChannelCacheCompactNRU(t *testing.T) {
 // or equal to the CompactHighWatermark
 func TestChannelCacheHighLoadCacheHit(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelWarn, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelWarn, logger.KeyCache)
 
 	// Define cache with max channels 20, watermarks 50/90
 	options := DefaultCacheOptions().ChannelCacheOptions
@@ -326,7 +327,7 @@ func TestChannelCacheHighLoadCacheHit(t *testing.T) {
 // active.
 func TestChannelCacheHighLoadCacheMiss(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelWarn, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelWarn, logger.KeyCache)
 
 	// Define cache with max channels 100, watermarks 90/70
 	options := DefaultCacheOptions().ChannelCacheOptions
@@ -391,7 +392,7 @@ func TestChannelCacheHighLoadCacheMiss(t *testing.T) {
 // TestChannelCacheBypass validates that the bypass 'cache' is used when the cache max_num_channels is reached.
 // To force this scenario, HWM is set to 100%, which effectively disables compaction.
 func TestChannelCacheBypass(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelWarn, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelWarn, logger.KeyCache)
 
 	// Define cache with max channels 20, watermarks 50/100
 	options := DefaultCacheOptions().ChannelCacheOptions
@@ -488,7 +489,7 @@ func (qh *testQueryHandler) seedEntries(seededEntries LogEntries) {
 }
 
 func TestChannelCacheBackgroundTaskWithIllegalTimeInterval(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelWarn, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelWarn, logger.KeyCache)
 	options := DefaultCacheOptions().ChannelCacheOptions
 
 	// Specify illegal time interval for background task. Time interval should be > 0

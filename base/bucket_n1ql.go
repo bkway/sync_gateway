@@ -11,11 +11,11 @@ licenses/APL2.txt.
 package base
 
 import (
-	"context"
 	"strings"
 	"time"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 
 	pkgerrors "github.com/pkg/errors"
 	"gopkg.in/couchbase/gocb.v1"
@@ -55,7 +55,7 @@ func (bucket *CouchbaseBucketGoCB) Keyspace() string {
 //
 // Query retries on Indexer Errors, as these are normally transient
 func (bucket *CouchbaseBucketGoCB) Query(statement string, params map[string]interface{}, consistency ConsistencyMode, adhoc bool) (results sgbucket.QueryResultIterator, err error) {
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 	bucketStatement := strings.Replace(statement, KeyspaceQueryToken, bucket.GetName(), -1)
 	n1qlQuery := gocb.NewN1qlQuery(bucketStatement)
 	n1qlQuery = n1qlQuery.AdHoc(adhoc)
@@ -64,7 +64,7 @@ func (bucket *CouchbaseBucketGoCB) Query(statement string, params map[string]int
 	waitTime := 10 * time.Millisecond
 	for i := 1; i <= MaxQueryRetries; i++ {
 
-		TracefCtx(logCtx, KeyQuery, "Executing N1QL query: %v", UD(n1qlQuery))
+		logger.For(logger.QueryKey).Trace().Msgf("Executing N1QL query: %v", logger.UD(n1qlQuery))
 		queryResults, queryErr := bucket.runQuery(n1qlQuery, params)
 
 		if queryErr == nil {
@@ -78,19 +78,19 @@ func (bucket *CouchbaseBucketGoCB) Query(statement string, params map[string]int
 
 		// Non-retry error - return
 		if !isTransientIndexerError(queryErr) {
-			WarnfCtx(logCtx, "Error when querying index using statement: [%s] parameters: [%+v] error:%v", UD(bucketStatement), UD(params), queryErr)
+			logger.For(logger.QueryKey).Err(queryErr).Msgf("Error when querying index using statement: [%s] parameters: [%+v]", logger.UD(bucketStatement), logger.UD(params))
 			return queryResults, pkgerrors.WithStack(queryErr)
 		}
 
 		// Indexer error - wait then retry
 		err = queryErr
-		WarnfCtx(logCtx, "Indexer error during query - retry %d/%d after %v.  Error: %v", i, MaxQueryRetries, waitTime, queryErr)
+		logger.For(logger.QueryKey).Warn().Err(err).Msgf("Indexer error during query - retry %d/%d after %v.", i, MaxQueryRetries, waitTime)
 		time.Sleep(waitTime)
 
 		waitTime = time.Duration(waitTime * 2)
 	}
 
-	WarnfCtx(logCtx, "Exceeded max retries for query when querying index using statement: [%s], err:%v", UD(bucketStatement), err)
+	logger.For(logger.QueryKey).Err(err).Msgf("Exceeded max retries for query when querying index using statement: [%s]", logger.UD(bucketStatement))
 	return nil, err
 }
 

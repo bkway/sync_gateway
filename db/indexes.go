@@ -11,13 +11,13 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -222,7 +222,8 @@ func (i *SGIndex) createIfNeeded(bucket base.N1QLStore, useXattrs bool, numRepli
 			//  2. SG previously crashed between index creation and index build.
 			// GSI doesn't like concurrent build requests, so wait and recheck index state before treating as option 2.
 			// (see known issue documented https://developer.couchbase.com/documentation/server/current/n1ql/n1ql-language-reference/build-index.html)
-			base.InfofCtx(context.TODO(), base.KeyQuery, "Index %s already in deferred state - waiting 10s to re-evaluate before issuing build to avoid concurrent build requests.", indexName)
+			// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyQuery, "Index %s already in deferred state - waiting 10s to re-evaluate before issuing build to avoid concurrent build requests.", indexName)
+			logger.For(logger.QueryKey).Info().Msgf("Index %s already in deferred state - waiting 10s to re-evaluate before issuing build to avoid concurrent build requests.", indexName)
 			time.Sleep(10 * time.Second)
 			exists, indexMeta, metaErr = bucket.GetIndexMeta(indexName)
 			if metaErr != nil || indexMeta == nil {
@@ -235,10 +236,11 @@ func (i *SGIndex) createIfNeeded(bucket base.N1QLStore, useXattrs bool, numRepli
 		return false, nil
 	}
 
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 
 	// Create index
-	base.InfofCtx(logCtx, base.KeyQuery, "Index %s doesn't exist, creating...", indexName)
+	// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyQuery, "Index %s doesn't exist, creating...", indexName)
+	logger.For(logger.QueryKey).Info().Msgf("Index %s doesn't exist, creating...", indexName)
 	isDeferred = true
 	indexExpression := replaceSyncTokensIndex(i.expression, useXattrs)
 	filterExpression := replaceSyncTokensIndex(i.filterExpression, useXattrs)
@@ -264,7 +266,7 @@ func (i *SGIndex) createIfNeeded(bucket base.N1QLStore, useXattrs bool, numRepli
 			if strings.Contains(err.Error(), "not enough indexer nodes") {
 				return false, fmt.Errorf("Unable to create indexes with the specified number of replicas (%d).  Increase the number of index nodes, or modify 'num_index_replicas' in your Sync Gateway database config.", numReplica), nil
 			}
-			base.WarnfCtx(logCtx, "Error creating index %s: %v - will retry.", indexName, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error creating index %s: %v - will retry.", indexName, err)
 		}
 		return err != nil, err, nil
 	}
@@ -276,14 +278,16 @@ func (i *SGIndex) createIfNeeded(bucket base.N1QLStore, useXattrs bool, numRepli
 		return false, pkgerrors.Wrapf(err, "Error installing Couchbase index: %v", indexName)
 	}
 
-	base.InfofCtx(logCtx, base.KeyQuery, "Index %s created successfully", indexName)
+	// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyQuery, "Index %s created successfully", indexName)
+	logger.For(logger.QueryKey).Info().Msgf("Index %s created successfully", indexName)
 	return isDeferred, nil
 }
 
 // Initializes Sync Gateway indexes for bucket.  Creates required indexes if not found, then waits for index readiness.
 func InitializeIndexes(bucket base.N1QLStore, useXattrs bool, numReplicas uint) error {
 
-	base.InfofCtx(context.TODO(), base.KeyAll, "Initializing indexes with numReplicas: %d...", numReplicas)
+	// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Initializing indexes with numReplicas: %d...", numReplicas)
+	logger.For(logger.SystemKey).Info().Msgf("Initializing indexes with numReplicas: %d...", numReplicas)
 
 	// Create any indexes that aren't present
 	deferredIndexes := make([]string, 0)
@@ -292,7 +296,7 @@ func InitializeIndexes(bucket base.N1QLStore, useXattrs bool, numReplicas uint) 
 		fullIndexName := sgIndex.fullIndexName(useXattrs)
 		isDeferred, err := sgIndex.createIfNeeded(bucket, useXattrs, numReplicas)
 		if err != nil {
-			return base.RedactErrorf("Unable to install index %s: %v", base.MD(sgIndex.simpleName), err)
+			return logger.RedactErrorf("Unable to install index %s: %v", logger.MD(sgIndex.simpleName), err)
 		}
 
 		if isDeferred {
@@ -305,7 +309,8 @@ func InitializeIndexes(bucket base.N1QLStore, useXattrs bool, numReplicas uint) 
 	if len(deferredIndexes) > 0 {
 		buildErr := bucket.BuildDeferredIndexes(deferredIndexes)
 		if buildErr != nil {
-			base.InfofCtx(context.TODO(), base.KeyQuery, "Error building deferred indexes.  Error: %v", buildErr)
+			// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyQuery, "Error building deferred indexes.  Error: %v", buildErr)
+			logger.For(logger.QueryKey).Info().Msgf("Error building deferred indexes.  Error: %v", buildErr)
 			return buildErr
 		}
 	}
@@ -322,8 +327,9 @@ func InitializeIndexes(bucket base.N1QLStore, useXattrs bool, numReplicas uint) 
 // Issue a consistency=request_plus query against critical indexes to guarantee indexing is complete and indexes are ready.
 func waitForIndexes(bucket base.N1QLStore, useXattrs bool) error {
 	var indexesWg sync.WaitGroup
-	logCtx := context.TODO()
-	base.InfofCtx(logCtx, base.KeyAll, "Verifying index availability for bucket %s...", base.MD(bucket.GetName()))
+	// logCtx := context.TODO()
+	// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Verifying index availability for bucket %s...", logger.MD(bucket.GetName()))
+	logger.For(logger.SystemKey).Info().Msgf("Verifying index availability for bucket %s...", logger.MD(bucket.GetName()))
 	indexErrors := make(chan error, len(sgIndexes))
 
 	for _, sgIndex := range sgIndexes {
@@ -331,7 +337,8 @@ func waitForIndexes(bucket base.N1QLStore, useXattrs bool) error {
 			indexesWg.Add(1)
 			go func(index SGIndex) {
 				defer indexesWg.Done()
-				base.DebugfCtx(logCtx, base.KeyQuery, "Verifying index availability for index %s...", base.MD(index.fullIndexName(useXattrs)))
+				// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyQuery, "Verifying index availability for index %s...", logger.MD(index.fullIndexName(useXattrs)))
+				logger.For(logger.QueryKey).Info().Msgf("Verifying index availability for index %s...", logger.MD(index.fullIndexName(useXattrs)))
 				queryStatement := index.readinessQuery
 				if index.simpleName == QueryTypeChannels {
 					queryStatement = replaceActiveOnlyFilter(queryStatement, false)
@@ -340,10 +347,11 @@ func waitForIndexes(bucket base.N1QLStore, useXattrs bool) error {
 				queryStatement = replaceIndexTokensQuery(queryStatement, index, useXattrs)
 				queryErr := waitForIndex(bucket, index.fullIndexName(useXattrs), queryStatement)
 				if queryErr != nil {
-					base.WarnfCtx(logCtx, "Query error for statement [%s], err:%v", queryStatement, queryErr)
+					logger.For(logger.UnknownKey).Warn().Err(queryErr).Msgf("Query error for statement [%s], err:%v", queryStatement, queryErr)
 					indexErrors <- queryErr
 				}
-				base.DebugfCtx(logCtx, base.KeyQuery, "Index %s verified as ready", base.MD(index.fullIndexName(useXattrs)))
+				// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyQuery, "Index %s verified as ready", logger.MD(index.fullIndexName(useXattrs)))
+				logger.For(logger.QueryKey).Info().Msgf("Index %s verified as ready", logger.MD(index.fullIndexName(useXattrs)))
 			}(sgIndex)
 		}
 	}
@@ -355,7 +363,8 @@ func waitForIndexes(bucket base.N1QLStore, useXattrs bool) error {
 		return err
 	}
 
-	base.InfofCtx(logCtx, base.KeyAll, "Indexes ready for bucket %s.", base.MD(bucket.GetName()))
+	// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Indexes ready for bucket %s.", logger.MD(bucket.GetName()))
+	logger.For(logger.SystemKey).Info().Msgf("Indexes ready for bucket %s.", logger.MD(bucket.GetName()))
 	return nil
 }
 
@@ -363,7 +372,7 @@ func waitForIndexes(bucket base.N1QLStore, useXattrs bool) error {
 // Retries indefinitely on timeout, backoff retry on all other errors.
 func waitForIndex(bucket base.N1QLStore, indexName string, queryStatement string) error {
 
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 
 	// For non-timeout errors, backoff retry up to ~15m, to handle large initial indexing times
 	retrySleeper := base.CreateMaxDoublingSleeperFunc(180, 100, 5000)
@@ -375,7 +384,8 @@ func waitForIndex(bucket base.N1QLStore, indexName string, queryStatement string
 		if resultSet != nil {
 			resultSetCloseError := resultSet.Close()
 			if resultSetCloseError != nil {
-				base.InfofCtx(logCtx, base.KeyAll, "Failed to close query results when verifying index %q availability for bucket %q", base.MD(indexName), base.MD(bucket.GetName()))
+				// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Failed to close query results when verifying index %q availability for bucket %q", logger.MD(indexName), logger.MD(bucket.GetName()))
+				logger.For(logger.SystemKey).Info().Msgf("Failed to close query results when verifying index %q availability for bucket %q", logger.MD(indexName), logger.MD(bucket.GetName()))
 			}
 		}
 
@@ -384,9 +394,11 @@ func waitForIndex(bucket base.N1QLStore, indexName string, queryStatement string
 		}
 
 		if resultsError == base.ErrViewTimeoutError {
-			base.InfofCtx(logCtx, base.KeyAll, "Timeout waiting for index %q to be ready for bucket %q - retrying...", base.MD(indexName), base.MD(bucket.GetName()))
+			// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Timeout waiting for index %q to be ready for bucket %q - retrying...", logger.MD(indexName), logger.MD(bucket.GetName()))
+			logger.For(logger.SystemKey).Info().Msgf("Timeout waiting for index %q to be ready for bucket %q - retrying...", logger.MD(indexName), logger.MD(bucket.GetName()))
 		} else {
-			base.InfofCtx(logCtx, base.KeyAll, "Error waiting for index %q to be ready for bucket %q - retrying...", base.MD(indexName), base.MD(bucket.GetName()))
+			// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Error waiting for index %q to be ready for bucket %q - retrying...", logger.MD(indexName), logger.MD(bucket.GetName()))
+			logger.For(logger.SystemKey).Info().Msgf("Error waiting for index %q to be ready for bucket %q - retrying...", logger.MD(indexName), logger.MD(bucket.GetName()))
 			retryCount++
 			shouldContinue, sleepMs := retrySleeper(retryCount)
 			if !shouldContinue {
@@ -429,7 +441,8 @@ func removeObsoleteIndexes(bucket base.N1QLStore, previewOnly bool, useXattrs bo
 	for _, indexName := range removalCandidates {
 		removed, err := removeObsoleteIndex(bucket, indexName, previewOnly)
 		if err != nil {
-			base.WarnfCtx(context.TODO(), "Unexpected error when removing index %q: %s", indexName, err)
+			// 			log.Ctx(context.TODO()).Warn().Err(err).Msgf("Unexpected error when removing index %q: %s", indexName, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unexpected error when removing index %q: %s", indexName, err)
 		}
 		if removed {
 			removedIndexes = append(removedIndexes, indexName)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -251,7 +252,7 @@ func TestResumeStoppedFeed(t *testing.T) {
 		t.Skip("This test only works against Couchbase Server")
 	}
 
-	SetUpTestLogging(t, LevelDebug, KeyAll)
+	SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	bucket := GetTestBucket(t)
 	defer bucket.Close()

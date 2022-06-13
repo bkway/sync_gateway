@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,7 +159,7 @@ const (
 )
 
 func TestCache(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAuth)
 	var tests = []struct {
 		name      string
 		cache     Cache
@@ -209,7 +210,7 @@ func TestCache(t *testing.T) {
 }
 
 func TestCacheRace(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAuth)
 	const maxCacheSize = 5
 	var tests = []struct {
 		name      string
@@ -219,7 +220,7 @@ func TestCacheRace(t *testing.T) {
 		{"RandReplKeyCache", NewRandReplKeyCache(maxCacheSize), randReplKeyCache},
 		{"NoReplKeyCache", NewNoReplKeyCache(maxCacheSize), noReplKeyCache},
 	}
-	ctx := base.TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,7 +237,7 @@ func TestCacheRace(t *testing.T) {
 					defer wg.Done()
 					key := fmt.Sprintf("k%d", i)
 					cache.Put(key)
-					base.InfofCtx(ctx, base.KeyAuth, "Goroutine%v Put key: %v", i, key)
+					logger.InfofCtx(ctx, logger.KeyAuth, "Goroutine%v Put key: %v", i, key)
 				}(cache, i)
 
 				wg.Add(1)
@@ -244,7 +245,7 @@ func TestCacheRace(t *testing.T) {
 					defer wg.Done()
 					key := fmt.Sprintf("k%d", i)
 					ok := cache.Contains(key)
-					base.InfofCtx(ctx, base.KeyAuth, "Goroutine%v Contains: %v, key: %v", i, ok, key)
+					logger.InfofCtx(ctx, logger.KeyAuth, "Goroutine%v Contains: %v, key: %v", i, ok, key)
 				}(cache, i)
 			}
 			wg.Wait()

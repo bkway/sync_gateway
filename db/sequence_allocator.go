@@ -9,7 +9,6 @@
 package db
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const (
@@ -118,7 +118,7 @@ func (s *sequenceAllocator) releaseUnusedSequences() {
 	if s.last < s.max {
 		err := s.releaseSequenceRange(s.last+1, s.max)
 		if err != nil {
-			base.WarnfCtx(context.TODO(), "Error returned when releasing sequence range [%d-%d]. Falling back to skipped sequence handling.  Error:%v", s.last+1, s.max, err)
+			logger.For(logger.SystemKey).Warn().Err(err).Msgf("Error returned when releasing sequence range [%d-%d]. Falling back to skipped sequence handling.  Error:%v", s.last+1, s.max, err)
 		}
 	}
 	// Reduce batch size for next incr by the unused amount
@@ -150,7 +150,7 @@ func (s *sequenceAllocator) lastSequence() (uint64, error) {
 	s.dbStats.SequenceGetCount.Add(1)
 	last, err := s.getSequence()
 	if err != nil {
-		base.WarnfCtx(context.TODO(), "Error from Get in getSequence(): %v", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Error from Get in getSequence(): %v", err)
 	}
 	return last, err
 }
@@ -194,12 +194,13 @@ func (s *sequenceAllocator) _reserveSequenceRange() error {
 		if s.sequenceBatchSize > maxBatchSize {
 			s.sequenceBatchSize = maxBatchSize
 		}
-		base.DebugfCtx(context.TODO(), base.KeyCRUD, "Increased sequence batch to %d", s.sequenceBatchSize)
+		// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCRUD, "Increased sequence batch to %d", s.sequenceBatchSize)
+		logger.For(logger.CRUDKey).Info().Msgf("Increased sequence batch to %d", s.sequenceBatchSize)
 	}
 
 	max, err := s.incrementSequence(s.sequenceBatchSize)
 	if err != nil {
-		base.WarnfCtx(context.TODO(), "Error from incrementSequence in _reserveSequences(%d): %v", s.sequenceBatchSize, err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Error from incrementSequence in _reserveSequences(%d): %v", s.sequenceBatchSize, err)
 		return err
 	}
 
@@ -238,7 +239,8 @@ func (s *sequenceAllocator) releaseSequence(sequence uint64) error {
 		return err
 	}
 	s.dbStats.SequenceReleasedCount.Add(1)
-	base.DebugfCtx(context.TODO(), base.KeyCRUD, "Released unused sequence #%d", sequence)
+	// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCRUD, "Released unused sequence #%d", sequence)
+	logger.For(logger.CRUDKey).Info().Msgf("Released unused sequence #%d", sequence)
 	return nil
 }
 
@@ -255,7 +257,8 @@ func (s *sequenceAllocator) releaseSequenceRange(fromSequence, toSequence uint64
 		return err
 	}
 	s.dbStats.SequenceReleasedCount.Add(int64(toSequence - fromSequence + 1))
-	base.DebugfCtx(context.TODO(), base.KeyCRUD, "Released unused sequences #%d-#%d", fromSequence, toSequence)
+	// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCRUD, "Released unused sequences #%d-#%d", fromSequence, toSequence)
+	logger.For(logger.CRUDKey).Info().Msgf("Released unused sequences #%d-#%d", fromSequence, toSequence)
 	return nil
 }
 
@@ -267,7 +270,8 @@ func (s *sequenceAllocator) waitForReleasedSequences(startTime time.Time) (waite
 	if requiredWait < 0 {
 		return 0
 	}
-	base.InfofCtx(context.TODO(), base.KeyCache, "Waiting %v for sequence allocation...", requiredWait)
+	// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCache, "Waiting %v for sequence allocation...", requiredWait)
+	logger.For(logger.CacheKey).Info().Msgf("Waiting %v for sequence allocation...", requiredWait)
 	time.Sleep(requiredWait)
 	return requiredWait
 }

@@ -2,11 +2,11 @@ package base
 
 import (
 	"bytes"
-	"context"
 	"sync"
 	"time"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // DCP Worker manages checkpoint persistence and adds a configurable level of concurrency when
@@ -80,7 +80,7 @@ func (w *DCPWorker) Send(event streamEvent) {
 	select {
 	case w.eventFeed <- event:
 	case <-w.terminator:
-		InfofCtx(context.TODO(), KeyDCP, "Closing DCP worker, DCP Client was closed")
+		logger.For(logger.DCPKey).Info().Msg("Closing DCP worker, DCP Client was closed")
 	}
 }
 

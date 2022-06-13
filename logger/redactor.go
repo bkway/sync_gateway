@@ -8,13 +8,14 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 */
 
-package base
+package logger
 
 import (
 	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/couchbase/sync_gateway/utils"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -31,11 +32,31 @@ type Redactor interface {
 // definitely performing a redaction
 type RedactorFunc func() Redactor
 
-func (redactorFunc RedactorFunc) String() string {
-	return redactorFunc().String()
+func (p RedactorFunc) String() string {
+	return p().String()
+}
+
+func (p RedactorFunc) Redact() string {
+	return p().Redact()
 }
 
 type RedactorSlice []Redactor
+
+func (p RedactorSlice) Redact() string {
+	r := make([]string, len(p))
+	for i, v := range p {
+		r[i] = v.Redact()
+	}
+	return fmt.Sprintf("[ %s ]", strings.Join(r, ", "))
+}
+
+func (p RedactorSlice) String() string {
+	r := make([]string, len(p))
+	for i, v := range p {
+		r[i] = v.String()
+	}
+	return fmt.Sprintf("[ %s ]", strings.Join(r, ", "))
+}
 
 // redact performs an *in-place* redaction on the input slice, and returns it.
 // This should only be consumed by logging funcs. E.g. fmt.Printf(fmt, redact(args))
@@ -54,64 +75,32 @@ func redact(args []interface{}) []interface{} {
 	return args
 }
 
-func (redactorFunc RedactorFunc) Redact() string {
-	return redactorFunc().Redact()
-}
-
-func (redactorSlice RedactorSlice) Redact() string {
-	tmp := []byte{}
-	for _, item := range redactorSlice {
-		tmp = append(tmp, []byte(item.Redact())...)
-		tmp = append(tmp, ' ')
-	}
-	return "[ " + string(tmp) + "]"
-}
-
-func (redactorSlice RedactorSlice) String() string {
-	tmp := []byte{}
-	for _, item := range redactorSlice {
-		tmp = append(tmp, []byte(item.String())...)
-		tmp = append(tmp, ' ')
-	}
-	return "[ " + string(tmp) + "]"
-}
-
-func (set Set) buildRedactorSet(function func(interface{}) RedactorFunc) RedactorSet {
+func buildRedactorSet(set utils.Set, function func(interface{}) RedactorFunc) RedactorSet {
 	return RedactorSet{
-		set:          set,
-		redactorFunc: function,
+		set:      set,
+		redactor: function,
 	}
 }
 
 type RedactorSet struct {
-	set          Set
-	redactorFunc func(interface{}) RedactorFunc
+	set      utils.Set
+	redactor func(interface{}) RedactorFunc
 }
 
-func (redactorSet RedactorSet) Redact() string {
-	return redactorSet.GetRedactionString(true)
-}
-
-func (redactorSet RedactorSet) String() string {
-	return redactorSet.GetRedactionString(false)
-}
-
-func (redactorSet RedactorSet) GetRedactionString(shouldRedact bool) string {
-	tmp := []byte("{")
-	iterationCount := 0
-	for setItem := range redactorSet.set {
-		if shouldRedact {
-			tmp = append(tmp, redactorSet.redactorFunc(setItem).Redact()...)
-		} else {
-			tmp = append(tmp, redactorSet.redactorFunc(setItem).String()...)
-		}
-		iterationCount++
-		if iterationCount != len(redactorSet.set) {
-			tmp = append(tmp, ", "...)
-		}
+func (p RedactorSet) Redact() string {
+	tmp := make([]string, len(p.set))
+	for i, v := range p.set.ToArray() {
+		tmp[i] = p.redactor(v).Redact()
 	}
+	return fmt.Sprintf("{ %s }", strings.Join(tmp, ", "))
+}
 
-	return string(append(tmp, "}"...))
+func (p RedactorSet) String() string {
+	tmp := make([]string, len(p.set))
+	for i, v := range p.set.ToArray() {
+		tmp[i] = p.redactor(v).String()
+	}
+	return fmt.Sprintf("{ %s }", strings.Join(tmp, ", "))
 }
 
 func buildRedactorFuncSlice(valueOf reflect.Value, function func(interface{}) RedactorFunc) RedactorSlice {
@@ -123,8 +112,6 @@ func buildRedactorFuncSlice(valueOf reflect.Value, function func(interface{}) Re
 
 	return retVal
 }
-
-type RedactionLevel int
 
 const DefaultRedactionLevel = RedactPartial
 
@@ -147,6 +134,8 @@ func SetRedaction(redactionLevel RedactionLevel) {
 		RedactUserData = true
 	}
 }
+
+type RedactionLevel int
 
 // String returns a lower-case ASCII representation of the log redaction level.
 func (l RedactionLevel) String() string {

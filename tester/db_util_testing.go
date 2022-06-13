@@ -8,7 +8,7 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 */
 
-package db
+package tester
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -151,7 +152,7 @@ func (sw *StatWaiter) Wait() {
 		}
 	}
 
-	sw.tb.Errorf("StatWaiter.Wait timed out waiting for stat to reach %d (actual: %d) %s", sw.targetCount, actualCount, base.GetCallersName(2, true))
+	sw.tb.Errorf("StatWaiter.Wait timed out waiting for stat to reach %d (actual: %d) %s", sw.targetCount, actualCount, logger.GetCallersName(2, true))
 }
 
 func AssertEqualBodies(t *testing.T, expected, actual Body) {
@@ -374,12 +375,12 @@ func SuspendSequenceBatching() func() {
 
 // Public channel view call - for unit test support
 func (dbc *DatabaseContext) ChannelViewForTest(tb testing.TB, channelName string, startSeq, endSeq uint64) (LogEntries, error) {
-	return dbc.getChangesInChannelFromQuery(base.TestCtx(tb), channelName, startSeq, endSeq, 0, false)
+	return dbc.getChangesInChannelFromQuery(logger.TestCtx(tb), channelName, startSeq, endSeq, 0, false)
 }
 
 // Test-only version of GetPrincipal that doesn't trigger channel/role recalculation
 func (dbc *DatabaseContext) GetPrincipalForTest(tb testing.TB, name string, isUser bool) (info *PrincipalConfig, err error) {
-	ctx := base.TestCtx(tb)
+	ctx := logger.TestCtx(tb)
 	var princ auth.Principal
 	if isUser {
 		princ, err = dbc.Authenticator(ctx).GetUser(name)

@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // ActivePullReplicator is a unidirectional pull active replicator.
@@ -44,13 +44,15 @@ func (apr *ActivePullReplicator) Start() error {
 	}
 
 	apr.setState(ReplicationStateStarting)
-	logCtx := context.WithValue(context.Background(), base.LogContextKey{}, base.LogContext{CorrelationID: apr.config.ID + "-" + string(ActiveReplicatorTypePull)})
-	apr.ctx, apr.ctxCancel = context.WithCancel(logCtx)
+	// FIXME reintroduce context values
+	// logCtx := context.WithValue(context.Background(), logger.LogContextKey{}, logger.LogContext{CorrelationID: apr.config.ID + "-" + string(ActiveReplicatorTypePull)})
+	// apr.ctx, apr.ctxCancel = context.WithCancel(logCtx)
+	apr.ctx, apr.ctxCancel = context.WithCancel(context.TODO())
 
 	err := apr._connect()
 	if err != nil {
 		_ = apr.setError(err)
-		base.WarnfCtx(apr.ctx, "Couldn't connect. Attempting to reconnect in background: %v", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Couldn't connect. Attempting to reconnect in background: %v", err)
 		apr.reconnectActive.Set(true)
 		go apr.reconnectLoop()
 	}
@@ -104,7 +106,8 @@ func (apr *ActivePullReplicator) _connect() error {
 	apr.setState(ReplicationStateRunning)
 
 	if apr.blipSyncContext.blipContext.ActiveSubprotocol() == BlipCBMobileReplicationV2 && apr.config.PurgeOnRemoval {
-		base.ErrorfCtx(apr.config.ActiveDB.Ctx, "Pull replicator ID:%s running with revocations enabled but target does not support revocations. Sync Gateway 3.0 required.", apr.config.ID)
+		logger.For(logger.UnknownKey).Error().Msgf("Pull replicator ID:%s running with revocations enabled but target does not support revocations. Sync Gateway 3.0 required.", apr.config.ID)
+		// logger.ErrorfCtx(apr.config.ActiveDB.Ctx, "Pull replicator ID:%s running with revocations enabled but target does not support revocations. Sync Gateway 3.0 required.", apr.config.ID)
 	}
 
 	return nil
@@ -121,14 +124,16 @@ func (apr *ActivePullReplicator) Complete() {
 
 	err := apr.Checkpointer.waitForExpectedSequences()
 	if err != nil {
-		base.InfofCtx(apr.ctx, base.KeyReplicate, "Timeout draining replication %s - stopping: %v", apr.config.ID, err)
+		//		logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Timeout draining replication %s - stopping: %v", apr.config.ID, err)
+		logger.For(logger.ReplicateKey).Info().Msgf("Timeout draining replication %s - stopping: %v", apr.config.ID, err)
 	}
 
 	apr._stop()
 
 	stopErr := apr._disconnect()
 	if stopErr != nil {
-		base.InfofCtx(apr.ctx, base.KeyReplicate, "Error attempting to stop replication %s: %v", apr.config.ID, stopErr)
+		//		logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Error attempting to stop replication %s: %v", apr.config.ID, stopErr)
+		logger.For(logger.ReplicateKey).Info().Msgf("Error attempting to stop replication %s: %v", apr.config.ID, stopErr)
 	}
 	apr.setState(ReplicationStateStopped)
 
@@ -155,7 +160,8 @@ func (apr *ActivePullReplicator) _initCheckpointer() error {
 
 	var err error
 	apr.initialStatus, err = apr.Checkpointer.fetchCheckpoints()
-	base.InfofCtx(apr.ctx, base.KeyReplicate, "Initialized pull replication status: %+v", apr.initialStatus)
+	//	logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Initialized pull replication status: %+v", apr.initialStatus)
+	logger.For(logger.ReplicateKey).Info().Msgf("Initialized pull replication status: %+v", apr.initialStatus)
 	if err != nil {
 		return err
 	}

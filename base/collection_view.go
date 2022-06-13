@@ -11,7 +11,6 @@ licenses/APL2.txt.
 package base
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/couchbase/gocb/v2"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -195,7 +195,7 @@ func (c *Collection) View(ddoc, name string, params map[string]interface{}) (sgb
 
 		viewMeta, err := unmarshalViewMetadata(gocbViewResult)
 		if err != nil {
-			WarnfCtx(context.TODO(), "Unable to type get metadata for gocb ViewResult - the total rows count will be missing.")
+			logger.For(logger.QueryKey).Err(err).Msgf("Unable to type get metadata for gocb ViewResult - the total rows count will be missing.")
 		} else {
 			viewResult.TotalRows = viewMeta.TotalRows
 		}
@@ -277,7 +277,7 @@ func createViewOptions(params map[string]interface{}) (viewOpts *gocb.ViewOption
 		case ViewQueryParamLimit:
 			uintVal, err := normalizeIntToUint(optionValue)
 			if err != nil {
-				WarnfCtx(context.Background(), "ViewQueryParamLimit error: %v", err)
+				logger.For(logger.QueryKey).Warn().Err(err).Msg("ViewQueryParamLimit error")
 			}
 			viewOpts.Limit = uint32(uintVal)
 		case ViewQueryParamDescending:
@@ -287,7 +287,7 @@ func createViewOptions(params map[string]interface{}) (viewOpts *gocb.ViewOption
 		case ViewQueryParamSkip:
 			uintVal, err := normalizeIntToUint(optionValue)
 			if err != nil {
-				WarnfCtx(context.Background(), "ViewQueryParamSkip error: %v", err)
+				logger.For(logger.QueryKey).Warn().Err(err).Msg("ViewQueryParamSkip error")
 			}
 			viewOpts.Skip = uint32(uintVal)
 		case ViewQueryParamGroup:
@@ -295,7 +295,7 @@ func createViewOptions(params map[string]interface{}) (viewOpts *gocb.ViewOption
 		case ViewQueryParamGroupLevel:
 			uintVal, err := normalizeIntToUint(optionValue)
 			if err != nil {
-				WarnfCtx(context.Background(), "ViewQueryParamGroupLevel error: %v", err)
+				logger.For(logger.QueryKey).Warn().Err(err).Msg("ViewQueryParamGroupLevel error")
 			}
 			viewOpts.GroupLevel = uint32(uintVal)
 		case ViewQueryParamKey:
@@ -360,7 +360,7 @@ func asViewConsistency(value interface{}) gocb.ViewScanConsistency {
 		}
 		parsedVal, err := strconv.ParseBool(typeValue)
 		if err != nil {
-			WarnfCtx(context.Background(), "asStale called with unknown value: %v.  defaulting to stale=false", typeValue)
+			logger.For(logger.QueryKey).Warn().Err(err).Msgf("asStale called with unknown value: %v.  defaulting to stale=false", typeValue)
 			return gocb.ViewScanConsistencyRequestPlus
 		}
 		if parsedVal {
@@ -375,7 +375,7 @@ func asViewConsistency(value interface{}) gocb.ViewScanConsistency {
 			return gocb.ViewScanConsistencyRequestPlus
 		}
 	default:
-		WarnfCtx(context.Background(), "asViewConsistency called with unknown type: %T.  defaulting to RequestPlus", typeValue)
+		logger.For(logger.QueryKey).Warn().Msgf("asViewConsistency called with unknown type: %T.  defaulting to RequestPlus", typeValue)
 		return gocb.ViewScanConsistencyRequestPlus
 	}
 

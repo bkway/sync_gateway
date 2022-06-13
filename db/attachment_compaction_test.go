@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -213,7 +214,7 @@ func TestAttachmentCleanup(t *testing.T) {
 }
 
 func TestAttachmentMarkAndSweepAndCleanup(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	if base.UnitTestUrlIsWalrus() {
 		t.Skip("Requires CBS")
 	}
@@ -832,7 +833,7 @@ func TestAttachmentCompactIncorrectStat(t *testing.T) {
 		attKeys = append(attKeys, CreateLegacyAttachmentDoc(t, testDb, docID, []byte("{}"), attKey, attJSONBody))
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	// Start marking stage
 	terminator := base.NewSafeTerminator()
 	stat := &base.AtomicInt{}

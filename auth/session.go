@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 const kDefaultSessionTTL = 24 * time.Hour
@@ -126,7 +127,8 @@ func (auth Authenticator) DeleteSessionForCookie(rq *http.Request) *http.Cookie 
 	}
 
 	if err := auth.bucket.Delete(DocIDForSession(cookie.Value)); err != nil {
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "Error while deleting session for cookie %s, Error: %v", base.UD(cookie.Value), err)
+		// logger.DebugfCtx(auth.LogCtx, logger.KeyAuth, "Error while deleting session for cookie %s, Error: %v", logger.UD(cookie.Value), err)
+		logger.For(logger.AuthKey).Debug().Err(err).Msgf("Error while deleting session for cookie %s", logger.UD(cookie.Value))
 	}
 
 	newCookie := *cookie

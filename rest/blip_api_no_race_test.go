@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // TestBlipPusherUpdateDatabase starts a push replication and updates the database underneath the replication.
@@ -33,7 +34,7 @@ func TestBlipPusherUpdateDatabase(t *testing.T) {
 
 	t.Skip("Skipping test - revisit in CBG-1908")
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyHTTP, base.KeyHTTPResp, base.KeySync)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync)
 
 	tb := base.GetTestBucket(t)
 	defer tb.Close()

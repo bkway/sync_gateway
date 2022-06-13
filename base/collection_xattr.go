@@ -1,7 +1,6 @@
 package base
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/couchbase/gocbcore/v10"
 	"github.com/couchbase/gocbcore/v10/memd"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -96,13 +96,13 @@ func (c *Collection) SubdocGetXattr(k string, xattrKey string, xv interface{}) (
 		xattrContErr := res.ContentAt(0, xv)
 		// On error here, treat as the xattr wasn't found
 		if xattrContErr != nil {
-			DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContErr)
+			logger.For(logger.CRUDKey).Debug().Err(xattrContErr).Msgf("No xattr content found for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 			return 0, ErrXattrNotFound
 		}
 		cas := uint64(res.Cas())
 		return cas, nil
 	} else if errors.Is(lookupErr, gocbcore.ErrDocumentNotFound) {
-		DebugfCtx(context.TODO(), KeyCRUD, "No document found for key=%s", UD(k))
+		logger.For(logger.CRUDKey).Debug().Msgf("No document found for key=%s", logger.UD(k))
 		return 0, ErrNotFound
 	} else {
 		return 0, lookupErr
@@ -144,7 +144,7 @@ func (c *Collection) SubdocGetRaw(k string, subdocKey string) ([]byte, uint64, e
 
 	err, casOut := RetryLoopCas("SubdocGetRaw", worker, c.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocGetRaw with key %s and subdocKey %s", UD(k).Redact(), UD(subdocKey).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocGetRaw with key %s and subdocKey %s", logger.UD(k).Redact(), logger.UD(subdocKey).Redact())
 	}
 
 	return rawValue, casOut, err
@@ -177,7 +177,7 @@ func (c *Collection) SubdocWrite(k string, subdocKey string, cas uint64, value [
 
 	err, casOut := RetryLoopCas("SubdocWrite", worker, c.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocWrite with key %s and subdocKey %s", UD(k).Redact(), UD(subdocKey).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocWrite with key %s and subdocKey %s", logger.UD(k).Redact(), logger.UD(subdocKey).Redact())
 	}
 
 	return casOut, err
@@ -209,16 +209,16 @@ func (c *Collection) SubdocGetBodyAndXattr(k string, xattrKey string, userXattrK
 
 			if isKVError(docContentErr, memd.StatusSubDocMultiPathFailureDeleted) && isKVError(xattrContentErr, memd.StatusSubDocMultiPathFailureDeleted) {
 				// No doc, no xattr can be treated as NotFound from Sync Gateway's perspective, even if it is a server tombstone, but should return cas
-				DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(xattrContentErr).Msgf("No xattr content found for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 				return false, ErrNotFound, cas
 			}
 
 			if docContentErr != nil {
-				DebugfCtx(context.TODO(), KeyCRUD, "No document body found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), docContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(docContentErr).Msgf("No document body found for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 			}
 			// Attempt to retrieve the xattr, if present
 			if xattrContentErr != nil {
-				DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(xattrContentErr).Msgf("No xattr content found for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 			}
 
 		case gocbcore.ErrMemdSubDocMultiPathFailureDeleted:
@@ -227,7 +227,7 @@ func (c *Collection) SubdocGetBodyAndXattr(k string, xattrKey string, userXattrK
 			cas = uint64(res.Cas())
 			if xattrContentErr != nil {
 				// No doc, no xattr means the doc isn't found
-				DebugfCtx(context.TODO(), KeyCRUD, "No xattr content found for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), xattrContentErr)
+				logger.For(logger.CRUDKey).Debug().Err(xattrContentErr).Msgf("No xattr content found for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 				return false, ErrNotFound, cas
 			}
 			return false, nil, cas
@@ -266,7 +266,7 @@ func (c *Collection) SubdocGetBodyAndXattr(k string, xattrKey string, userXattrK
 	// Kick off retry loop
 	err, cas = RetryLoopCas("SubdocGetBodyAndXattr", worker, c.Spec.RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SubdocGetBodyAndXattr %v", UD(k).Redact())
+		err = pkgerrors.Wrapf(err, "SubdocGetBodyAndXattr %v", logger.UD(k).Redact())
 	}
 
 	return cas, err

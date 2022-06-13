@@ -19,6 +19,7 @@ import (
 	"github.com/couchbase/go-couchbase/cbdatasource"
 	"github.com/couchbase/gomemcached"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 	"gopkg.in/couchbaselabs/gocbconnstr.v1"
 )
@@ -48,17 +49,19 @@ func NewDCPReceiver(callback sgbucket.FeedEventCallbackFunc, bucket Bucket, maxV
 		DCPCommon: dcpCommon,
 	}
 
-	if LogDebugEnabled(KeyDCP) {
-		InfofCtx(r.loggingCtx, KeyDCP, "Using DCP Logging Receiver")
-		logRec := &DCPLoggingReceiver{rec: r}
-		return logRec, r.loggingCtx
-	}
+	// TODO use this?
+	// if logger.LogDebugEnabled(logger.KeyDCP) {
+	logger.For(logger.DCPKey).Info().Msg("Using DCP Logging Receiver")
+	logRec := &DCPLoggingReceiver{rec: r}
+	return logRec, r.loggingCtx
+	// }
 
 	return r, r.loggingCtx
 }
 
 func (r *DCPReceiver) OnError(err error) {
-	WarnfCtx(r.loggingCtx, "Error processing DCP stream - will attempt to restart/reconnect if appropriate: %v.", err)
+	logger.For(logger.DCPKey).Warn().Err(err).Msg("Error processing DCP stream - will attempt to restart/reconnect if appropriate")
+	// log.Ctx(r.loggingCtx, "Error processing DCP stream - will attempt to restart/reconnect if appropriate: %v.").Warn().Err(err).Msgf(err)
 	// From cbdatasource:
 	//  Invoked in advisory fashion by the BucketDataSource when it
 	//  encounters an error.  The BucketDataSource will continue to try
@@ -158,41 +161,47 @@ type DCPLoggingReceiver struct {
 }
 
 func (r *DCPLoggingReceiver) OnError(err error) {
-	InfofCtx(r.rec.loggingCtx, KeyDCP, "OnError: %v", err)
+	// logger.InfofCtx(r.rec.loggingCtx, logger.KeyDCP, "OnError: %v", err)
+	logger.For(logger.DCPKey).Info().Err(err).Msg("OnError")
 	r.rec.OnError(err)
 }
 
-func (r *DCPLoggingReceiver) DataUpdate(vbucketId uint16, key []byte, seq uint64,
-	req *gomemcached.MCRequest) error {
-	TracefCtx(r.rec.loggingCtx, KeyDCP, "DataUpdate:%d, %s, %d, %v", vbucketId, UD(string(key)), seq, UD(req))
+func (r *DCPLoggingReceiver) DataUpdate(vbucketId uint16, key []byte, seq uint64, req *gomemcached.MCRequest) error {
+	logger.For(logger.DCPKey).Trace().Msgf("DataUpdate:%d, %s, %d, %v", vbucketId, logger.UD(string(key)), seq, logger.UD(req))
+	// logger.TracefCtx(r.rec.loggingCtx, logger.KeyDCP, "DataUpdate:%d, %s, %d, %v", vbucketId, logger.UD(string(key)), seq, logger.UD(req))
 	return r.rec.DataUpdate(vbucketId, key, seq, req)
 }
 
 func (r *DCPLoggingReceiver) DataDelete(vbucketId uint16, key []byte, seq uint64,
 	req *gomemcached.MCRequest) error {
-	TracefCtx(r.rec.loggingCtx, KeyDCP, "DataDelete:%d, %s, %d, %v", vbucketId, UD(string(key)), seq, UD(req))
+	logger.For(logger.DCPKey).Trace().Msgf("DataDelete:%d, %s, %d, %v", vbucketId, logger.UD(string(key)), seq, logger.UD(req))
+	// logger.TracefCtx(r.rec.loggingCtx, logger.KeyDCP, "DataDelete:%d, %s, %d, %v", vbucketId, logger.UD(string(key)), seq, logger.UD(req))
 	return r.rec.DataDelete(vbucketId, key, seq, req)
 }
 
 func (r *DCPLoggingReceiver) Rollback(vbucketId uint16, rollbackSeq uint64) error {
-	InfofCtx(r.rec.loggingCtx, KeyDCP, "Rollback:%d, %d", vbucketId, rollbackSeq)
+	logger.For(logger.DCPKey).Trace().Msgf("Rollback:%d, %d", vbucketId, rollbackSeq)
+	// logger.InfofCtx(r.rec.loggingCtx, logger.KeyDCP, "Rollback:%d, %d", vbucketId, rollbackSeq)
 	return r.rec.Rollback(vbucketId, rollbackSeq)
 }
 
 func (r *DCPLoggingReceiver) SetMetaData(vbucketId uint16, value []byte) error {
-	TracefCtx(r.rec.loggingCtx, KeyDCP, "SetMetaData:%d, %s", vbucketId, value)
+	logger.For(logger.DCPKey).Trace().Msgf("SetMetaData:%d, %s", vbucketId, value)
+	// logger.TracefCtx(r.rec.loggingCtx, logger.KeyDCP, "SetMetaData:%d, %s", vbucketId, value)
 	return r.rec.SetMetaData(vbucketId, value)
 }
 
 func (r *DCPLoggingReceiver) GetMetaData(vbucketId uint16) (
 	value []byte, lastSeq uint64, err error) {
-	TracefCtx(r.rec.loggingCtx, KeyDCP, "GetMetaData:%d", vbucketId)
+	logger.For(logger.DCPKey).Trace().Msgf("GetMetaData:%d", vbucketId)
+	// logger.TracefCtx(r.rec.loggingCtx, logger.KeyDCP, "GetMetaData:%d", vbucketId)
 	return r.rec.GetMetaData(vbucketId)
 }
 
 func (r *DCPLoggingReceiver) SnapshotStart(vbucketId uint16,
 	snapStart, snapEnd uint64, snapType uint32) error {
-	TracefCtx(r.rec.loggingCtx, KeyDCP, "SnapshotStart:%d, %d, %d, %d", vbucketId, snapStart, snapEnd, snapType)
+	logger.For(logger.DCPKey).Trace().Msgf("SnapshotStart:%d, %d, %d, %d", vbucketId, snapStart, snapEnd, snapType)
+	// logger.TracefCtx(r.rec.loggingCtx, logger.KeyDCP, "SnapshotStart:%d, %d, %d, %d", vbucketId, snapStart, snapEnd, snapType)
 	return r.rec.SnapshotStart(vbucketId, snapStart, snapEnd, snapType)
 }
 
@@ -240,7 +249,7 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 
 	feedID := args.ID
 	if feedID == "" {
-		InfofCtx(context.TODO(), KeyDCP, "DCP feed started without feedID specified - defaulting to %s", DCPCachingFeedID)
+		logger.For(logger.DCPKey).Info().Msgf("DCP feed started without feedID specified - defaulting to %s", DCPCachingFeedID)
 		feedID = DCPCachingFeedID
 	}
 	receiver, loggingCtx := NewDCPReceiver(callback, bucket, maxVbno, persistCheckpoints, dbStats, feedID, args.CheckpointPrefix)
@@ -267,11 +276,12 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 	}
 
 	dataSourceOptions.Logf = func(fmt string, v ...interface{}) {
-		DebugfCtx(loggingCtx, KeyDCP, fmt, v...)
+		logger.For(logger.DCPKey).Debug().Msgf(fmt, v...)
 	}
 
 	dataSourceOptions.Name, err = GenerateDcpStreamName(feedID)
-	InfofCtx(loggingCtx, KeyDCP, "DCP feed starting with name %s", dataSourceOptions.Name)
+	logger.For(logger.DCPKey).Info().Msgf("DCP feed starting with name %s", dataSourceOptions.Name)
+	// logger.InfofCtx(loggingCtx, logger.KeyDCP, "DCP feed starting with name %s", dataSourceOptions.Name)
 	if err != nil {
 		return pkgerrors.Wrap(err, "unable to generate DCP stream name")
 	}
@@ -296,7 +306,9 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 	}
 
 	networkType := getNetworkTypeFromConnSpec(connSpec)
-	InfofCtx(loggingCtx, KeyDCP, "Using network type: %s", networkType)
+
+	logger.For(logger.DCPKey).Info().Msgf("Using network type: %s", networkType)
+	// logger.InfofCtx(loggingCtx, logger.KeyDCP, "Using network type: %s", networkType)
 
 	// default (aka internal) networking is handled by cbdatasource, so we can avoid the shims altogether in this case, for all other cases we need shims to remap hosts.
 	if networkType != clusterNetworkDefault {
@@ -304,7 +316,8 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 		dataSourceOptions.ConnectBucket, dataSourceOptions.Connect, dataSourceOptions.ConnectTLS = alternateAddressShims(loggingCtx, spec.IsTLS(), connSpec.Addresses, networkType)
 	}
 
-	DebugfCtx(loggingCtx, KeyDCP, "Connecting to new bucket datasource.  URLs:%s, pool:%s, bucket:%s", MD(urls), MD(poolName), MD(bucketName))
+	logger.For(logger.DCPKey).Debug().Msgf("Connecting to new bucket datasource.  URLs:%s, pool:%s, bucket:%s", logger.MD(urls), logger.MD(poolName), logger.MD(bucketName))
+	// logger.DebugfCtx(loggingCtx, logger.KeyDCP, "Connecting to new bucket datasource.  URLs:%s, pool:%s, bucket:%s", logger.MD(urls), logger.MD(poolName), logger.MD(bucketName))
 
 	bds, err := cbdatasource.NewBucketDataSource(
 		urls,
@@ -318,20 +331,22 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 	)
 
 	if err != nil {
-		return pkgerrors.WithStack(RedactErrorf("Error connecting to new bucket cbdatasource.  FeedID:%s URLs:%s, pool:%s, bucket:%s.  Error: %v", feedID, MD(urls), MD(poolName), MD(bucketName), err))
+		return pkgerrors.WithStack(logger.RedactErrorf("Error connecting to new bucket cbdatasource.  FeedID:%s URLs:%s, pool:%s, bucket:%s.  Error: %v", feedID, logger.MD(urls), logger.MD(poolName), logger.MD(bucketName), err))
 	}
 
 	if err = bds.Start(); err != nil {
-		return pkgerrors.WithStack(RedactErrorf("Error starting bucket cbdatasource.  FeedID:%s URLs:%s, pool:%s, bucket:%s.  Error: %v", feedID, MD(urls), MD(poolName), MD(bucketName), err))
+		return pkgerrors.WithStack(logger.RedactErrorf("Error starting bucket cbdatasource.  FeedID:%s URLs:%s, pool:%s, bucket:%s.  Error: %v", feedID, logger.MD(urls), logger.MD(poolName), logger.MD(bucketName), err))
 	}
 
 	// Close the data source if feed terminator is closed
 	if args.Terminator != nil {
 		go func() {
 			<-args.Terminator
-			TracefCtx(loggingCtx, KeyDCP, "Closing DCP Feed [%s-%s] based on termination notification", MD(bucketName), feedID)
+			logger.For(logger.DCPKey).Trace().Msgf("Closing DCP Feed [%s-%s] based on termination notification", logger.MD(bucketName), feedID)
+			// logger.TracefCtx(loggingCtx, logger.KeyDCP, "Closing DCP Feed [%s-%s] based on termination notification", logger.MD(bucketName), feedID)
 			if err := bds.Close(); err != nil {
-				DebugfCtx(loggingCtx, KeyDCP, "Error closing DCP Feed [%s-%s] based on termination notification, Error: %v", MD(bucketName), feedID, err)
+				logger.For(logger.DCPKey).Debug().Err(err).Msgf("Error closing DCP Feed [%s-%s] based on termination notification", logger.MD(bucketName), feedID)
+				// logger.DebugfCtx(loggingCtx, logger.KeyDCP, "Error closing DCP Feed [%s-%s] based on termination notification, Error: %v", logger.MD(bucketName), feedID, err)
 			}
 			if args.DoneChan != nil {
 				close(args.DoneChan)

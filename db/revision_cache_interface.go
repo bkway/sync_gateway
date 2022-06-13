@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 const (
@@ -115,7 +116,7 @@ type DocumentRevision struct {
 	// BodyBytes contains the raw document, with no special properties.
 	BodyBytes   []byte
 	History     Revisions
-	Channels    base.Set
+	Channels    utils.Set
 	Expiry      *time.Time
 	Attachments AttachmentsMeta
 	Delta       *RevisionDelta
@@ -228,7 +229,7 @@ type RevisionDelta struct {
 	ToRevID               string                  // Target revID for the delta
 	DeltaBytes            []byte                  // The actual delta
 	AttachmentStorageMeta []AttachmentStorageMeta // Storage metadata of all attachments present on ToRevID
-	ToChannels            base.Set                // Full list of channels for the to revision
+	ToChannels            utils.Set               // Full list of channels for the to revision
 	RevisionHistory       []string                // Revision history from parent of ToRevID to source revID, in descending order
 	ToDeleted             bool                    // Flag if ToRevID is a tombstone
 }
@@ -246,7 +247,7 @@ func newRevCacheDelta(deltaBytes []byte, fromRevID string, toRevision DocumentRe
 
 // This is the RevisionCacheLoaderFunc callback for the context's RevisionCache.
 // Its job is to load a revision from the bucket when there's a cache miss.
-func revCacheLoader(ctx context.Context, backingStore RevisionCacheBackingStore, id IDAndRev, unmarshalBody bool) (bodyBytes []byte, body Body, history Revisions, channels base.Set, removed bool, attachments AttachmentsMeta, deleted bool, expiry *time.Time, err error) {
+func revCacheLoader(ctx context.Context, backingStore RevisionCacheBackingStore, id IDAndRev, unmarshalBody bool) (bodyBytes []byte, body Body, history Revisions, channels utils.Set, removed bool, attachments AttachmentsMeta, deleted bool, expiry *time.Time, err error) {
 	var doc *Document
 	unmarshalLevel := DocUnmarshalSync
 	if unmarshalBody {
@@ -260,7 +261,7 @@ func revCacheLoader(ctx context.Context, backingStore RevisionCacheBackingStore,
 }
 
 // Common revCacheLoader functionality used either during a cache miss (from revCacheLoader), or directly when retrieving current rev from cache
-func revCacheLoaderForDocument(ctx context.Context, backingStore RevisionCacheBackingStore, doc *Document, revid string) (bodyBytes []byte, body Body, history Revisions, channels base.Set, removed bool, attachments AttachmentsMeta, deleted bool, expiry *time.Time, err error) {
+func revCacheLoaderForDocument(ctx context.Context, backingStore RevisionCacheBackingStore, doc *Document, revid string) (bodyBytes []byte, body Body, history Revisions, channels utils.Set, removed bool, attachments AttachmentsMeta, deleted bool, expiry *time.Time, err error) {
 	if bodyBytes, body, attachments, err = backingStore.getRevision(ctx, doc, revid); err != nil {
 		// If we can't find the revision (either as active or conflicted body from the document, or as old revision body backup), check whether
 		// the revision was a channel removal. If so, we want to store as removal in the revision cache

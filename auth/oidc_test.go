@@ -26,6 +26,7 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2"
@@ -33,7 +34,7 @@ import (
 )
 
 func TestOIDCProviderMap_GetDefaultProvider(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAuth)
 
 	cbProvider := OIDCProvider{
 		Name: "Couchbase",
@@ -106,7 +107,7 @@ func TestOIDCProviderMap_GetDefaultProvider(t *testing.T) {
 
 func TestOIDCProviderMap_GetProviderForIssuer(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAuth)
 
 	clientID := "SGW-TEST"
 	cbProvider := OIDCProvider{
@@ -164,7 +165,7 @@ func TestOIDCProviderMap_GetProviderForIssuer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
-			provider := providerMap.GetProviderForIssuer(base.TestCtx(t), test.Issuer, test.Audiences)
+			provider := providerMap.GetProviderForIssuer(logger.TestCtx(t), test.Issuer, test.Audiences)
 			assert.Equal(tt, test.ExpectedProvider, provider)
 		})
 	}
@@ -176,7 +177,7 @@ func TestOIDCUsername(t *testing.T) {
 		Issuer: "http://www.someprovider.com",
 	}
 
-	ctx := base.TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	err := provider.InitUserPrefix(ctx)
 	assert.NoError(t, err)
@@ -217,7 +218,7 @@ func TestInitOIDCClient(t *testing.T) {
 	OIDCDiscoveryRetryWait = 10 * time.Millisecond
 	defer func() { OIDCDiscoveryRetryWait = defaultWait }()
 
-	ctx := base.TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	t.Run("initialize openid connect client with nil provider", func(t *testing.T) {
 		provider := &OIDCProvider{}
@@ -256,7 +257,7 @@ func TestConcurrentSetConfig(t *testing.T) {
 		CallbackURL: base.StringPtr("http://sgw-test:4984/_callback"),
 	}
 
-	ctx := base.TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	err := provider.initOIDCClient(ctx)
 	require.NoError(t, err, "openid connect client initialization failure")
@@ -279,7 +280,7 @@ func TestConcurrentSetConfig(t *testing.T) {
 		fooMetadata.AuthorizationEndpoint = expectedAuthURL[0]
 		fooMetadata.TokenEndpoint = expectedTokenURL[0]
 		providerLock.Lock()
-		verifier = provider.generateVerifier(&fooMetadata, base.TestCtx(t))
+		verifier = provider.generateVerifier(&fooMetadata, logger.TestCtx(t))
 		require.NotNil(t, verifier, "error generating id token verifier")
 		provider.client.SetConfig(verifier, fooMetadata.endpoint())
 		providerLock.Unlock()
@@ -290,7 +291,7 @@ func TestConcurrentSetConfig(t *testing.T) {
 		barMetadata.AuthorizationEndpoint = expectedAuthURL[1]
 		barMetadata.TokenEndpoint = expectedTokenURL[1]
 		providerLock.Lock()
-		verifier = provider.generateVerifier(&barMetadata, base.TestCtx(t))
+		verifier = provider.generateVerifier(&barMetadata, logger.TestCtx(t))
 		require.NotNil(t, verifier, "error generating id token verifier")
 		provider.client.SetConfig(verifier, barMetadata.endpoint())
 		providerLock.Unlock()
@@ -411,7 +412,7 @@ func TestFetchCustomProviderConfig(t *testing.T) {
 			}
 			discoveryURL := GetStandardDiscoveryEndpoint(issuer)
 			op := &OIDCProvider{Issuer: issuer}
-			metadata, _, _, err := op.fetchCustomProviderConfig(base.TestCtx(t), discoveryURL)
+			metadata, _, _, err := op.fetchCustomProviderConfig(logger.TestCtx(t), discoveryURL)
 			if err != nil {
 				assert.True(t, test.wantErr, "Unexpected Error!")
 				return

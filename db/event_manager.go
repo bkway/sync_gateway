@@ -11,13 +11,13 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // EventManager routes raised events to corresponding event handlers.  Incoming events are just dumped in the
@@ -73,7 +73,8 @@ func (em *EventManager) Start(maxProcesses uint, waitTime int) {
 		em.waitTime = waitTime
 	}
 
-	base.InfofCtx(context.TODO(), base.KeyEvents, "Starting event manager with max processes:%d, wait time:%d ms", maxProcesses, em.waitTime)
+	// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyEvents, "Starting event manager with max processes:%d, wait time:%d ms", maxProcesses, em.waitTime)
+	logger.For(logger.EventsKey).Info().Msgf("Starting event manager with max processes:%d, wait time:%d ms", maxProcesses, em.waitTime)
 	// activeCountChannel limits the number of concurrent events being processed
 	em.activeCountChannel = make(chan bool, maxProcesses)
 
@@ -96,12 +97,13 @@ func (em *EventManager) Start(maxProcesses uint, waitTime int) {
 // Concurrent processing of all async event handlers registered for the event type
 func (em *EventManager) ProcessEvent(event Event) {
 	defer func() { <-em.activeCountChannel }()
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 	// Send event to all registered handlers concurrently.  WaitGroup blocks
 	// until all are finished
 	var wg sync.WaitGroup
 	for _, handler := range em.eventHandlers[event.EventType()] {
-		base.DebugfCtx(logCtx, base.KeyEvents, "Event queue worker sending event %s to: %s", base.UD(event.String()), handler)
+		// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyEvents, "Event queue worker sending event %s to: %s", logger.UD(event.String()), handler)
+		logger.For(logger.EventsKey).Info().Msgf("Event queue worker sending event %s to: %s", logger.UD(event.String()), handler)
 		wg.Add(1)
 		go func(event Event, handler EventHandler) {
 			defer wg.Done()
@@ -112,7 +114,8 @@ func (em *EventManager) ProcessEvent(event Event) {
 			} else {
 				em.IncrementEventsProcessedFail(1)
 			}
-			base.TracefCtx(logCtx, base.KeyAll, "Webhook event processed %s", event)
+			//			logger.TracefCtx(logCtx, logger.KeyAll, "Webhook event processed %s", event)
+			logger.For(logger.SystemKey).Trace().Msgf("Webhook event processed %s", event)
 
 		}(event, handler)
 	}
@@ -124,7 +127,8 @@ func (em *EventManager) ProcessEvent(event Event) {
 func (em *EventManager) RegisterEventHandler(handler EventHandler, eventType EventType) {
 	em.eventHandlers[eventType] = append(em.eventHandlers[eventType], handler)
 	em.activeEventTypes[eventType] = true
-	base.InfofCtx(context.Background(), base.KeyEvents, "Registered event handler: %v, for event type %v", handler, eventType)
+	// log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyEvents, "Registered event handler: %v, for event type %v", handler, eventType)
+	logger.For(logger.EventsKey).Info().Msgf("Registered event handler: %v, for event type %v", handler, eventType)
 }
 
 // Checks whether a handler of the given type has been registered to the event manager.
@@ -141,10 +145,12 @@ func (em *EventManager) raiseEvent(event Event) error {
 		defer timer.Stop()
 		select {
 		case em.asyncEventChannel <- event:
-			base.TracefCtx(context.TODO(), base.KeyAll, "Event sent to channel %s", event.String())
+			//			logger.TracefCtx(context.TODO(), logger.KeyAll, "Event sent to channel %s", event.String())
+			logger.For(logger.SystemKey).Trace().Msgf("Event sent to channel %s", event.String())
 		case <-timer.C:
 			// Event queue channel is full - ignore event and log error
-			base.WarnfCtx(context.TODO(), "Event queue full - discarding event: %s", base.UD(event.String()))
+			// log.Ctx(context.TODO()).Warn().Err(err).Msgf("Event queue full - discarding event: %s", logger.UD(event.String()))
+			logger.For(logger.SystemKey).Warn().Msgf("Event queue full - discarding event: %s", logger.UD(event.String()))
 			return errors.New("Event queue full")
 		}
 	}
@@ -154,7 +160,7 @@ func (em *EventManager) raiseEvent(event Event) error {
 
 // Raises a document change event based on the the document body and channel set.  If the
 // event manager doesn't have a listener for this event, ignores.
-func (em *EventManager) RaiseDocumentChangeEvent(docBytes []byte, docID string, oldBodyJSON string, channels base.Set, winningRevChange bool) error {
+func (em *EventManager) RaiseDocumentChangeEvent(docBytes []byte, docID string, oldBodyJSON string, channels utils.Set, winningRevChange bool) error {
 
 	if !em.activeEventTypes[DocumentChange] {
 		return nil
@@ -189,7 +195,7 @@ func (em *EventManager) RaiseDBStateChangeEvent(dbName string, state string, rea
 	body["admininterface"] = adminInterfaceStr
 	body["state"] = state
 	body["reason"] = reason
-	body["localtime"] = time.Now().Format(base.ISO8601Format)
+	body["localtime"] = time.Now().Format(time.RFC3339)
 
 	event := &DBStateChangeEvent{
 		Doc: body,

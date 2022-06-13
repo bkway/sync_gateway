@@ -14,8 +14,9 @@ licenses/APL2.txt.
 package base
 
 import (
-	"context"
 	"syscall"
+
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // Set Max File Descriptor limits
@@ -52,7 +53,7 @@ func SetMaxFileDescriptors(requestedSoftFDLimit uint64) (uint64, error) {
 	err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limits)
 
 	if err == nil {
-		InfofCtx(context.Background(), KeyAll, "Configured process to allow %d open file descriptors", recommendedSoftFDLimit)
+		logger.For(logger.SystemKey).Info().Msgf("Configured process to allow %d open file descriptors", recommendedSoftFDLimit)
 	}
 
 	return recommendedSoftFDLimit, err
@@ -84,14 +85,14 @@ func getSoftFDLimit(requestedSoftFDLimit uint64, limit syscall.Rlimit) (requires
 	// Is the user requesting something that is less than the existing soft limit?
 	if requestedSoftFDLimit <= currentSoftFdLimit {
 		// yep, and there is no point in doing so, so return false for requiresUpdate.
-		DebugfCtx(context.Background(), KeyAll, "requestedSoftFDLimit < currentSoftFdLimit (%v <= %v) no action needed", requestedSoftFDLimit, currentSoftFdLimit)
+		logger.For(logger.SystemKey).Debug().Msgf("requestedSoftFDLimit < currentSoftFdLimit (%v <= %v) no action needed", requestedSoftFDLimit, currentSoftFdLimit)
 		return false, currentSoftFdLimit
 	}
 
 	// Is the user requesting something higher than the existing hard limit?
 	if requestedSoftFDLimit >= currentHardFdLimit {
 		// yes, so just use the hard limit
-		InfofCtx(context.Background(), KeyAll, "requestedSoftFDLimit >= currentHardFdLimit (%v >= %v) capping at %v", requestedSoftFDLimit, currentHardFdLimit, currentHardFdLimit)
+		logger.For(logger.SystemKey).Warn().Msgf("requestedSoftFDLimit >= currentHardFdLimit (%v >= %v) capping at %v", requestedSoftFDLimit, currentHardFdLimit, currentHardFdLimit)
 		return true, currentHardFdLimit
 	}
 

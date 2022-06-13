@@ -11,7 +11,6 @@ licenses/APL2.txt.
 package base
 
 import (
-	"context"
 	"encoding/json"
 	"expvar"
 	"math"
@@ -21,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -102,7 +102,7 @@ func (s *SgwStats) String() string {
 	bytes, err := json.Marshal(s)
 	s.dbStatsMapMutex.Unlock()
 	if err != nil {
-		ErrorfCtx(context.Background(), "Unable to Marshal SgwStats: %v", err)
+		logger.For(logger.SystemKey).Err(err).Msg("Unable to Marshal SgwStats")
 		return "null"
 	}
 	return string(bytes)

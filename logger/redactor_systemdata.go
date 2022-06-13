@@ -8,11 +8,13 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 */
 
-package base
+package logger
 
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 const (
@@ -55,9 +57,9 @@ func SD(i interface{}) RedactorFunc {
 		return func() Redactor {
 			return SystemData(v)
 		}
-	case Set:
+	case utils.Set:
 		return func() Redactor {
-			return v.buildRedactorSet(SD)
+			return buildRedactorSet(v, SD)
 		}
 	case fmt.Stringer:
 		return func() Redactor {

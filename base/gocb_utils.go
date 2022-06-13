@@ -1,7 +1,6 @@
 package base
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/couchbase/gocb/v2"
 	"github.com/couchbase/gocbcore/v10"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // GoCBv2SecurityConfig returns a gocb.SecurityConfig to use when connecting given a CA Cert path.
@@ -149,7 +149,7 @@ func getRootCAs(caCertPath string) (*x509.CertPool, error) {
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
 		rootCAs = x509.NewCertPool()
-		WarnfCtx(context.Background(), "Could not retrieve root CAs: %v", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Could not retrieve root CAs: %v", err)
 	}
 	return rootCAs, nil
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 type StarMode int
@@ -36,33 +37,33 @@ func IsValidChannel(channel string) bool {
 }
 
 // Creates a new Set from an array of strings. Returns an error if any names are invalid.
-func SetFromArray(names []string, mode StarMode) (base.Set, error) {
+func SetFromArray(names []string, mode StarMode) (utils.Set, error) {
 	for _, name := range names {
 		if !IsValidChannel(name) {
 			return nil, illegalChannelError(name)
 		}
 	}
-	result := base.SetFromArray(names)
+	result := utils.SetFromArray(names)
 	switch mode {
 	case RemoveStar:
 		result = result.Removing(UserStarChannel)
 	case ExpandStar:
 		if result.Contains(UserStarChannel) {
-			result = base.SetOf(UserStarChannel)
+			result = utils.SetOf(UserStarChannel)
 		}
 	}
 	return result, nil
 }
 
 // If the set contains "*", returns a set of only "*". Else returns the original set.
-func ExpandingStar(set base.Set) base.Set {
+func ExpandingStar(set utils.Set) utils.Set {
 	if _, exists := set[UserStarChannel]; exists {
-		return base.SetOf(UserStarChannel)
+		return utils.SetOf(UserStarChannel)
 	}
 	return set
 }
 
 // Returns a set with any "*" channel removed.
-func IgnoringStar(set base.Set) base.Set {
+func IgnoringStar(set utils.Set) utils.Set {
 	return set.Removing(UserStarChannel)
 }

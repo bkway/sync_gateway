@@ -9,8 +9,8 @@
 package auth
 
 import (
-	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // A Principal is an abstract object that can have access to channels.
@@ -52,10 +52,10 @@ type Principal interface {
 	CanSeeChannelSince(channel string) uint64
 
 	// Returns an error if the Principal does not have access to all the channels in the set.
-	AuthorizeAllChannels(channels base.Set) error
+	AuthorizeAllChannels(channels utils.Set) error
 
 	// Returns an error if the Principal does not have access to any of the channels in the set.
-	AuthorizeAnyChannel(channels base.Set) error
+	AuthorizeAnyChannel(channels utils.Set) error
 
 	// Returns an appropriate HTTPError for unauthorized access -- a 401 if the receiver is
 	// the guest user, else 403.
@@ -135,13 +135,13 @@ type User interface {
 
 	// If the input set contains the wildcard "*" channel, returns the user's InheritedChannels;
 	// else returns the input channel list unaltered.
-	ExpandWildCardChannel(channels base.Set) base.Set
+	ExpandWildCardChannel(channels utils.Set) utils.Set
 
 	// Returns a TimedSet containing only the channels from the input set that the user has access
 	// to, annotated with the sequence number at which access was granted.
 	// Returns a string array containing any channels filtered out due to the user not having access
 	// to them.
-	FilterToAvailableChannels(channels base.Set) (filtered ch.TimedSet, removed []string)
+	FilterToAvailableChannels(channels utils.Set) (filtered ch.TimedSet, removed []string)
 
 	setRolesSince(ch.TimedSet)
 }

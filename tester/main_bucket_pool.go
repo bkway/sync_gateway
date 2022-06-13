@@ -8,7 +8,7 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 */
 
-package base
+package tester
 
 import (
 	"context"
@@ -22,6 +22,8 @@ import (
 	"time"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/couchbaselabs/walrus"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -38,9 +40,9 @@ const (
 
 const (
 	envTestClusterUsername     = "SG_TEST_USERNAME"
-	DefaultTestClusterUsername = DefaultCouchbaseAdministrator
+	DefaultTestClusterUsername = base.DefaultCouchbaseAdministrator
 	envTestClusterPassword     = "SG_TEST_PASSWORD"
-	DefaultTestClusterPassword = DefaultCouchbasePassword
+	DefaultTestClusterPassword = base.DefaultCouchbasePassword
 	envTestClusterDriver       = "SG_TEST_DRIVER"
 
 	// Creates this many buckets in the backing store to be pooled for testing.
@@ -61,13 +63,14 @@ const (
 	waitForReadyBucketTimeout = time.Minute
 )
 
+// FIXME this has no place in the main core code!
 // TestBucketPool is used to manage a pool of gocb buckets on a Couchbase Server for testing purposes.
 // The zero-value/uninitialized version of this struct is safe to use as Walrus buckets are returned.
 type TestBucketPool struct {
 	// integrationMode should be true if using Couchbase Server. If this is false, Walrus buckets are returned instead of pooled buckets.
 	integrationMode bool
 
-	readyBucketPool        chan Bucket
+	readyBucketPool        chan base.Bucket
 	cluster                tbpCluster
 	bucketReadierQueue     chan tbpBucketName
 	bucketReadierWaitGroup *sync.WaitGroup
@@ -83,7 +86,7 @@ type TestBucketPool struct {
 	preservedBucketCount uint32
 
 	// verbose flag controls debug test pool logging.
-	verbose AtomicBool
+	verbose base.AtomicBool
 
 	// keep track of tests that don't close their buckets, map of test names to bucket names
 	unclosedBuckets     map[string]map[string]struct{}
@@ -102,9 +105,9 @@ func NewTestBucketPool(bucketReadierFunc TBPBucketReadierFunc, bucketInitFunc TB
 		return &tbp
 	}
 
-	_, err := SetMaxFileDescriptors(5000)
+	_, err := base.SetMaxFileDescriptors(5000)
 	if err != nil {
-		FatalfCtx(context.TODO(), "couldn't set max file descriptors: %v", err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msg("couldn't set max file descriptors")
 	}
 
 	numBuckets := tbpNumBuckets()
@@ -118,7 +121,7 @@ func NewTestBucketPool(bucketReadierFunc TBPBucketReadierFunc, bucketInitFunc TB
 
 	tbp := TestBucketPool{
 		integrationMode:        true,
-		readyBucketPool:        make(chan Bucket, numBuckets),
+		readyBucketPool:        make(chan base.Bucket, numBuckets),
 		bucketReadierQueue:     make(chan tbpBucketName, numBuckets),
 		bucketReadierWaitGroup: &sync.WaitGroup{},
 		ctxCancelFunc:          ctxCancelFunc,
@@ -152,8 +155,8 @@ func NewTestBucketPool(bucketReadierFunc TBPBucketReadierFunc, bucketInitFunc TB
 
 // Fatalf logs and exits.
 func (tbp *TestBucketPool) Fatalf(ctx context.Context, format string, args ...interface{}) {
-	format = addPrefixes(format, ctx, LevelNone, KeySGTest)
-	FatalfCtx(ctx, format, args...)
+	format = addPrefixes(format, ctx, logger.LevelNone, logger.KeySGTest)
+	logger.FatalfCtx(ctx, format, args...)
 }
 
 // Logf formats the given test bucket logging and logs to stderr.
@@ -162,7 +165,7 @@ func (tbp *TestBucketPool) Logf(ctx context.Context, format string, args ...inte
 		return
 	}
 
-	format = addPrefixes(format, ctx, LevelNone, KeySGTest)
+	format = addPrefixes(format, ctx, logger.LevelNone, logger.KeySGTest)
 	if colorEnabled() {
 		// Green
 		format = "\033[0;32m" + format + "\033[0m"
@@ -188,7 +191,7 @@ func (tbp *TestBucketPool) markBucketClosed(t testing.TB, b Bucket) {
 	defer tbp.unclosedBucketsLock.Unlock()
 
 	// Check for unclosed view query operations. A fatal error will occur if queue is not cleared
-	testCtx := TestCtx(t)
+	testCtx := logger.TestCtx(t)
 	switch typedBucket := b.(type) {
 	case *Collection:
 		tbp.checkForViewOpsQueueEmptied(testCtx, b.GetName(), typedBucket.queryOps)
@@ -216,7 +219,7 @@ func (tbp *TestBucketPool) checkForViewOpsQueueEmptied(ctx context.Context, buck
 }
 
 func (tbp *TestBucketPool) GetWalrusTestBucket(t testing.TB, url string) (b Bucket, s BucketSpec, teardown func()) {
-	testCtx := TestCtx(t)
+	testCtx := logger.TestCtx(t)
 	if !UnitTestUrlIsWalrus() {
 		tbp.Fatalf(testCtx, "nil TestBucketPool, but not using a Walrus test URL")
 	}
@@ -270,7 +273,7 @@ func (tbp *TestBucketPool) GetWalrusTestBucket(t testing.TB, url string) (b Buck
 // which closes the bucket, readies it for a new test, and releases back into the pool.
 func (tbp *TestBucketPool) GetTestBucketAndSpec(t testing.TB) (b Bucket, s BucketSpec, teardownFn func()) {
 
-	ctx := TestCtx(t)
+	ctx := logger.TestCtx(t)
 
 	// Return a new Walrus bucket when tbp has not been initialized
 	if !tbp.integrationMode {
@@ -716,7 +719,7 @@ func tbpNumBuckets() int {
 		var err error
 		numBuckets, err = strconv.Atoi(envPoolSize)
 		if err != nil {
-			FatalfCtx(context.TODO(), "Couldn't parse %s: %v", tbpEnvPoolSize, err)
+			logger.FatalfCtx(context.TODO(), "Couldn't parse %s: %v", tbpEnvPoolSize, err)
 		}
 	}
 	return numBuckets
@@ -729,7 +732,7 @@ func tbpBucketQuotaMB() int {
 		var err error
 		bucketQuota, err = strconv.Atoi(envBucketQuotaMB)
 		if err != nil {
-			FatalfCtx(context.TODO(), "Couldn't parse %s: %v", tbpEnvBucketQuotaMB, err)
+			logger.FatalfCtx(context.TODO(), "Couldn't parse %s: %v", tbpEnvBucketQuotaMB, err)
 		}
 	}
 	return bucketQuota

@@ -1,7 +1,6 @@
 package rest
 
 import (
-	"context"
 	"os"
 	"runtime"
 	"time"
@@ -9,6 +8,8 @@ import (
 	"github.com/couchbase/go-couchbase"
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 const (
@@ -43,9 +44,9 @@ func DefaultStartupConfig(defaultLogFilePath string) StartupConfig {
 			MetricsInterfaceAuthentication:            base.BoolPtr(true),
 			EnableAdminAuthenticationPermissionsCheck: base.BoolPtr(false), // TODO remove, was only for EE
 		},
-		Logging: base.LoggingConfig{
-			LogFilePath:    defaultLogFilePath,
-			RedactionLevel: base.DefaultRedactionLevel,
+		Logging: logger.ConfigOpts{
+			// LogFilePath:    defaultLogFilePath,
+			// Redaction: logger.DefaultRedactionLevel,
 		},
 		Auth: AuthConfig{
 			BcryptCost: auth.DefaultBcryptCost,
@@ -59,12 +60,12 @@ func DefaultStartupConfig(defaultLogFilePath string) StartupConfig {
 
 // StartupConfig is the config file used by Sync Gateway in 3.0+ to start up with node-specific settings, and then bootstrap databases via Couchbase Server.
 type StartupConfig struct {
-	Bootstrap   BootstrapConfig    `json:"bootstrap,omitempty"`
-	API         APIConfig          `json:"api,omitempty"`
-	Logging     base.LoggingConfig `json:"logging,omitempty"`
-	Auth        AuthConfig         `json:"auth,omitempty"`
-	Replicator  ReplicatorConfig   `json:"replicator,omitempty"`
-	Unsupported UnsupportedConfig  `json:"unsupported,omitempty"`
+	Bootstrap   BootstrapConfig   `json:"bootstrap,omitempty"`
+	API         APIConfig         `json:"api,omitempty"`
+	Logging     logger.ConfigOpts `json:"logging,omitempty"`
+	Auth        AuthConfig        `json:"auth,omitempty"`
+	Replicator  ReplicatorConfig  `json:"replicator,omitempty"`
+	Unsupported UnsupportedConfig `json:"unsupported,omitempty"`
 
 	DatabaseCredentials PerDatabaseCredentialsConfig `json:"database_credentials,omitempty" help:"A map of database name to credentials, that can be used instead of the bootstrap ones."`
 
@@ -162,7 +163,7 @@ type DeprecatedConfig struct {
 func (sc *StartupConfig) Redacted() (*StartupConfig, error) {
 	var config StartupConfig
 
-	err := base.DeepCopyInefficient(&config, sc)
+	err := utils.DeepCopyInefficient(&config, sc)
 	if err != nil {
 		return nil, err
 	}
@@ -199,14 +200,14 @@ func NewEmptyStartupConfig() StartupConfig {
 		API: APIConfig{
 			CORS: &CORSConfig{},
 		},
-		Logging: base.LoggingConfig{
-			Console: &base.ConsoleLoggerConfig{},
-			Error:   &base.FileLoggerConfig{},
-			Warn:    &base.FileLoggerConfig{},
-			Info:    &base.FileLoggerConfig{},
-			Debug:   &base.FileLoggerConfig{},
-			Trace:   &base.FileLoggerConfig{},
-			Stats:   &base.FileLoggerConfig{},
+		Logging: logger.ConfigOpts{
+			// Console: &logger.ConsoleLoggerConfig{},
+			// Error:   &logger.FileLoggerConfig{},
+			// Warn:    &logger.FileLoggerConfig{},
+			// Info:    &logger.FileLoggerConfig{},
+			// Debug:   &logger.FileLoggerConfig{},
+			// Trace:   &logger.FileLoggerConfig{},
+			// Stats:   &logger.FileLoggerConfig{},
 		},
 		Unsupported: UnsupportedConfig{
 			HTTP2: &HTTP2Config{},
@@ -224,12 +225,13 @@ func setGlobalConfig(sc *StartupConfig) error {
 		cpus := runtime.NumCPU()
 		if cpus > 1 {
 			runtime.GOMAXPROCS(cpus)
-			base.InfofCtx(context.Background(), base.KeyAll, "Configured Go to use all %d CPUs; setenv GOMAXPROCS to override this", cpus)
+			//logger.InfofCtx(context.Background(), logger.KeyAll, "Configured Go to use all %d CPUs; setenv GOMAXPROCS to override this", cpus)
+			logger.For(logger.SystemKey).Info().Msgf("Configured Go to use all %d CPUs; setenv GOMAXPROCS to override this", cpus)
 		}
 	}
 
 	if _, err := base.SetMaxFileDescriptors(sc.MaxFileDescriptors); err != nil {
-		base.ErrorfCtx(context.Background(), "Error setting MaxFileDescriptors to %d: %v", sc.MaxFileDescriptors, err)
+		logger.For(logger.SystemKey).Err(err).Msgf("Error setting MaxFileDescriptors to %d: %v", sc.MaxFileDescriptors)
 	}
 
 	// TODO: Remove with GoCB DCP switch
@@ -239,7 +241,8 @@ func setGlobalConfig(sc *StartupConfig) error {
 
 	// Given unscoped usage of base.JSON functions, this can't be scoped.
 	if base.BoolDefault(sc.Unsupported.UseStdlibJSON, false) {
-		base.InfofCtx(context.Background(), base.KeyAll, "Using the stdlib JSON package")
+		//logger.InfofCtx(context.Background(), logger.KeyAll, "Using the stdlib JSON package")
+		logger.For(logger.SystemKey).Info().Msg("Using the stdlib JSON package")
 		base.UseStdlibJSON = true
 	}
 

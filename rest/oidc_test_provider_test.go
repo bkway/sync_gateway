@@ -29,6 +29,7 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -106,7 +107,7 @@ func TestCreateJWTToken(t *testing.T) {
 }
 
 func TestExtractSubjectFromRefreshToken(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	// Extract subject from invalid refresh token
 	sub, err := extractSubjectFromRefreshToken("invalid_refresh_token")
 	require.Error(t, err, "invalid refresh token error")

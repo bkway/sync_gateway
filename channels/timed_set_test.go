@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,12 +31,12 @@ func TestTimedSetMarshal(t *testing.T) {
 	assert.NoError(t, err, "Marshal")
 	assert.Equal(t, `{"Channels":{}}`, string(bytes))
 
-	str.Channels = AtSequence(SetOf(t, "a"), 17)
+	str.Channels = AtSequence(SetOfTester(t, "a"), 17)
 	bytes, err = json.Marshal(str)
 	assert.NoError(t, err, "Marshal")
 	assert.Equal(t, `{"Channels":{"a":17}}`, string(bytes))
 
-	str.Channels = AtSequence(SetOf(t, "a", "b"), 17)
+	str.Channels = AtSequence(SetOfTester(t, "a", "b"), 17)
 	bytes, err = json.Marshal(str)
 	assert.NoError(t, err, "Marshal")
 	// Ordering of JSON keys can vary - so just check each channel is present with the correct sequence
@@ -98,16 +98,16 @@ func TestEncodeSequenceID(t *testing.T) {
 
 func TestEqualsWithEqualSet(t *testing.T) {
 	set1 := TimedSet{"ABC": NewVbSimpleSequence(17), "CBS": NewVbSimpleSequence(23), "BBC": NewVbSimpleSequence(1)}
-	set2 := base.SetFromArray([]string{"ABC", "CBS", "BBC"})
+	set2 := utils.SetFromArray([]string{"ABC", "CBS", "BBC"})
 	assert.True(t, set1.Equals(set2))
 
 }
 
 func TestEqualsWithUnequalSet(t *testing.T) {
 	set1 := TimedSet{"ABC": NewVbSimpleSequence(17), "CBS": NewVbSimpleSequence(23), "BBC": NewVbSimpleSequence(1)}
-	set2 := base.SetFromArray([]string{"ABC", "BBC"})
+	set2 := utils.SetFromArray([]string{"ABC", "BBC"})
 	assert.True(t, !set1.Equals(set2))
-	set3 := base.SetFromArray([]string{"ABC", "BBC", "CBS", "FOO"})
+	set3 := utils.SetFromArray([]string{"ABC", "BBC", "CBS", "FOO"})
 	assert.True(t, !set1.Equals(set3))
 
 }

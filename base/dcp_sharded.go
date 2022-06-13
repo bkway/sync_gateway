@@ -20,7 +20,9 @@ import (
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/go-couchbase"
 	"github.com/couchbase/go-couchbase/cbdatasource"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/pkg/errors"
+
 	"gopkg.in/couchbaselabs/gocbconnstr.v1"
 )
 
@@ -45,10 +47,11 @@ func StartShardedDCPFeed(dbName string, configGroup string, uuid string, heartbe
 		return nil, err
 	}
 
-	dcpContextID := MD(spec.BucketName).Redact() + "-" + DCPImportFeedID
-	cbgtContext.loggingCtx = context.WithValue(context.Background(), LogContextKey{},
-		LogContext{CorrelationID: dcpContextID},
-	)
+	// TODO make this work
+	// dcpContextID := logger.MD(spec.BucketName).Redact() + "-" + DCPImportFeedID
+	// cbgtContext.loggingCtx = context.WithValue(context.Background(), logger.LogContextKey{},
+	// 	logger.LogContext{CorrelationID: dcpContextID},
+	// )
 
 	// Start Manager.  Registers this node in the cfg
 	err = cbgtContext.StartManager(dbName, configGroup, bucket, spec, numPartitions)
@@ -107,7 +110,7 @@ func createCBGTIndex(c *CbgtContext, dbName string, configGroupID string, bucket
 
 	vbNo, err := bucket.GetMaxVbno()
 	if err != nil {
-		return errors.Wrapf(err, "Unable to retrieve maxVbNo for bucket %s", MD(bucket.GetName()).Redact())
+		return errors.Wrapf(err, "Unable to retrieve maxVbNo for bucket %s", logger.MD(bucket.GetName()).Redact())
 	}
 
 	// Calculate partitionsPerPIndex required to hit target DefaultImportPartitions
@@ -138,7 +141,8 @@ func createCBGTIndex(c *CbgtContext, dbName string, configGroupID string, bucket
 
 	// Determine index name and UUID
 	indexName, previousIndexUUID := dcpSafeIndexName(c, dbName)
-	InfofCtx(c.loggingCtx, KeyDCP, "Creating cbgt index %q for db %q", indexName, MD(dbName))
+	logger.For(logger.DCPKey).Info().Msgf("Creating cbgt index %q for db %q", indexName, logger.MD(dbName))
+	// log.Ctx(c.loggingCtx).Info().Msgf(
 
 	// Register bucketDataSource callback for new index if we need to configure TLS
 	cbgt.RegisterBucketDataSourceOptionsCallback(indexName, c.Manager.UUID(), func(options *cbdatasource.BucketDataSourceOptions) *cbdatasource.BucketDataSourceOptions {
@@ -149,7 +153,8 @@ func createCBGTIndex(c *CbgtContext, dbName string, configGroupID string, bucket
 		}
 
 		networkType := getNetworkTypeFromConnSpec(connSpec)
-		InfofCtx(c.loggingCtx, KeyDCP, "Using network type: %s", networkType)
+		logger.For(logger.DCPKey).Info().Msgf("Using network type: %s", networkType)
+		// log.Ctx(c.loggingCtx).Info().Msgf("Using network type: %s", networkType)
 
 		// default (aka internal) networking is handled by cbdatasource, so we can avoid the shims altogether in this case, for all other cases we need shims to remap hosts.
 		if networkType != clusterNetworkDefault {
@@ -176,7 +181,8 @@ func createCBGTIndex(c *CbgtContext, dbName string, configGroupID string, bucket
 	)
 	c.Manager.Kick("NewIndexesCreated")
 
-	InfofCtx(c.loggingCtx, KeyDCP, "Initialized sharded DCP feed %s with %d partitions.", indexName, numPartitions)
+	logger.For(logger.DCPKey).Info().Msgf("Initialized sharded DCP feed %s with %d partitions.", indexName, numPartitions)
+	// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Initialized sharded DCP feed %s with %d partitions.", indexName, numPartitions)
 	return err
 
 }
@@ -207,7 +213,8 @@ func dcpSafeIndexName(c *CbgtContext, dbName string) (safeIndexName, previousUUI
 	if legacyIndexUUID != "" {
 		deleteErr := c.Manager.DeleteIndexEx(legacyIndexName, "")
 		if deleteErr != nil {
-			WarnfCtx(c.loggingCtx, "Error removing legacy import feed index: %v", deleteErr)
+			logger.For(logger.DCPKey).Err(deleteErr).Msg("Error removing legacy import feed index")
+			// log.Ctx(c.loggingCtx, "Error removing legacy import feed index: %v").Warn().Err(err).Msgf(deleteErr)
 		}
 	}
 	return indexName, indexUUID
@@ -340,7 +347,8 @@ func (c *CbgtContext) StartManager(dbName string, configGroup string, bucket Buc
 	// TODO: Clarify the functional difference between registering the manager as 'wanted' vs 'known'.
 	registerType := cbgt.NODE_DEFS_WANTED
 	if err := c.Manager.Start(registerType); err != nil {
-		ErrorfCtx(c.loggingCtx, "cbgt Manager start failed: %v", err)
+		logger.For(logger.DCPKey).Error().Err(err).Msgf("cbgt Manager start failed")
+		// log.Ctx(c.loggingCtx).Error().Err(err).Msgf("cbgt Manager start failed: %v", err)
 		return err
 	}
 
@@ -348,11 +356,14 @@ func (c *CbgtContext) StartManager(dbName string, configGroup string, bucket Buc
 	err = createCBGTIndex(c, dbName, configGroup, bucket, spec, numPartitions)
 	if err != nil {
 		if strings.Contains(err.Error(), "an index with the same name already exists") {
-			InfofCtx(c.loggingCtx, KeyCluster, "Duplicate cbgt index detected during index creation (concurrent creation), using existing")
+			logger.For(logger.ClusterKey).Info().Err(err).Msg("Duplicate cbgt index detected during index creation (concurrent creation), using existing")
+			// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyCluster, "Duplicate cbgt index detected during index creation (concurrent creation), using existing")
 		} else if strings.Contains(err.Error(), "concurrent index definition update") {
-			InfofCtx(c.loggingCtx, KeyCluster, "Index update failed due to concurrent update, using existing")
+			logger.For(logger.ClusterKey).Info().Err(err).Msg("Index update failed due to concurrent update, using existing")
+			// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyCluster, "Index update failed due to concurrent update, using existing")
 		} else {
-			ErrorfCtx(c.loggingCtx, "cbgt index creation failed: %v", err)
+			logger.For(logger.ClusterKey).Error().Err(err).Msgf("cbgt index creation failed")
+			// log.Ctx(c.loggingCtx).Error().Err(err).Msgf("cbgt index creation failed: %v", err)
 			return err
 		}
 	}
@@ -471,27 +482,24 @@ func (l *importHeartbeatListener) Name() string {
 // When we detect other nodes have stopped pushing heartbeats, use manager to remove from cfg
 func (l *importHeartbeatListener) StaleHeartbeatDetected(nodeUUID string) {
 
-	InfofCtx(context.TODO(), KeyCluster, "StaleHeartbeatDetected by import listener for node: %v", nodeUUID)
+	logger.For(logger.ClusterKey).Info().Msgf("StaleHeartbeatDetected by import listener for node: %v", nodeUUID)
 	err := cbgt.UnregisterNodes(l.cfg, l.mgr.Version(), []string{nodeUUID})
-	if err != nil {
-		WarnfCtx(context.TODO(), "Attempt to unregister %v from CBGT got error: %v", nodeUUID, err)
-	}
+	logger.For(logger.ClusterKey).Err(err).Msgf("Attempt to unregister %v from CBGT", nodeUUID)
 }
 
 // subscribeNodeChanges registers with the manager's cfg implementation for notifications on changes to the
 // NODE_DEFS_KNOWN key.  When notified, refreshes the handlers nodeIDs.
 func (l *importHeartbeatListener) subscribeNodeChanges() error {
-	logCtx := context.TODO()
 
 	cfgEvents := make(chan cbgt.CfgEvent)
 	err := l.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), cfgEvents)
 	if err != nil {
-		DebugfCtx(logCtx, KeyCluster, "Error subscribing NODE_DEFS_KNOWN changes: %v", err)
+		logger.For(logger.ClusterKey).Info().Err(err).Msg("Error subscribing NODE_DEFS_KNOWN changes")
 		return err
 	}
 	err = l.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_WANTED), cfgEvents)
 	if err != nil {
-		DebugfCtx(logCtx, KeyCluster, "Error subscribing NODE_DEFS_WANTED changes: %v", err)
+		logger.For(logger.ClusterKey).Info().Err(err).Msgf("Error subscribing NODE_DEFS_WANTED changes")
 		return err
 	}
 	go func() {
@@ -501,12 +509,14 @@ func (l *importHeartbeatListener) subscribeNodeChanges() error {
 			case <-cfgEvents:
 				localNodeRegistered, err := l.reloadNodes()
 				if err != nil {
-					WarnfCtx(logCtx, "Error while reloading heartbeat node definitions: %v", err)
+					logger.For(logger.ClusterKey).Err(err).Msg("Error while reloading heartbeat node definitions")
+					// log.Ctx(logCtx, "Error while reloading heartbeat node definitions: %v").Warn().Err(err).Msgf(err)
 				}
 				if !localNodeRegistered {
 					registerErr := l.mgr.Register(cbgt.NODE_DEFS_WANTED)
 					if registerErr != nil {
-						WarnfCtx(logCtx, "Error attempting to re-register node, node will not participate in import until restarted or cbgt cfg is next updated: %v", registerErr)
+						logger.For(logger.ClusterKey).Warn().Err(registerErr).Msg("Error attempting to re-register node, node will not participate in import until restarted or cbgt cfg is next updated")
+						// log.Ctx(logCtx, "Error attempting to re-register node, node will not participate in import until restarted or cbgt cfg is next updated: %v").Warn().Err(err).Msgf(registerErr)
 					}
 				}
 
@@ -571,7 +581,8 @@ func StoreDestFactory(destKey string, dest CbgtDestFactoryFunc) {
 
 	// We don't expect duplicate destKey registration - log a warning if it already exists
 	if ok {
-		WarnfCtx(context.Background(), "destKey %s already exists in cbgtDestFactories - new value will replace the existing dest", destKey)
+		logger.For(logger.ClusterKey).Warn().Msgf("destKey %s already exists in cbgtDestFactories - new value will replace the existing dest", destKey)
+		// log.Ctx(context.Background()).Warn().Err(err).Msgf("destKey %s already exists in cbgtDestFactories - new value will replace the existing dest", destKey)
 	}
 	cbgtDestFactories[destKey] = dest
 	cbgtDestFactoriesLock.Unlock()

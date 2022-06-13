@@ -1,13 +1,13 @@
 package base
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"time"
 
 	"github.com/couchbase/gocb/v2"
 	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/imdario/mergo"
 )
 
@@ -244,7 +244,7 @@ func (cc *CouchbaseCluster) getBucket(bucketName string) (b *gocb.Bucket, teardo
 	teardownFn = func() {
 		err := connection.Close(&gocb.ClusterCloseOptions{})
 		if err != nil {
-			WarnfCtx(context.Background(), "Failed to close cluster connection: %v", err)
+			logger.For(logger.SystemKey).Warn().Err(err).Msgf("Failed to close cluster connection: %v", err)
 		}
 	}
 

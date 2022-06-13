@@ -22,6 +22,8 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -123,7 +125,7 @@ func (sd *SyncData) HashRedact(salt string) SyncData {
 	for k, revInfo := range sd.History {
 
 		if revInfo.Channels != nil {
-			redactedChannels := base.Set{}
+			redactedChannels := utils.Set{}
 			for existingChanKey := range revInfo.Channels {
 				redactedChannels.Add(base.Sha1HashString(existingChanKey, salt))
 			}
@@ -246,25 +248,27 @@ func NewDocument(docid string) *Document {
 
 // Accessors for document properties.  To support lazy unmarshalling of document contents, all access should be done through accessors
 func (doc *Document) Body() Body {
-	var caller string
-	if base.ConsoleLogLevel().Enabled(base.LevelTrace) {
-		caller = base.GetCallersName(1, true)
-	}
+	// var caller string
+	// if logger.ConsoleLogLevel().Enabled(logger.LevelTrace) {
+	// 	caller = logger.GetCallersName(1, true)
+	// }
 
 	if doc._body != nil {
-		base.TracefCtx(context.Background(), base.KeyAll, "Already had doc body %s/%s from %s", base.UD(doc.ID), base.UD(doc.RevID), caller)
+		//		logger.TracefCtx(context.Background(), logger.KeyAll, "Already had doc body %s/%s from %s", logger.UD(doc.ID), logger.UD(doc.RevID), caller)
+		logger.For(logger.SystemKey).Trace().Msgf("Already had doc body %s/%s", logger.UD(doc.ID), logger.UD(doc.RevID))
 		return doc._body
 	}
 
 	if doc._rawBody == nil {
-		base.WarnfCtx(context.Background(), "Null doc body/rawBody %s/%s from %s", base.UD(doc.ID), base.UD(doc.RevID), caller)
+		logger.For(logger.SystemKey).Warn().Msgf("Null doc body/rawBody %s/%s", logger.UD(doc.ID), logger.UD(doc.RevID))
 		return nil
 	}
 
-	base.TracefCtx(context.Background(), base.KeyAll, "        UNMARSHAL doc body %s/%s from %s", base.UD(doc.ID), base.UD(doc.RevID), caller)
+	//	logger.TracefCtx(context.Background(), logger.KeyAll, "        UNMARSHAL doc body %s/%s from %s", logger.UD(doc.ID), logger.UD(doc.RevID), caller)
+	logger.For(logger.SystemKey).Trace().Msgf("        UNMARSHAL doc body %s/%s", logger.UD(doc.ID), logger.UD(doc.RevID))
 	err := doc._body.Unmarshal(doc._rawBody)
 	if err != nil {
-		base.WarnfCtx(context.Background(), "Unable to unmarshal document body from raw body : %s", err)
+		logger.For(logger.SystemKey).Warn().Err(err).Msgf("Unable to unmarshal document body from raw body")
 		return nil
 	}
 	return doc._body
@@ -304,17 +308,18 @@ func (doc *Document) HasBody() bool {
 }
 
 func (doc *Document) BodyBytes() ([]byte, error) {
-	var caller string
-	if base.ConsoleLogLevel().Enabled(base.LevelTrace) {
-		caller = base.GetCallersName(1, true)
-	}
+	// var caller string
+	// if logger.ConsoleLogLevel().Enabled(logger.LevelTrace) {
+	// 	caller = logger.GetCallersName(1, true)
+	// }
 
 	if doc._rawBody != nil {
 		return doc._rawBody, nil
 	}
 
 	if doc._body == nil {
-		base.WarnfCtx(context.Background(), "Null doc body/rawBody %s/%s from %s", base.UD(doc.ID), base.UD(doc.RevID), caller)
+		logger.For(logger.SystemKey).Warn().Msgf("Null doc body/rawBody %s/%s", logger.UD(doc.ID), logger.UD(doc.RevID))
+		// log.Ctx(context.Background()).Warn().Msgf("Null doc body/rawBody %s/%s from %s", logger.UD(doc.ID), logger.UD(doc.RevID), caller)
 		return nil, nil
 	}
 
@@ -601,7 +606,8 @@ func (doc *Document) IsSGWrite(ctx context.Context, rawBody []byte) (isSGWrite b
 
 		isSgWriteFeed, crc32MatchFeed, bodyChangedFeed := doc.SyncData.IsSGWrite(doc.Cas, rawBody, doc.rawUserXattr)
 		if !isSgWriteFeed {
-			base.DebugfCtx(ctx, base.KeyCRUD, "Doc %s is not an SG write, based on cas and body hash. cas:%x syncCas:%q", base.UD(doc.ID), doc.Cas, doc.SyncData.Cas)
+			logger.For(logger.CRUDKey).Info().Msgf("Doc %s is not an SG write, based on cas and body hash. cas:%x syncCas:%q", logger.UD(doc.ID), doc.Cas, doc.SyncData.Cas)
+			// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Doc %s is not an SG write, based on cas and body hash. cas:%x syncCas:%q", logger.UD(doc.ID), doc.Cas, doc.SyncData.Cas)
 		}
 
 		return isSgWriteFeed, crc32MatchFeed, bodyChangedFeed
@@ -615,7 +621,7 @@ func (doc *Document) IsSGWrite(ctx context.Context, rawBody []byte) (isSGWrite b
 	// Since raw body isn't available, marshal from the document to perform body hash comparison
 	bodyBytes, err := doc.BodyBytes()
 	if err != nil {
-		base.WarnfCtx(ctx, "Unable to marshal doc body during SG write check for doc %s. Error: %v", base.UD(doc.ID), err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to marshal doc body during SG write check for doc %s. Error: %v", logger.UD(doc.ID), err)
 		return false, false, false
 	}
 	// The bodyBytes would be replaced with "{}" if the document is a "Delete" and it can’t be used for
@@ -628,12 +634,13 @@ func (doc *Document) IsSGWrite(ctx context.Context, rawBody []byte) (isSGWrite b
 
 	// If the current body crc32c matches the one in doc.SyncData, this was an SG write (i.e. has already been imported)
 	if currentBodyCrc32c != doc.SyncData.Crc32c {
-		base.DebugfCtx(ctx, base.KeyCRUD, "Doc %s is not an SG write, based on cas and body hash. cas:%x syncCas:%q", base.UD(doc.ID), doc.Cas, doc.SyncData.Cas)
+		logger.For(logger.CRUDKey).Info().Msgf("Doc %s is not an SG write, based on cas and body hash. cas:%x syncCas:%q", logger.UD(doc.ID), doc.Cas, doc.SyncData.Cas)
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Doc %s is not an SG write, based on cas and body hash. cas:%x syncCas:%q", logger.UD(doc.ID), doc.Cas, doc.SyncData.Cas)
 		return false, false, true
 	}
 
 	if HasUserXattrChanged(doc.rawUserXattr, doc.Crc32cUserXattr) {
-		base.DebugfCtx(ctx, base.KeyCRUD, "Doc %s is not an SG write, based on user xattr hash", base.UD(doc.ID))
+		logger.For(logger.CRUDKey).Info().Msgf("Doc %s is not an SG write, based on user xattr hash", logger.UD(doc.ID))
 		return false, false, false
 	}
 
@@ -689,7 +696,8 @@ func (doc *Document) getNonWinningRevisionBody(revid string, loader RevLoaderFun
 	}
 
 	if err := body.Unmarshal(bodyBytes); err != nil {
-		base.WarnfCtx(context.TODO(), "Unexpected error parsing body of rev %q: %v", revid, err)
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Unexpected error parsing body of rev %q: %v", revid, err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unexpected error parsing body of rev %q: %v", revid, err)
 		return nil
 	}
 	return body
@@ -702,7 +710,7 @@ func (doc *Document) getRevisionBodyJSON(ctx context.Context, revid string, load
 		var marshalErr error
 		bodyJSON, marshalErr = doc.BodyBytes()
 		if marshalErr != nil {
-			base.WarnfCtx(ctx, "Marshal error when retrieving active current revision body: %v", marshalErr)
+			logger.For(logger.UnknownKey).Warn().Msgf("Marshal error when retrieving active current revision body: %v", marshalErr)
 		}
 	} else {
 		bodyJSON, _ = doc.History.getRevisionBody(revid, loader)
@@ -777,7 +785,7 @@ func (doc *Document) persistModifiedRevisionBodies(bucket base.Bucket) error {
 			return err
 		}
 		if revInfo.BodyKey == "" || len(revInfo.Body) == 0 {
-			return base.RedactErrorf("Missing key or body for revision during external persistence.  doc: %s rev:%s key: %s  len(body): %d", base.UD(doc.ID), revID, base.UD(revInfo.BodyKey), len(revInfo.Body))
+			return logger.RedactErrorf("Missing key or body for revision during external persistence.  doc: %s rev:%s key: %s  len(body): %d", logger.UD(doc.ID), revID, logger.UD(revInfo.BodyKey), len(revInfo.Body))
 		}
 
 		// If addRaw indicates that the doc already exists, can ignore.  Another writer already persisted this rev backup.
@@ -798,7 +806,7 @@ func (doc *Document) deleteRemovedRevisionBodies(bucket base.Bucket) {
 	for _, revBodyKey := range doc.removedRevisionBodyKeys {
 		deleteErr := bucket.Delete(revBodyKey)
 		if deleteErr != nil {
-			base.WarnfCtx(context.TODO(), "Unable to delete old revision body using key %s - will not be deleted from bucket.", revBodyKey)
+			logger.For(logger.CRUDKey).Info().Msgf("Unable to delete old revision body using key %s - will not be deleted from bucket.", revBodyKey)
 		}
 	}
 	doc.removedRevisionBodyKeys = map[string]string{}
@@ -821,7 +829,8 @@ func (doc *Document) migrateRevisionBodies(bucket base.Bucket) error {
 			bodyKey := generateRevBodyKey(doc.ID, revID)
 			persistErr := doc.persistRevisionBody(bucket, bodyKey, revInfo.Body)
 			if persistErr != nil {
-				base.WarnfCtx(context.TODO(), "Unable to store revision body for doc %s, rev %s externally: %v", base.UD(doc.ID), revID, persistErr)
+				// 				log.Ctx(context.TODO()).Warn().Err(err).Msgf("Unable to store revision body for doc %s, rev %s externally: %v", logger.UD(doc.ID), revID, persistErr)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to store revision body for doc %s, rev %s externally: %v", logger.UD(doc.ID), revID, persistErr)
 				continue
 			}
 			revInfo.BodyKey = bodyKey
@@ -944,7 +953,7 @@ func (doc *Document) addToChannelSetHistory(channelName string, historyEntry Cha
 
 // Updates the Channels property of a document object with current & past channels.
 // Returns the set of channels that have changed (document joined or left in this revision)
-func (doc *Document) updateChannels(ctx context.Context, newChannels base.Set) (changedChannels base.Set, err error) {
+func (doc *Document) updateChannels(ctx context.Context, newChannels utils.Set) (changedChannels utils.Set, err error) {
 	var changed []string
 	oldChannels := doc.Channels
 	if oldChannels == nil {
@@ -974,7 +983,8 @@ func (doc *Document) updateChannels(ctx context.Context, newChannels base.Set) (
 		}
 	}
 	if changed != nil {
-		base.InfofCtx(ctx, base.KeyCRUD, "\tDoc %q / %q in channels %q", base.UD(doc.ID), doc.CurrentRev, base.UD(newChannels))
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "\tDoc %q / %q in channels %q", logger.UD(doc.ID), doc.CurrentRev, logger.UD(newChannels))
+		logger.For(logger.CRUDKey).Info().Msgf("\tDoc %q / %q in channels %q", logger.UD(doc.ID), doc.CurrentRev, logger.UD(newChannels))
 		changedChannels, err = channels.SetFromArray(changed, channels.KeepStar)
 	}
 	return
@@ -983,9 +993,9 @@ func (doc *Document) updateChannels(ctx context.Context, newChannels base.Set) (
 // Determine whether the specified revision was a channel removal, based on doc.Channels.  If so, construct the standard document body for a
 // removal notification (_removed=true)
 // Set of channels returned from IsChannelRemoval are "Active" channels and NOT "Removed".
-func (doc *Document) IsChannelRemoval(revID string) (bodyBytes []byte, history Revisions, channels base.Set, isRemoval bool, isDelete bool, err error) {
+func (doc *Document) IsChannelRemoval(revID string) (bodyBytes []byte, history Revisions, channels utils.Set, isRemoval bool, isDelete bool, err error) {
 
-	removedChannels := make(base.Set)
+	removedChannels := make(utils.Set)
 
 	// Iterate over the document's channel history, looking for channels that were removed at revID.  If found, also identify whether the removal was a tombstone.
 	for channel, removal := range doc.Channels {
@@ -1005,7 +1015,7 @@ func (doc *Document) IsChannelRemoval(revID string) (bodyBytes []byte, history R
 	// doc ID and rev ID aren't required to be inserted here, as both of those are available in the request.
 	bodyBytes = []byte(RemovedRedactedDocument)
 
-	activeChannels := make(base.Set)
+	activeChannels := make(utils.Set)
 	// Add active channels to the channel set if the the revision is available in the revision tree.
 	if revInfo, ok := doc.History[revID]; ok {
 		for channel := range revInfo.Channels {
@@ -1055,7 +1065,8 @@ func (accessMap *UserAccessMap) updateAccess(doc *Document, newAccess channels.A
 		if accessMap == &doc.RoleAccess {
 			what = "role"
 		}
-		base.InfofCtx(context.TODO(), base.KeyAccess, "Doc %q grants %s access: %v", base.UD(doc.ID), what, base.UD(*accessMap))
+		// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAccess, "Doc %q grants %s access: %v", logger.UD(doc.ID), what, logger.UD(*accessMap))
+		logger.For(logger.AccessKey).Info().Msgf("Doc %q grants %s access: %v", logger.UD(doc.ID), what, logger.UD(*accessMap))
 	}
 	return changedUsers
 }
@@ -1076,7 +1087,7 @@ func (doc *Document) UnmarshalJSON(data []byte) error {
 	syncData := documentRoot{SyncData: &SyncData{History: make(RevTree)}}
 	err := json.Unmarshal(data, &syncData)
 	if err != nil {
-		return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalJSON() doc with id: %s.  Error: %v", base.UD(doc.ID), err))
+		return pkgerrors.WithStack(logger.RedactErrorf("Failed to UnmarshalJSON() doc with id: %s.  Error: %v", logger.UD(doc.ID), err))
 	}
 	if syncData.SyncData != nil {
 		doc.SyncData = *syncData.SyncData
@@ -1084,7 +1095,7 @@ func (doc *Document) UnmarshalJSON(data []byte) error {
 
 	// Unmarshal the rest of the doc body as map[string]interface{}
 	if err := doc._body.Unmarshal(data); err != nil {
-		return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalJSON() doc with id: %s.  Error: %v", base.UD(doc.ID), err))
+		return pkgerrors.WithStack(logger.RedactErrorf("Failed to UnmarshalJSON() doc with id: %s.  Error: %v", logger.UD(doc.ID), err))
 	}
 	// Remove _sync from body
 	delete(doc._body, base.SyncPropertyName)
@@ -1107,7 +1118,7 @@ func (doc *Document) MarshalJSON() (data []byte, err error) {
 		data, err = json.Marshal(body)
 		delete(body, base.SyncPropertyName)
 		if err != nil {
-			err = pkgerrors.WithStack(base.RedactErrorf("Failed to MarshalJSON() doc with id: %s.  Error: %v", base.UD(doc.ID), err))
+			err = pkgerrors.WithStack(logger.RedactErrorf("Failed to MarshalJSON() doc with id: %s.  Error: %v", logger.UD(doc.ID), err))
 		}
 	}
 	return data, err
@@ -1119,7 +1130,8 @@ func (doc *Document) MarshalJSON() (data []byte, err error) {
 // lazy unmarshalling as needed.
 func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLevel DocumentUnmarshalLevel) error {
 	if doc.ID == "" {
-		base.WarnfCtx(context.Background(), "Attempted to unmarshal document without ID set")
+		// log.Ctx(context.Background()).Warn().Err(err).Msgf("Attempted to unmarshal document without ID set")
+		logger.For(logger.UnknownKey).Warn().Msgf("Attempted to unmarshal document without ID set")
 		return errors.New("Document was unmarshalled without ID set")
 	}
 
@@ -1129,7 +1141,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 		doc.SyncData = SyncData{History: make(RevTree)}
 		unmarshalErr := json.Unmarshal(xdata, &doc.SyncData)
 		if unmarshalErr != nil {
-			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalAll/Sync).  Error: %v", base.UD(doc.ID), unmarshalErr))
+			return pkgerrors.WithStack(logger.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalAll/Sync).  Error: %v", logger.UD(doc.ID), unmarshalErr))
 		}
 		doc._rawBody = data
 		// Unmarshal body if requested and present
@@ -1142,7 +1154,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 		doc.SyncData = SyncData{}
 		unmarshalErr := json.Unmarshal(xdata, &doc.SyncData)
 		if unmarshalErr != nil {
-			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalNoHistory).  Error: %v", base.UD(doc.ID), unmarshalErr))
+			return pkgerrors.WithStack(logger.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalNoHistory).  Error: %v", logger.UD(doc.ID), unmarshalErr))
 		}
 		doc._rawBody = data
 	case DocUnmarshalRev:
@@ -1150,7 +1162,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 		var revOnlyMeta revOnlySyncData
 		unmarshalErr := json.Unmarshal(xdata, &revOnlyMeta)
 		if unmarshalErr != nil {
-			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalRev).  Error: %v", base.UD(doc.ID), unmarshalErr))
+			return pkgerrors.WithStack(logger.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalRev).  Error: %v", logger.UD(doc.ID), unmarshalErr))
 		}
 		doc.SyncData = SyncData{
 			CurrentRev: revOnlyMeta.CurrentRev,
@@ -1162,7 +1174,7 @@ func (doc *Document) UnmarshalWithXattr(data []byte, xdata []byte, unmarshalLeve
 		var casOnlyMeta casOnlySyncData
 		unmarshalErr := json.Unmarshal(xdata, &casOnlyMeta)
 		if unmarshalErr != nil {
-			return pkgerrors.WithStack(base.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalCAS).  Error: %v", base.UD(doc.ID), unmarshalErr))
+			return pkgerrors.WithStack(logger.RedactErrorf("Failed to UnmarshalWithXattr() doc with id: %s (DocUnmarshalCAS).  Error: %v", logger.UD(doc.ID), unmarshalErr))
 		}
 		doc.SyncData = SyncData{
 			Cas: casOnlyMeta.Cas,
@@ -1196,7 +1208,7 @@ func (doc *Document) MarshalWithXattr() (data []byte, xdata []byte, err error) {
 			if !deleted {
 				data, err = json.Marshal(body)
 				if err != nil {
-					return nil, nil, pkgerrors.WithStack(base.RedactErrorf("Failed to MarshalWithXattr() doc body with id: %s.  Error: %v", base.UD(doc.ID), err))
+					return nil, nil, pkgerrors.WithStack(logger.RedactErrorf("Failed to MarshalWithXattr() doc body with id: %s.  Error: %v", logger.UD(doc.ID), err))
 				}
 			}
 		}
@@ -1204,7 +1216,7 @@ func (doc *Document) MarshalWithXattr() (data []byte, xdata []byte, err error) {
 
 	xdata, err = json.Marshal(doc.SyncData)
 	if err != nil {
-		return nil, nil, pkgerrors.WithStack(base.RedactErrorf("Failed to MarshalWithXattr() doc SyncData with id: %s.  Error: %v", base.UD(doc.ID), err))
+		return nil, nil, pkgerrors.WithStack(logger.RedactErrorf("Failed to MarshalWithXattr() doc SyncData with id: %s.  Error: %v", logger.UD(doc.ID), err))
 	}
 
 	return data, xdata, nil

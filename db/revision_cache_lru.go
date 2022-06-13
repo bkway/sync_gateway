@@ -18,6 +18,8 @@ import (
 
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 type ShardedLRURevisionCache struct {
@@ -89,7 +91,7 @@ type revCacheValue struct {
 	key         IDAndRev        // doc/rev IDs
 	bodyBytes   []byte          // Revision body (with no special properties)
 	history     Revisions       // Rev history encoded like a "_revisions" property
-	channels    base.Set        // Set of channels that have access
+	channels    utils.Set       // Set of channels that have access
 	expiry      *time.Time      // Document expiry
 	attachments AttachmentsMeta // Document _attachments property
 	delta       *RevisionDelta  // Available delta *from* this revision
@@ -352,7 +354,7 @@ func (value *revCacheValue) load(ctx context.Context, backingStore RevisionCache
 		// If body is requested and not already present in cache, populate value.body from value.BodyBytes
 		if includeBody && value.body == nil && value.err == nil {
 			if err := value.body.Unmarshal(value.bodyBytes); err != nil {
-				base.WarnfCtx(ctx, "Unable to marshal BodyBytes in revcache for %s %s", base.UD(value.key.DocID), value.key.RevID)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to marshal BodyBytes in revcache for %s %s", logger.UD(value.key.DocID), value.key.RevID)
 			}
 		}
 	} else {
@@ -377,7 +379,7 @@ func (value *revCacheValue) updateBody(ctx context.Context) (err error) {
 	var body Body
 	if err := body.Unmarshal(value.bodyBytes); err != nil {
 		// On unmarshal error, warn return docRev without body
-		base.WarnfCtx(ctx, "Unable to marshal BodyBytes in revcache for %s %s", base.UD(value.key.DocID), value.key.RevID)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to marshal BodyBytes in revcache for %s %s", logger.UD(value.key.DocID), value.key.RevID)
 		return err
 	}
 
@@ -447,7 +449,7 @@ func (value *revCacheValue) loadForDoc(ctx context.Context, backingStore Revisio
 		// If body is requested and not already present in cache, attempt to generate from bytes and insert into cache
 		if includeBody && value.body == nil {
 			if err := value.body.Unmarshal(value.bodyBytes); err != nil {
-				base.WarnfCtx(ctx, "Unable to marshal BodyBytes in revcache for %s %s", base.UD(value.key.DocID), value.key.RevID)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to marshal BodyBytes in revcache for %s %s", logger.UD(value.key.DocID), value.key.RevID)
 			}
 		}
 	} else {

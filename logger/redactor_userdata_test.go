@@ -8,13 +8,15 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 */
 
-package base
+package logger
 
 import (
 	"math/big"
 	"testing"
 	"time"
 
+	"github.com/couchbase/sync_gateway/utils"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,7 +52,7 @@ func TestUD(t *testing.T) {
 	assert.Equal(t, "[ "+userDataPrefix+"hello"+userDataSuffix+" "+userDataPrefix+"world"+userDataSuffix+" "+userDataPrefix+"o/"+userDataSuffix+" ]", ud.Redact())
 
 	// Set
-	ud = UD(SetOf("hello", "world"))
+	ud = UD(utils.SetOf("hello", "world"))
 	// As a set comes from a map we can't be sure which order it'll end up with so should check both permutations
 	redactedPerm1 := "{" + userDataPrefix + "hello" + userDataSuffix + ", " + userDataPrefix + "world" + userDataSuffix + "}"
 	redactedPerm2 := "{" + userDataPrefix + "world" + userDataSuffix + ", " + userDataPrefix + "hello" + userDataSuffix + "}"
@@ -102,7 +104,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 	b.Run("WarnPlain", func(b *testing.B) {
 		ctx := TestCtx(b)
 		for i := 0; i < b.N; i++ {
-			WarnfCtx(ctx, "Log: %s", "Fixed String")
+			log.Ctx(ctx).Warn().Msgf("Log: %s", "Fixed String")
 		}
 	})
 
@@ -110,7 +112,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = true
 		for i := 0; i < b.N; i++ {
-			WarnfCtx(ctx, "Log: %s", FakeLogger{})
+			log.Ctx(ctx).Warn().Msgf("Log: %s", FakeLogger{})
 		}
 	})
 
@@ -118,7 +120,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = true
 		for i := 0; i < b.N; i++ {
-			WarnfCtx(ctx, "Log: %s", UD(FakeLogger{}))
+			log.Ctx(ctx).Warn().Msgf("Log: %s", UD(FakeLogger{}))
 		}
 	})
 
@@ -126,7 +128,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = false
 		for i := 0; i < b.N; i++ {
-			WarnfCtx(ctx, "Log: %s", FakeLogger{})
+			log.Ctx(ctx).Warn().Msgf("Log: %s", FakeLogger{})
 		}
 	})
 
@@ -134,14 +136,14 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = false
 		for i := 0; i < b.N; i++ {
-			WarnfCtx(ctx, "Log: %s", UD(FakeLogger{}))
+			log.Ctx(ctx).Warn().Msgf("Log: %s", UD(FakeLogger{}))
 		}
 	})
 
 	b.Run("DebugPlain", func(b *testing.B) {
 		ctx := TestCtx(b)
 		for i := 0; i < b.N; i++ {
-			DebugfCtx(ctx, KeyAll, "Log: %s", "Fixed String")
+			log.Ctx(ctx).Debug().Msgf(KeyAll, "Log: %s", "Fixed String")
 		}
 	})
 
@@ -149,7 +151,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = true
 		for i := 0; i < b.N; i++ {
-			DebugfCtx(ctx, KeyAll, "Log: %s", FakeLogger{})
+			log.Ctx(ctx).Debug().Msgf(KeyAll, "Log: %s", FakeLogger{})
 		}
 	})
 
@@ -157,7 +159,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = true
 		for i := 0; i < b.N; i++ {
-			DebugfCtx(ctx, KeyAll, "Log: %s", UD(FakeLogger{}))
+			log.Ctx(ctx).Debug().Msgf(KeyAll, "Log: %s", UD(FakeLogger{}))
 		}
 	})
 
@@ -165,7 +167,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = false
 		for i := 0; i < b.N; i++ {
-			DebugfCtx(ctx, KeyAll, "Log: %s", FakeLogger{})
+			log.Ctx(ctx).Debug().Msgf(KeyAll, "Log: %s", FakeLogger{})
 		}
 	})
 
@@ -173,7 +175,7 @@ func BenchmarkRedactOnLog(b *testing.B) {
 		ctx := TestCtx(b)
 		RedactUserData = false
 		for i := 0; i < b.N; i++ {
-			DebugfCtx(ctx, KeyAll, "Log: %s", UD(FakeLogger{}))
+			log.Ctx(ctx).Debug().Msgf(KeyAll, "Log: %s", UD(FakeLogger{}))
 		}
 	})
 }

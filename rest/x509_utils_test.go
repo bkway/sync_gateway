@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
@@ -254,13 +255,13 @@ func loadCertsIntoCouchbaseServer(couchbaseServerURL url.URL, ca *caPair, node *
 		return err
 	}
 	logCtx := context.Background()
-	base.DebugfCtx(logCtx, base.KeyAll, "copied x509 node chain.pem to integration test server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "copied x509 node chain.pem to integration test server")
 
 	err = sshCopyFileAsExecutable(node.KeyFilePath, sshRemoteHost, "/opt/couchbase/var/lib/couchbase/inbox")
 	if err != nil {
 		return err
 	}
-	base.DebugfCtx(logCtx, base.KeyAll, "copied x509 node pkey.key to integration test server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "copied x509 node pkey.key to integration test server")
 
 	restAPIURL := basicAuthRESTPIURLFromConnstrHost(couchbaseServerURL)
 
@@ -277,7 +278,7 @@ func loadCertsIntoCouchbaseServer(couchbaseServerURL url.URL, ca *caPair, node *
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("couldn't uploadClusterCA: expected %d status code but got %d: %s", http.StatusOK, resp.StatusCode, respBody)
 	}
-	base.DebugfCtx(logCtx, base.KeyAll, "uploaded ca.pem to Couchbase Server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "uploaded ca.pem to Couchbase Server")
 
 	// Make CBS read the newly uploaded certs
 	resp, err = http.Post(restAPIURL.String()+"/node/controller/reloadCertificate", "", nil)
@@ -292,7 +293,7 @@ func loadCertsIntoCouchbaseServer(couchbaseServerURL url.URL, ca *caPair, node *
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("couldn't reloadCertificate: expected %d status code but got %d: %s", http.StatusOK, resp.StatusCode, respBody)
 	}
-	base.DebugfCtx(logCtx, base.KeyAll, "triggered reload of certificates on Couchbase Server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "triggered reload of certificates on Couchbase Server")
 
 	if err := enableX509ClientCertsInCouchbaseServer(restAPIURL); err != nil {
 		return err
@@ -312,13 +313,13 @@ func loadCertsIntoLocalCouchbaseServer(couchbaseServerURL url.URL, ca *caPair, n
 		return err
 	}
 	logCtx := context.Background()
-	base.DebugfCtx(logCtx, base.KeyAll, "copied x509 node chain.pem to integration test server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "copied x509 node chain.pem to integration test server")
 
 	err = copyLocalFile(node.KeyFilePath, localMacOSCouchbaseServerInbox)
 	if err != nil {
 		return err
 	}
-	base.DebugfCtx(logCtx, base.KeyAll, "copied x509 node pkey.key to integration test server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "copied x509 node pkey.key to integration test server")
 
 	restAPIURL := basicAuthRESTPIURLFromConnstrHost(couchbaseServerURL)
 
@@ -335,7 +336,7 @@ func loadCertsIntoLocalCouchbaseServer(couchbaseServerURL url.URL, ca *caPair, n
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("couldn't uploadClusterCA: expected %d status code but got %d: %s", http.StatusOK, resp.StatusCode, respBody)
 	}
-	base.DebugfCtx(logCtx, base.KeyAll, "uploaded ca.pem to Couchbase Server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "uploaded ca.pem to Couchbase Server")
 
 	// Make CBS read the newly uploaded certs
 	resp, err = http.Post(restAPIURL.String()+"/node/controller/reloadCertificate", "", nil)
@@ -350,7 +351,7 @@ func loadCertsIntoLocalCouchbaseServer(couchbaseServerURL url.URL, ca *caPair, n
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("couldn't reloadCertificate: expected %d status code but got %d: %s", http.StatusOK, resp.StatusCode, respBody)
 	}
-	base.DebugfCtx(logCtx, base.KeyAll, "triggered reload of certificates on Couchbase Server")
+	logger.DebugfCtx(logCtx, logger.KeyAll, "triggered reload of certificates on Couchbase Server")
 
 	if err := enableX509ClientCertsInCouchbaseServer(restAPIURL); err != nil {
 		return err
@@ -381,7 +382,7 @@ func couchbaseNodeConfiguredHostname(restAPIURL url.URL) (string, error) {
 	if err := e.Decode(&respJSON); err != nil {
 		return "", err
 	}
-	base.DebugfCtx(context.Background(), base.KeyAll, "enabled X.509 client certs in Couchbase Server")
+	logger.DebugfCtx(context.Background(), logger.KeyAll, "enabled X.509 client certs in Couchbase Server")
 
 	for _, n := range respJSON.NodesExt {
 		if n.ThisNode {
@@ -428,7 +429,7 @@ func enableX509ClientCertsInCouchbaseServer(restAPIURL url.URL) error {
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("couldn't configure clientCertAuth: expected %d or %d status codes but got %d: %s", http.StatusOK, http.StatusAccepted, resp.StatusCode, respBody)
 	}
-	base.DebugfCtx(context.Background(), base.KeyAll, "enabled X.509 client certs in Couchbase Server")
+	logger.DebugfCtx(context.Background(), logger.KeyAll, "enabled X.509 client certs in Couchbase Server")
 
 	return nil
 }

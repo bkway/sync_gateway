@@ -21,6 +21,7 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // HTTP handler for a GET of a document
@@ -66,7 +67,8 @@ func (h *handler) handleGetDoc() error {
 		value, err := h.db.Get1xRevBodyWithHistory(docid, revid, revsLimit, revsFrom, attachmentsSince, showExp)
 		if err != nil {
 			if err == base.ErrImportCancelledPurged {
-				base.DebugfCtx(h.ctx(), base.KeyImport, fmt.Sprintf("Import cancelled as document %v is purged", base.UD(docid)))
+				//logger.DebugfCtx(h.ctx(), logger.KeyImport, fmt.Sprintf("Import cancelled as document %v is purged", logger.UD(docid)))
+				logger.For(logger.ImportKey).Debug().Msgf(fmt.Sprintf("Import cancelled as document %v is purged", logger.UD(docid)))
 				return nil
 			}
 			return err
@@ -123,7 +125,8 @@ func (h *handler) handleGetDoc() error {
 			})
 			return err
 		} else {
-			base.DebugfCtx(h.ctx(), base.KeyHTTP, "Fallback to non-multipart for open_revs")
+			//logger.DebugfCtx(h.ctx(), logger.KeyHTTP, "Fallback to non-multipart for open_revs")
+			logger.For(logger.HTTPKey).Debug().Msgf("Fallback to non-multipart for open_revs")
 			h.setHeader("Content-Type", "application/json")
 			_, _ = h.response.Write([]byte(`[` + "\n"))
 			separator := []byte(``)

@@ -29,6 +29,7 @@ import (
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,7 +47,7 @@ import (
 // Replication Spec: https://github.com/couchbase/couchbase-lite-core/wiki/Replication-Protocol#proposechanges
 func TestBlipPushRevisionInspectChanges(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	bt, err := NewBlipTester(t)
 	assert.NoError(t, err, "Error creating BlipTester")
@@ -161,7 +162,7 @@ func TestBlipPushRevisionInspectChanges(t *testing.T) {
 // Wait until we get the expected updates
 func TestContinuousChangesSubscription(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg, logger.KeyChanges, logger.KeyCache)
 
 	bt, err := NewBlipTester(t)
 	assert.NoError(t, err, "Error creating BlipTester")
@@ -277,7 +278,7 @@ func TestBlipOneShotChangesSubscription(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	bt, err := NewBlipTester(t)
 	assert.NoError(t, err, "Error creating BlipTester")
@@ -433,7 +434,7 @@ func TestBlipOneShotChangesSubscription(t *testing.T) {
 // Test subChanges w/ docID filter
 func TestBlipSubChangesDocIDFilter(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	bt, err := NewBlipTester(t)
 	assert.NoError(t, err, "Error creating BlipTester")
@@ -601,7 +602,7 @@ func TestBlipSubChangesDocIDFilter(t *testing.T) {
 // 4. Make sure that the server responds to accept the changes (empty array)
 func TestProposedChangesNoConflictsMode(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
 		noConflictsMode: true,
@@ -641,7 +642,7 @@ func TestProposedChangesNoConflictsMode(t *testing.T) {
 // Validate SG sends conflicting rev when requested
 func TestProposedChangesIncludeConflictingRev(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
 		noConflictsMode: true,
@@ -758,7 +759,7 @@ func TestProposedChangesIncludeConflictingRev(t *testing.T) {
 // Connect to public port with authentication
 func TestPublicPortAuthentication(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create bliptester that is connected as user1, with access to the user1 channel
 	btUser1, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -815,7 +816,7 @@ func TestPublicPortAuthentication(t *testing.T) {
 // Connect to public port with authentication, and validate user update during a replication
 func TestPublicPortAuthenticationUserUpdate(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Initialize restTester here, so that we can use custom sync function, and later modify user
 	syncFunction := `
@@ -846,7 +847,7 @@ function(doc, oldDoc) {
 
 	// Set up a ChangeWaiter for this test, to block until the user change notification happens
 	dbc := rt.GetDatabase()
-	user1, err := dbc.Authenticator(base.TestCtx(t)).GetUser("user1")
+	user1, err := dbc.Authenticator(logger.TestCtx(t)).GetUser("user1")
 	require.NoError(t, err)
 
 	userDb, err := db.GetDatabase(dbc, user1)
@@ -880,7 +881,7 @@ function(doc, oldDoc) {
 // Write a doc that grants access to itself for the active replication's user
 func TestContinuousChangesDynamicGrant(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg, logger.KeyChanges, logger.KeyCache)
 	// Initialize restTester here, so that we can use custom sync function, and later modify user
 	syncFunction := `
 function(doc, oldDoc) {
@@ -1007,7 +1008,7 @@ function(doc, oldDoc) {
 // Start subChanges w/ continuous=true, batchsize=20
 // Start sending rev messages for documents that grant access to themselves for the active replication's user
 func TestConcurrentRefreshUser(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg, logger.KeyChanges, logger.KeyCache)
 	// Initialize restTester here, so that we can use custom sync function, and later modify user
 	syncFunction := `
 function(doc, oldDoc) {
@@ -1149,7 +1150,7 @@ function(doc, oldDoc) {
 //   Validate deleted handling (includes check for https://github.com/couchbase/sync_gateway/issues/3341)
 func TestBlipSendAndGetRev(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -1196,7 +1197,7 @@ func TestBlipSendAndGetRev(t *testing.T) {
 //   Validate deleted handling (includes check for https://github.com/couchbase/sync_gateway/issues/3341)
 func TestBlipSendAndGetLargeNumberRev(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -1252,7 +1253,7 @@ func TestMultiChannelContinousChangesSubscription(t *testing.T) {
 // Test setting and getting checkpoints
 func TestBlipSetCheckpoint(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -1302,7 +1303,7 @@ func TestNoConflictsModeReplication(t *testing.T) {
 // Reproduces https://github.com/couchbase/sync_gateway/issues/2717
 func TestReloadUser(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	syncFn := `
 		function(doc) {
@@ -1330,7 +1331,7 @@ func TestReloadUser(t *testing.T) {
 
 	// Set up a ChangeWaiter for this test, to block until the user change notification happens
 	dbc := rt.GetDatabase()
-	user1, err := dbc.Authenticator(base.TestCtx(t)).GetUser("user1")
+	user1, err := dbc.Authenticator(logger.TestCtx(t)).GetUser("user1")
 	require.NoError(t, err)
 
 	userDb, err := db.GetDatabase(dbc, user1)
@@ -1369,7 +1370,7 @@ func TestReloadUser(t *testing.T) {
 // it shows up in the user's changes feed
 func TestAccessGrantViaSyncFunction(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Setup
 	rtConfig := RestTesterConfig{
@@ -1415,7 +1416,7 @@ func TestAccessGrantViaSyncFunction(t *testing.T) {
 // it shows up in the user's changes feed
 func TestAccessGrantViaAdminApi(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1453,7 +1454,7 @@ func TestAccessGrantViaAdminApi(t *testing.T) {
 
 func TestCheckpoint(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1522,7 +1523,7 @@ func TestCheckpoint(t *testing.T) {
 // - Get attachment via REST and verifies it returns the correct content
 func TestPutAttachmentViaBlipGetViaRest(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1568,7 +1569,7 @@ func TestPutAttachmentViaBlipGetViaRest(t *testing.T) {
 
 func TestPutAttachmentViaBlipGetViaBlip(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1652,7 +1653,7 @@ func TestPutInvalidAttachment(t *testing.T) {
 		},
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1696,7 +1697,7 @@ func TestPutInvalidAttachment(t *testing.T) {
 // returns an error code
 func TestPutInvalidRevSyncFnReject(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	syncFn := `
 		function(doc) {
@@ -1743,7 +1744,7 @@ func TestPutInvalidRevSyncFnReject(t *testing.T) {
 
 func TestPutInvalidRevMalformedBody(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1781,7 +1782,7 @@ func TestPutInvalidRevMalformedBody(t *testing.T) {
 
 func TestPutRevNoConflictsMode(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1811,7 +1812,7 @@ func TestPutRevNoConflictsMode(t *testing.T) {
 
 func TestPutRevConflictsMode(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	// Create blip tester
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
@@ -1854,7 +1855,7 @@ func TestPutRevConflictsMode(t *testing.T) {
 //
 func TestGetRemovedDoc(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -1894,7 +1895,7 @@ func TestGetRemovedDoc(t *testing.T) {
 	assert.NoError(t, err)                         // no error
 	assert.Empty(t, resp.Properties["Error-Code"]) // no error
 
-	require.NoError(t, rt.GetDatabase().WaitForPendingChanges(base.TestCtx(t)))
+	require.NoError(t, rt.GetDatabase().WaitForPendingChanges(logger.TestCtx(t)))
 
 	// Try to get rev 2 via BLIP API and assert that _removed == false
 	resultDoc, err := bt.GetDocAtRev("foo", "2-bcd")
@@ -1915,7 +1916,7 @@ func TestGetRemovedDoc(t *testing.T) {
 	assert.NoError(t, err)                         // no error
 	assert.Empty(t, resp.Properties["Error-Code"]) // no error
 
-	require.NoError(t, rt.GetDatabase().WaitForPendingChanges(base.TestCtx(t)))
+	require.NoError(t, rt.GetDatabase().WaitForPendingChanges(logger.TestCtx(t)))
 
 	// Flush rev cache in case this prevents the bug from showing up (didn't make a difference)
 	rt.GetDatabase().FlushRevisionCacheForTest()
@@ -1995,7 +1996,7 @@ func TestMissingNoRev(t *testing.T) {
 // TestBlipPullRevMessageHistory tests that a simple pull replication contains history in the rev message.
 func TestBlipPullRevMessageHistory(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{}},
@@ -2036,7 +2037,7 @@ func TestBlipPullRevMessageHistory(t *testing.T) {
 // Reproduces CBG-617 (a client using activeOnly for the initial replication, and then still expecting to get subsequent tombstones afterwards)
 func TestActiveOnlyContinuous(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	rt := NewRestTester(t, &RestTesterConfig{guestEnabled: true})
 	defer rt.Close()
@@ -2072,7 +2073,7 @@ func TestActiveOnlyContinuous(t *testing.T) {
 // Test that exercises Sync Gateway's norev handler
 func TestBlipNorev(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	rt := NewRestTester(t, &RestTesterConfig{guestEnabled: true})
 	defer rt.Close()
@@ -2124,7 +2125,7 @@ func TestNoRevSetSeq(t *testing.T) {
 // 4. Update doc in the test client and keep the same attachment stub.
 // 5. Have that update pushed via the continuous replication started in step 2
 func TestBlipPushPullV2AttachmentV2Client(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{}},
 		guestEnabled:   true,
@@ -2196,7 +2197,7 @@ func TestBlipPushPullV2AttachmentV2Client(t *testing.T) {
 // 4. Update doc in the test client and keep the same attachment stub.
 // 5. Have that update pushed via the continuous replication started in step 2
 func TestBlipPushPullV2AttachmentV3Client(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	rtConfig := RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{}},
 		guestEnabled:   true,
@@ -2308,8 +2309,8 @@ func TestUpdateExistingAttachment(t *testing.T) {
 	err = rt.waitForRev("doc2", revIDDoc2)
 	assert.NoError(t, err)
 
-	doc1, err := rt.GetDatabase().GetDocument(base.TestCtx(t), "doc1", db.DocUnmarshalAll)
-	_, err = rt.GetDatabase().GetDocument(base.TestCtx(t), "doc2", db.DocUnmarshalAll)
+	doc1, err := rt.GetDatabase().GetDocument(logger.TestCtx(t), "doc1", db.DocUnmarshalAll)
+	_, err = rt.GetDatabase().GetDocument(logger.TestCtx(t), "doc2", db.DocUnmarshalAll)
 
 	revIDDoc1, err = btc.PushRev("doc1", revIDDoc1, []byte(`{"key": "val", "_attachments":{"attachment":{"digest":"sha1-SKk0IV40XSHW37d3H0xpv2+z9Ck=","length":11,"content_type":"","stub":true,"revpos":3}}}`))
 	require.NoError(t, err)
@@ -2317,7 +2318,7 @@ func TestUpdateExistingAttachment(t *testing.T) {
 	err = rt.waitForRev("doc1", revIDDoc1)
 	assert.NoError(t, err)
 
-	doc1, err = rt.GetDatabase().GetDocument(base.TestCtx(t), "doc1", db.DocUnmarshalAll)
+	doc1, err = rt.GetDatabase().GetDocument(logger.TestCtx(t), "doc1", db.DocUnmarshalAll)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "sha1-SKk0IV40XSHW37d3H0xpv2+z9Ck=", doc1.Attachments["attachment"].(map[string]interface{})["digest"])
@@ -2378,8 +2379,8 @@ func TestCBLRevposHandling(t *testing.T) {
 	err = rt.waitForRev("doc2", revIDDoc2)
 	assert.NoError(t, err)
 
-	_, err = rt.GetDatabase().GetDocument(base.TestCtx(t), "doc1", db.DocUnmarshalAll)
-	_, err = rt.GetDatabase().GetDocument(base.TestCtx(t), "doc2", db.DocUnmarshalAll)
+	_, err = rt.GetDatabase().GetDocument(logger.TestCtx(t), "doc1", db.DocUnmarshalAll)
+	_, err = rt.GetDatabase().GetDocument(logger.TestCtx(t), "doc2", db.DocUnmarshalAll)
 
 	// Update doc1, don't change attachment, use correct revpos
 	revIDDoc1, err = btc.PushRev("doc1", revIDDoc1, []byte(`{"key": "val", "_attachments":{"attachment":{"digest":"sha1-wzp8ZyykdEuZ9GuqmxQ7XDrY7Co=","length":11,"content_type":"","stub":true,"revpos":2}}}`))
@@ -2403,7 +2404,7 @@ func TestCBLRevposHandling(t *testing.T) {
 }
 
 func TestRevocationMessage(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	revocationTester, rt := initScenario(t, nil)
 	defer rt.Close()
@@ -2590,7 +2591,7 @@ func TestRevocationNoRev(t *testing.T) {
 
 func TestRemovedMessageWithAlternateAccess(t *testing.T) {
 	defer db.SuspendSequenceBatching()()
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -2685,7 +2686,7 @@ func TestRemovedMessageWithAlternateAccess(t *testing.T) {
 }
 
 func TestBlipPushPullNewAttachmentCommonAncestor(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	rtConfig := RestTesterConfig{
 		guestEnabled: true,
 	}
@@ -2757,7 +2758,7 @@ func TestBlipPushPullNewAttachmentCommonAncestor(t *testing.T) {
 }
 
 func TestBlipPushPullNewAttachmentNoCommonAncestor(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	rtConfig := RestTesterConfig{
 		guestEnabled: true,
 	}
@@ -2817,7 +2818,7 @@ func TestBlipPushPullNewAttachmentNoCommonAncestor(t *testing.T) {
 }
 
 func TestMinRevPosWorkToAvoidUnnecessaryProveAttachment(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 	rt := NewRestTester(t, &RestTesterConfig{
 		guestEnabled: true,
 		DatabaseConfig: &DatabaseConfig{
@@ -2867,7 +2868,7 @@ func TestMinRevPosWorkToAvoidUnnecessaryProveAttachment(t *testing.T) {
 // Asserts on stats to test for regression of CBG-1824: Make sure SubChangesOneShotActive gets decremented when one shot
 // sub changes request has completed
 func TestMultipleOutstandingChangesSubscriptions(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	bt, err := NewBlipTester(t)
 	require.NoError(t, err, "Error creating BlipTester")
@@ -3020,7 +3021,7 @@ func TestAttachmentWithErroneousRevPos(t *testing.T) {
 }
 
 func TestBlipInternalPropertiesHandling(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	testCases := []struct {
 		name                        string
@@ -3194,7 +3195,7 @@ func TestProveAttachmentNotFound(t *testing.T) {
 
 	// Should log:
 	// "Peer sent prove attachment error 404 attachment not found, falling back to getAttachment for proof in doc <ud>doc1</ud> (digest sha1-wzp8ZyykdEuZ9GuqmxQ7XDrY7Co=)"
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	// Use different attachment name to bypass digest check in ForEachStubAttachment() which skips prove attachment code
 	// Set attachment to V2 so it can be retrieved by RT successfully
@@ -3256,7 +3257,7 @@ func TestProcessRevIncrementsStat(t *testing.T) {
 // Attempt to send rev as GUEST when read-only guest is enabled
 func TestSendRevAsReadOnlyGuest(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeySync, logger.KeySyncMsg)
 
 	bt, err := NewBlipTesterFromSpec(t, BlipTesterSpec{
 		noConflictsMode: true,

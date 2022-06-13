@@ -19,6 +19,7 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +38,7 @@ func TestPushReplicationAPIUpdateDatabase(t *testing.T) {
 	}
 
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	rt1, rt2, remoteURLString, teardown := setupSGRPeers(t)
 	defer teardown()
@@ -95,7 +96,7 @@ func TestPushReplicationAPIUpdateDatabase(t *testing.T) {
 
 	// wait for the last document written to rt1 to arrive at rt2
 	waitAndAssertCondition(t, func() bool {
-		_, err := rt2.GetDatabase().GetDocument(base.TestCtx(t), lastDocIDString, db.DocUnmarshalNone)
+		_, err := rt2.GetDatabase().GetDocument(logger.TestCtx(t), lastDocIDString, db.DocUnmarshalNone)
 		return err == nil
 	})
 }

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
@@ -635,32 +636,32 @@ func TestSetTestLogging(t *testing.T) {
 	}
 
 	// Check default state of logging is as expected.
-	require.Equal(t, LevelInfo, *consoleLogger.LogLevel)
-	require.Equal(t, *logKeyMask(KeyHTTP), *consoleLogger.LogKeyMask)
+	require.Equal(t, logger.LevelInfo, *consoleLogger.LogLevel)
+	require.Equal(t, *logKeyMask(logger.KeyHTTP), *consoleLogger.LogKeyMask)
 
-	cleanup := setTestLogging(LevelDebug, "", KeyDCP, KeySync)
-	assert.Equal(t, LevelDebug, *consoleLogger.LogLevel)
-	assert.Equal(t, *logKeyMask(KeyDCP, KeySync), *consoleLogger.LogKeyMask)
-
-	cleanup()
-	assert.Equal(t, LevelInfo, *consoleLogger.LogLevel)
-	assert.Equal(t, *logKeyMask(KeyHTTP), *consoleLogger.LogKeyMask)
-
-	cleanup = setTestLogging(LevelNone, "", KeyNone)
-	assert.Equal(t, LevelNone, *consoleLogger.LogLevel)
-	assert.Equal(t, *logKeyMask(KeyNone), *consoleLogger.LogKeyMask)
+	cleanup := setTestLogging(logger.LevelDebug, "", logger.KeyDCP, logger.KeySync)
+	assert.Equal(t, logger.LevelDebug, *consoleLogger.LogLevel)
+	assert.Equal(t, *logKeyMask(logger.KeyDCP, logger.KeySync), *consoleLogger.LogKeyMask)
 
 	cleanup()
-	assert.Equal(t, LevelInfo, *consoleLogger.LogLevel)
-	assert.Equal(t, *logKeyMask(KeyHTTP), *consoleLogger.LogKeyMask)
+	assert.Equal(t, logger.LevelInfo, *consoleLogger.LogLevel)
+	assert.Equal(t, *logKeyMask(logger.KeyHTTP), *consoleLogger.LogKeyMask)
 
-	cleanup = setTestLogging(LevelDebug, "", KeyDCP, KeySync)
-	assert.Equal(t, LevelDebug, *consoleLogger.LogLevel)
-	assert.Equal(t, *logKeyMask(KeyDCP, KeySync), *consoleLogger.LogKeyMask)
+	cleanup = setTestLogging(logger.LevelNone, "", logger.KeyNone)
+	assert.Equal(t, logger.LevelNone, *consoleLogger.LogLevel)
+	assert.Equal(t, *logKeyMask(logger.KeyNone), *consoleLogger.LogKeyMask)
+
+	cleanup()
+	assert.Equal(t, logger.LevelInfo, *consoleLogger.LogLevel)
+	assert.Equal(t, *logKeyMask(logger.KeyHTTP), *consoleLogger.LogKeyMask)
+
+	cleanup = setTestLogging(logger.LevelDebug, "", logger.KeyDCP, logger.KeySync)
+	assert.Equal(t, logger.LevelDebug, *consoleLogger.LogLevel)
+	assert.Equal(t, *logKeyMask(logger.KeyDCP, logger.KeySync), *consoleLogger.LogKeyMask)
 
 	// Now we should panic because we forgot to call teardown!
 	assert.Panics(t, func() {
-		setTestLogging(LevelDebug, "", KeyDCP, KeySync)
+		setTestLogging(logger.LevelDebug, "", logger.KeyDCP, logger.KeySync)
 	}, "Expected panic from multiple SetUpTestLogging calls")
 	cleanup()
 }

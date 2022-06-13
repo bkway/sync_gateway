@@ -8,6 +8,7 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -321,7 +322,7 @@ func TestUserAPI(t *testing.T) {
 	assert.Equal(t, `["snej"]`, string(response.Body.Bytes()))
 
 	// Check that the actual User object is correct:
-	user, _ := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t)).GetUser("snej")
+	user, _ := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t)).GetUser("snej")
 	assert.Equal(t, "snej", user.Name())
 	assert.Equal(t, "jens@couchbase.com", user.Email())
 	assert.Equal(t, channels.TimedSet{"bar": channels.NewVbSimpleSequence(0x1), "foo": channels.NewVbSimpleSequence(0x1)}, user.ExplicitChannels())
@@ -331,7 +332,7 @@ func TestUserAPI(t *testing.T) {
 	response = rt.SendAdminRequest("PUT", "/db/_user/snej", `{"email":"jens@couchbase.com", "password":"123", "admin_channels":["foo", "bar"]}`)
 	assertStatus(t, response, 200)
 
-	user, _ = rt.ServerContext().Database("db").Authenticator(base.TestCtx(t)).GetUser("snej")
+	user, _ = rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t)).GetUser("snej")
 	assert.True(t, user.Authenticate("123"))
 
 	// DELETE the user

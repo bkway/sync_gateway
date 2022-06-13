@@ -21,6 +21,7 @@ import (
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // Used for queries that only return doc id
@@ -327,7 +328,8 @@ func (context *DatabaseContext) QueryAccess(ctx context.Context, username string
 
 	// N1QL Query
 	if username == "" {
-		base.WarnfCtx(ctx, "QueryAccess called with empty username - returning empty result iterator")
+		// log.Ctx(ctx).Warn().Msgf("QueryAccess called with empty username - returning empty result iterator")
+		logger.For(logger.UnknownKey).Warn().Msgf("QueryAccess called with empty username - returning empty result iterator")
 		return &EmptyResultIterator{}, nil
 	}
 	accessQueryStatement := context.buildAccessQuery(username)
@@ -359,7 +361,8 @@ func (context *DatabaseContext) QueryRoleAccess(ctx context.Context, username st
 
 	// N1QL Query
 	if username == "" {
-		base.WarnfCtx(ctx, "QueryRoleAccess called with empty username")
+		// log.Ctx(ctx).Warn().Msgf("QueryRoleAccess called with empty username")
+		logger.For(logger.UnknownKey).Warn().Msgf("QueryRoleAccess called with empty username")
 		return &EmptyResultIterator{}, nil
 	}
 

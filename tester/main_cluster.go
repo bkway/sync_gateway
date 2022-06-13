@@ -1,4 +1,4 @@
-package base
+package tester
 
 import (
 	"context"
@@ -7,24 +7,26 @@ import (
 	"time"
 
 	"github.com/couchbase/gocb/v2"
+	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	gocbv1 "gopkg.in/couchbase/gocb.v1"
 )
+
+type clusterLogFunc func(ctx context.Context, format string, args ...interface{})
 
 // tbpCluster defines the required test bucket pool cluster operations
 type tbpCluster interface {
 	getBucketNames() ([]string, error)
 	insertBucket(name string, quotaMB int) error
 	removeBucket(name string) error
-	openTestBucket(name tbpBucketName, waitUntilReadySeconds int) (Bucket, error)
+	openTestBucket(name tbpBucketName, waitUntilReadySeconds int) (base.Bucket, error)
 	close() error
 }
-
-type clusterLogFunc func(ctx context.Context, format string, args ...interface{})
 
 // newTestCluster returns a cluster based on the driver used by the defaultBucketSpec.  Accepts a clusterLogFunc to support
 // cluster logging within a test bucket pool context
 func newTestCluster(server string, logger clusterLogFunc) tbpCluster {
-	if tbpDefaultBucketSpec.CouchbaseDriver == GoCBv2 {
+	if tbpDefaultBucketSpec.CouchbaseDriver == base.GoCBv2 {
 		return newTestClusterV2(server, logger)
 	} else {
 		return newTestClusterV1(server, logger)
@@ -51,18 +53,18 @@ func newTestClusterV1(server string, logger clusterLogFunc) *tbpClusterV1 {
 
 // tbpCluster returns an authenticated gocb Cluster for the given server URL.
 func initV1Cluster(server string) *gocbv1.Cluster {
-	spec := BucketSpec{
+	spec := base.BucketSpec{
 		Server: server,
 	}
 
 	connStr, err := spec.GetGoCBConnString()
 	if err != nil {
-		FatalfCtx(context.TODO(), "error getting connection string: %v", err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msg("error getting connection string")
 	}
 
 	cluster, err := gocbv1.Connect(connStr)
 	if err != nil {
-		FatalfCtx(context.TODO(), "Couldn't connect to %q: %v", server, err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msgf("Couldn't connect to %q", server)
 	}
 
 	err = cluster.Authenticate(gocbv1.PasswordAuthenticator{
@@ -70,7 +72,7 @@ func initV1Cluster(server string) *gocbv1.Cluster {
 		Password: TestClusterPassword(),
 	})
 	if err != nil {
-		FatalfCtx(context.TODO(), "Couldn't authenticate with %q: %v", server, err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msgf("Couldn't authenticate with %q", server)
 	}
 
 	return cluster
@@ -110,15 +112,17 @@ func (c *tbpClusterV1) removeBucket(name string) error {
 }
 
 // openTestBucket opens the bucket of the given name for the gocb cluster in the given TestBucketPool.
-func (c *tbpClusterV1) openTestBucket(testBucketName tbpBucketName, waitUntilReadySeconds int) (Bucket, error) {
+func (c *tbpClusterV1) openTestBucket(testBucketName tbpBucketName, waitUntilReadySeconds int) (base.Bucket, error) {
 
-	sleeper := CreateSleeperFunc(waitUntilReadySeconds, 1000)
-	ctx := bucketNameCtx(context.Background(), string(testBucketName))
+	sleeper := base.CreateSleeperFunc(waitUntilReadySeconds, 1000)
+	// FIXME
+	// ctx := bucketNameCtx(context.Background(), string(testBucketName))
+	ctx := context.TODO()
 
 	bucketSpec := getBucketSpec(testBucketName)
 
 	waitForNewBucketWorker := func() (shouldRetry bool, err error, value interface{}) {
-		gocbBucket, err := GetCouchbaseBucketGoCBFromAuthenticatedCluster(c.cluster, bucketSpec, "")
+		gocbBucket, err := base.GetCouchbaseBucketGoCBFromAuthenticatedCluster(c.cluster, bucketSpec, "")
 		if err != nil {
 			c.logger(ctx, "Retrying OpenBucket")
 			return true, err, nil
@@ -127,9 +131,9 @@ func (c *tbpClusterV1) openTestBucket(testBucketName tbpBucketName, waitUntilRea
 	}
 
 	c.logger(ctx, "Opening bucket")
-	err, val := RetryLoop("waitForNewBucket", waitForNewBucketWorker, sleeper)
+	err, val := base.RetryLoop("waitForNewBucket", waitForNewBucketWorker, sleeper)
 
-	gocbBucket, _ := val.(*CouchbaseBucketGoCB)
+	gocbBucket, _ := val.(*base.CouchbaseBucketGoCB)
 
 	return gocbBucket, err
 }
@@ -163,7 +167,7 @@ func newTestClusterV2(server string, logger clusterLogFunc) *tbpClusterV2 {
 func getCluster(server string) *gocb.Cluster {
 
 	testClusterTimeout := 10 * time.Second
-	spec := BucketSpec{
+	spec := base.BucketSpec{
 		Server:          server,
 		TLSSkipVerify:   true,
 		BucketOpTimeout: &testClusterTimeout,
@@ -172,20 +176,20 @@ func getCluster(server string) *gocb.Cluster {
 
 	connStr, err := spec.GetGoCBConnString()
 	if err != nil {
-		FatalfCtx(context.TODO(), "error getting connection string: %v", err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msg("error getting connection string")
 	}
 
-	securityConfig, err := GoCBv2SecurityConfig(&spec.TLSSkipVerify, spec.CACertPath)
+	securityConfig, err := base.GoCBv2SecurityConfig(&spec.TLSSkipVerify, spec.CACertPath)
 	if err != nil {
-		FatalfCtx(context.TODO(), "Couldn't initialize cluster security config: %v", err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msg("Couldn't initialize cluster security config")
 	}
 
-	authenticatorConfig, authErr := GoCBv2Authenticator(TestClusterUsername(), TestClusterPassword(), spec.Certpath, spec.Keypath)
+	authenticatorConfig, authErr := base.GoCBv2Authenticator(TestClusterUsername(), TestClusterPassword(), spec.Certpath, spec.Keypath)
 	if authErr != nil {
-		FatalfCtx(context.TODO(), "Couldn't initialize cluster authenticator config: %v", authErr)
+		logger.For(logger.UnknownKey).Fatal().Err(authErr).Msg("Couldn't initialize cluster authenticator config")
 	}
 
-	timeoutsConfig := GoCBv2TimeoutsConfig(spec.BucketOpTimeout, StdlibDurationPtr(spec.GetViewQueryTimeout()))
+	timeoutsConfig := base.GoCBv2TimeoutsConfig(spec.BucketOpTimeout, base.StdlibDurationPtr(spec.GetViewQueryTimeout()))
 
 	clusterOptions := gocb.ClusterOptions{
 		Authenticator:  authenticatorConfig,
@@ -195,11 +199,11 @@ func getCluster(server string) *gocb.Cluster {
 
 	cluster, err := gocb.Connect(connStr, clusterOptions)
 	if err != nil {
-		FatalfCtx(context.TODO(), "Couldn't connect to %q: %v", server, err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msgf("Couldn't connect to %q", server)
 	}
 	err = cluster.WaitUntilReady(15*time.Second, nil)
 	if err != nil {
-		FatalfCtx(context.TODO(), "Cluster not ready: %v", err)
+		logger.For(logger.UnknownKey).Fatal().Err(err).Msg("Cluster not ready")
 	}
 
 	return cluster
@@ -253,12 +257,12 @@ func (c *tbpClusterV2) removeBucket(name string) error {
 }
 
 // openTestBucket opens the bucket of the given name for the gocb cluster in the given TestBucketPool.
-func (c *tbpClusterV2) openTestBucket(testBucketName tbpBucketName, waitUntilReadySeconds int) (Bucket, error) {
+func (c *tbpClusterV2) openTestBucket(testBucketName tbpBucketName, waitUntilReadySeconds int) (base.Bucket, error) {
 
 	cluster := getCluster(c.server)
 	bucketSpec := getBucketSpec(testBucketName)
 
-	return GetCollectionFromCluster(cluster, bucketSpec, waitUntilReadySeconds)
+	return base.GetCollectionFromCluster(cluster, bucketSpec, waitUntilReadySeconds)
 }
 
 func (c *tbpClusterV2) close() error {

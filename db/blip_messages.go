@@ -11,13 +11,13 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 type BLIPMessageSender interface {
@@ -67,7 +67,7 @@ func (rq *SubChangesRequest) marshalBLIPRequest() (*blip.Message, error) {
 		if err := msg.SetJSONBody(map[string]interface{}{
 			"docIDs": rq.DocIDs,
 		}); err != nil {
-			base.ErrorfCtx(context.Background(), "error marshalling docIDs slice into subChanges request: %v", err)
+			logger.For(logger.SyncKey).Error().Err(err).Msg("error marshalling docIDs slice into subChanges request")
 			return nil, err
 		}
 	}

@@ -17,6 +17,8 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,39 +26,39 @@ import (
 func TestFilterToAvailableChannels(t *testing.T) {
 	testCases := []struct {
 		name                 string
-		genChanAndDocs       int      // Amount of docs and channels to generate (ie. doc1 ch1, doc2 ch2...)
-		userChans            base.Set // Channels user is in
-		accessChans          base.Set // Channels to get changes for
-		expectedDocsReturned []string // Expected Doc IDs returned
+		genChanAndDocs       int       // Amount of docs and channels to generate (ie. doc1 ch1, doc2 ch2...)
+		userChans            utils.Set // Channels user is in
+		accessChans          utils.Set // Channels to get changes for
+		expectedDocsReturned []string  // Expected Doc IDs returned
 	}{
 		{
 			// Should log "Channels [ ch2 ] request without access by user test" - CBG-1326
 			name:                 "Info logged when channels dropped from list",
 			genChanAndDocs:       3,
-			userChans:            base.SetOf("ch1", "ch3"),
-			accessChans:          base.SetOf("ch1", "ch2", "ch3"),
+			userChans:            utils.SetOf("ch1", "ch3"),
+			accessChans:          utils.SetOf("ch1", "ch2", "ch3"),
 			expectedDocsReturned: []string{"doc1", "doc3"},
 		}, {
 			name:                 "No info logged if no channels dropped from list",
 			genChanAndDocs:       3,
-			userChans:            base.SetOf("ch1", "ch3"),
-			accessChans:          base.SetOf("ch1", "ch3"),
+			userChans:            utils.SetOf("ch1", "ch3"),
+			accessChans:          utils.SetOf("ch1", "ch3"),
 			expectedDocsReturned: []string{"doc1", "doc3"},
 		}, {
 			name:                 "No info logged when using wildcard",
 			genChanAndDocs:       3,
-			userChans:            base.SetOf("ch1", "ch3"),
-			accessChans:          base.SetOf("*"),
+			userChans:            utils.SetOf("ch1", "ch3"),
+			accessChans:          utils.SetOf("*"),
 			expectedDocsReturned: []string{"doc1", "doc3"},
 		},
 	}
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges)
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			db := setupTestDB(t)
 			defer db.Close()
 
-			auth := db.Authenticator(base.TestCtx(t))
+			auth := db.Authenticator(logger.TestCtx(t))
 			user, err := auth.NewUser("test", "pass", testCase.userChans)
 			require.NoError(t, err)
 			require.NoError(t, auth.Save(user))
@@ -66,7 +68,7 @@ func TestFilterToAvailableChannels(t *testing.T) {
 				_, _, err = db.Put("doc"+id, Body{"channels": []string{"ch" + id}})
 				require.NoError(t, err)
 			}
-			err = db.WaitForPendingChanges(base.TestCtx(t))
+			err = db.WaitForPendingChanges(logger.TestCtx(t))
 			require.NoError(t, err)
 
 			db.user, err = auth.GetUser("test")
@@ -97,13 +99,13 @@ func TestChangesAfterChannelAdded(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyCache, base.KeyChanges)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyCache, logger.KeyChanges)
 
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel ABC
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOf(t, "ABC"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("naomi", "letmein", channels.SetOfTester(t, "ABC"))
 	require.NoError(t, authenticator.Save(user))
 
 	cacheWaiter := db.NewDCPCachingCountWaiter(t)
@@ -116,16 +118,16 @@ func TestChangesAfterChannelAdded(t *testing.T) {
 	// Modify user to have access to both channels (sequence 2):
 	userInfo, err := db.GetPrincipalForTest(t, "naomi", true)
 	assert.True(t, userInfo != nil)
-	userInfo.ExplicitChannels = base.SetOf("ABC", "PBS")
-	_, err = db.UpdatePrincipal(base.TestCtx(t), *userInfo, true, true)
+	userInfo.ExplicitChannels = utils.SetOf("ABC", "PBS")
+	_, err = db.UpdatePrincipal(logger.TestCtx(t), *userInfo, true, true)
 	assert.NoError(t, err, "UpdatePrincipal failed")
 
-	err = db.WaitForPendingChanges(base.TestCtx(t))
+	err = db.WaitForPendingChanges(logger.TestCtx(t))
 	assert.NoError(t, err)
 
 	// Check the _changes feed:
 	db.user, _ = authenticator.GetUser("naomi")
-	changes, err := db.GetChanges(base.SetOf("*"), getZeroSequence())
+	changes, err := db.GetChanges(utils.SetOf("*"), getZeroSequence())
 	assert.NoError(t, err, "Couldn't GetChanges")
 	printChanges(changes)
 	require.Len(t, changes, 3)
@@ -153,7 +155,7 @@ func TestChangesAfterChannelAdded(t *testing.T) {
 	// Check the _changes feed -- this is to make sure the changeCache properly received
 	// sequence 2 (the user doc) and isn't stuck waiting for it.
 	cacheWaiter.AddAndWait(1)
-	changes, err = db.GetChanges(base.SetOf("*"), ChangesOptions{Since: lastSeq})
+	changes, err = db.GetChanges(utils.SetOf("*"), ChangesOptions{Since: lastSeq})
 
 	assert.NoError(t, err, "Couldn't GetChanges (2nd)")
 
@@ -162,7 +164,7 @@ func TestChangesAfterChannelAdded(t *testing.T) {
 	assert.Equal(t, []ChangeRev{{"rev": revid}}, changes[0].Changes)
 
 	// validate from zero
-	changes, err = db.GetChanges(base.SetOf("*"), getZeroSequence())
+	changes, err = db.GetChanges(utils.SetOf("*"), getZeroSequence())
 	assert.NoError(t, err, "Couldn't GetChanges")
 	printChanges(changes)
 
@@ -195,7 +197,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 		t.Skip("This test is known to be failing against couchbase server with XATTRS enabled.  See https://gist.github.com/tleyden/a41632355fadde54f19e84ba68015512")
 	}
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -203,8 +205,8 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel A
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("alice", "letmein", channels.SetOf(t, "A"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("alice", "letmein", channels.SetOfTester(t, "A"))
 	require.NoError(t, authenticator.Save(user))
 
 	cacheWaiter := db.NewDCPCachingCountWaiter(t)
@@ -215,7 +217,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 	cacheWaiter.AddAndWait(1)
 
 	db.user, _ = authenticator.GetUser("alice")
-	changes, err := db.GetChanges(base.SetOf("*"), getZeroSequence())
+	changes, err := db.GetChanges(utils.SetOf("*"), getZeroSequence())
 	assert.NoError(t, err, "Couldn't GetChanges")
 	printChanges(changes)
 	assert.Equal(t, 1, len(changes))
@@ -246,7 +248,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 	history := sync["history"].(map[string]interface{})
 	history["revs"] = []string{revid, "2-e99405a23fa102238fa8c3fd499b15bc", "3-e99405a23fa102238fa8c3fd499b15bc"}
 	history["parents"] = []int{-1, 0, 1}
-	history["channels"] = []base.Set{base.SetOf("A", "B"), base.SetOf("B"), base.SetOf("B")}
+	history["channels"] = []utils.Set{utils.SetOf("A", "B"), utils.SetOf("B"), utils.SetOf("B")}
 
 	// Marshall back to JSON
 	b, err := json.Marshal(x)
@@ -257,7 +259,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 	// Check the _changes feed -- this is to make sure the changeCache properly received
 	// sequence 3 and isn't stuck waiting for it.
 	cacheWaiter.AddAndWait(1)
-	changes, err = db.GetChanges(base.SetOf("*"), ChangesOptions{Since: lastSeq})
+	changes, err = db.GetChanges(utils.SetOf("*"), ChangesOptions{Since: lastSeq})
 
 	assert.NoError(t, err, "Couldn't GetChanges (2nd)")
 
@@ -265,7 +267,7 @@ func TestDocDeletionFromChannelCoalescedRemoved(t *testing.T) {
 	assert.Equal(t, &ChangeEntry{
 		Seq:        SequenceID{Seq: 2},
 		ID:         "alpha",
-		Removed:    base.SetOf("A"),
+		Removed:    utils.SetOf("A"),
 		allRemoved: true,
 		Changes:    []ChangeRev{{"rev": "2-e99405a23fa102238fa8c3fd499b15bc"}}}, changes[0])
 
@@ -288,8 +290,8 @@ func TestDocDeletionFromChannelCoalesced(t *testing.T) {
 	db.ChannelMapper = channels.NewDefaultChannelMapper()
 
 	// Create a user with access to channel A
-	authenticator := db.Authenticator(base.TestCtx(t))
-	user, _ := authenticator.NewUser("alice", "letmein", channels.SetOf(t, "A"))
+	authenticator := db.Authenticator(logger.TestCtx(t))
+	user, _ := authenticator.NewUser("alice", "letmein", channels.SetOfTester(t, "A"))
 	require.NoError(t, authenticator.Save(user))
 
 	cacheWaiter := db.NewDCPCachingCountWaiter(t)
@@ -300,7 +302,7 @@ func TestDocDeletionFromChannelCoalesced(t *testing.T) {
 	cacheWaiter.AddAndWait(1)
 
 	db.user, _ = authenticator.GetUser("alice")
-	changes, err := db.GetChanges(base.SetOf("*"), getZeroSequence())
+	changes, err := db.GetChanges(utils.SetOf("*"), getZeroSequence())
 	assert.NoError(t, err, "Couldn't GetChanges")
 	printChanges(changes)
 
@@ -328,7 +330,7 @@ func TestDocDeletionFromChannelCoalesced(t *testing.T) {
 	history := sync["history"].(map[string]interface{})
 	history["revs"] = []string{revid, "2-e99405a23fa102238fa8c3fd499b15bc", "3-e99405a23fa102238fa8c3fd499b15bc"}
 	history["parents"] = []int{-1, 0, 1}
-	history["channels"] = []base.Set{base.SetOf("A", "B"), base.SetOf("A", "B"), base.SetOf("A", "B")}
+	history["channels"] = []utils.Set{utils.SetOf("A", "B"), utils.SetOf("A", "B"), utils.SetOf("A", "B")}
 
 	// Marshall back to JSON
 	b, err := json.Marshal(x)
@@ -340,7 +342,7 @@ func TestDocDeletionFromChannelCoalesced(t *testing.T) {
 	// sequence 3 (the modified document) and isn't stuck waiting for it.
 	cacheWaiter.AddAndWait(1)
 
-	changes, err = db.GetChanges(base.SetOf("*"), ChangesOptions{Since: lastSeq})
+	changes, err = db.GetChanges(utils.SetOf("*"), ChangesOptions{Since: lastSeq})
 
 	assert.NoError(t, err, "Couldn't GetChanges (2nd)")
 
@@ -358,7 +360,7 @@ func TestActiveOnlyCacheUpdate(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyCache)
 	// Create 10 documents
 	revId := ""
 	var err error
@@ -376,7 +378,7 @@ func TestActiveOnlyCacheUpdate(t *testing.T) {
 		require.NoError(t, err, "Couldn't delete document")
 	}
 
-	waitErr := db.WaitForPendingChanges(base.TestCtx(t))
+	waitErr := db.WaitForPendingChanges(logger.TestCtx(t))
 	assert.NoError(t, waitErr)
 
 	changesOptions := ChangesOptions{
@@ -387,7 +389,7 @@ func TestActiveOnlyCacheUpdate(t *testing.T) {
 	initQueryCount := db.DbStats.Cache().ViewQueries.Value()
 
 	// Get changes with active_only=true
-	activeChanges, err := db.GetChanges(base.SetOf("*"), changesOptions)
+	activeChanges, err := db.GetChanges(utils.SetOf("*"), changesOptions)
 	require.NoError(t, err, "Error getting changes with active_only true")
 	require.Equal(t, 5, len(activeChanges))
 
@@ -397,7 +399,7 @@ func TestActiveOnlyCacheUpdate(t *testing.T) {
 
 	// Get changes with active_only=false, validate that triggers a new query
 	changesOptions.ActiveOnly = false
-	allChanges, err := db.GetChanges(base.SetOf("*"), changesOptions)
+	allChanges, err := db.GetChanges(utils.SetOf("*"), changesOptions)
 	require.NoError(t, err, "Error getting changes with active_only true")
 	require.Equal(t, 10, len(allChanges))
 
@@ -406,7 +408,7 @@ func TestActiveOnlyCacheUpdate(t *testing.T) {
 
 	// Get changes with active_only=false again, verify results are served from the cache
 	changesOptions.ActiveOnly = false
-	allChanges, err = db.GetChanges(base.SetOf("*"), changesOptions)
+	allChanges, err = db.GetChanges(utils.SetOf("*"), changesOptions)
 	require.NoError(t, err, "Error getting changes with active_only true")
 	require.Equal(t, 10, len(allChanges))
 
@@ -417,7 +419,7 @@ func TestActiveOnlyCacheUpdate(t *testing.T) {
 
 // Benchmark to validate fix for https://github.com/couchbase/sync_gateway/issues/2428
 func BenchmarkChangesFeedDocUnmarshalling(b *testing.B) {
-	base.SetUpBenchmarkLogging(b, base.LevelWarn, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelWarn, logger.KeyHTTP)
 
 	db := setupTestDB(b)
 	defer db.Close()
@@ -483,7 +485,7 @@ func BenchmarkChangesFeedDocUnmarshalling(b *testing.B) {
 		// Changes request of all docs (could also do GetDoc call, but misses other possible things). One shot, .. etc
 
 		options.Terminator = make(chan bool)
-		feed, err := db.MultiChangesFeed(base.SetOf("*"), options)
+		feed, err := db.MultiChangesFeed(utils.SetOf("*"), options)
 		if err != nil {
 			b.Fatalf("Error getting changes feed: %v", err)
 		}

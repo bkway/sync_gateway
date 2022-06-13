@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/pkg/errors"
 )
 
@@ -76,7 +77,8 @@ func (sg *sgCollect) Start(logFilePath string, ctxSerialNumber uint64, zipFilena
 		// If no output directory specified, default to the configured LogFilePath
 		if logFilePath != "" {
 			params.OutputDirectory = logFilePath
-			base.DebugfCtx(sg.context, base.KeyAdmin, "sgcollect_info: no output directory specified, using LogFilePath: %v", params.OutputDirectory)
+			//logger.DebugfCtx(sg.context, logger.KeyAdmin, "sgcollect_info: no output directory specified, using LogFilePath: %v", params.OutputDirectory)
+			logger.For(logger.AdminKey).Debug().Msgf("sgcollect_info: no output directory specified, using LogFilePath: %v", params.OutputDirectory)
 		} else {
 			// If LogFilePath is not set, and DefaultLogFilePath is not set via a service script, error out.
 			return errors.New("no output directory or LogFilePath specified")
@@ -94,7 +96,9 @@ func (sg *sgCollect) Start(logFilePath string, ctxSerialNumber uint64, zipFilena
 	args = append(args, "--sync-gateway-executable", sgPath)
 	args = append(args, zipPath)
 
-	ctx := context.WithValue(context.Background(), base.LogContextKey{}, base.LogContext{CorrelationID: fmt.Sprintf("SGCollect-%03d", ctxSerialNumber)})
+	// FIXME reintroduce context
+	// ctx := context.WithValue(context.Background(), logger.LogContextKey{}, logger.LogContext{CorrelationID: fmt.Sprintf("SGCollect-%03d", ctxSerialNumber)})
+	ctx := context.TODO()
 
 	sg.context, sg.cancel = context.WithCancel(ctx)
 	cmd := exec.CommandContext(sg.context, sgCollectPath, args...)
@@ -111,16 +115,18 @@ func (sg *sgCollect) Start(logFilePath string, ctxSerialNumber uint64, zipFilena
 
 	atomic.StoreUint32(sg.status, sgRunning)
 	startTime := time.Now()
-	base.InfofCtx(sg.context, base.KeyAdmin, "sgcollect_info started with args: %v", base.UD(args))
+	//logger.InfofCtx(sg.context, logger.KeyAdmin, "sgcollect_info started with args: %v", logger.UD(args))
+	logger.For(logger.AdminKey).Info().Msgf("sgcollect_info started with args: %v", logger.UD(args))
 
 	// Stream sgcollect_info stderr to warn logs
 	go func() {
 		scanner := bufio.NewScanner(stderrPipeReader)
 		for scanner.Scan() {
-			base.InfofCtx(sg.context, base.KeyAll, "sgcollect_info: %v", scanner.Text())
+			//logger.InfofCtx(sg.context, logger.KeyAll, "sgcollect_info: %v", scanner.Text())
+			logger.For(logger.SystemKey).Info().Msgf("sgcollect_info: %v", scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
-			base.ErrorfCtx(sg.context, "sgcollect_info: unexpected error: %v", err)
+			logger.For(logger.SystemKey).Error().Err(err).Msg("sgcollect_info: unexpected error")
 		}
 	}()
 
@@ -128,10 +134,11 @@ func (sg *sgCollect) Start(logFilePath string, ctxSerialNumber uint64, zipFilena
 	go func() {
 		scanner := bufio.NewScanner(stdoutPipeReader)
 		for scanner.Scan() {
-			base.InfofCtx(sg.context, base.KeyAll, "sgcollect_info: %v", scanner.Text())
+			//logger.InfofCtx(sg.context, logger.KeyAll, "sgcollect_info: %v", scanner.Text())
+			logger.For(logger.SystemKey).Info().Msgf("sgcollect_info: %v", scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
-			base.ErrorfCtx(sg.context, "sgcollect_info: unexpected error: %v", err)
+			logger.For(logger.SystemKey).Error().Err(err).Msg("sgcollect_info: unexpected error: %v")
 		}
 	}()
 
@@ -144,15 +151,18 @@ func (sg *sgCollect) Start(logFilePath string, ctxSerialNumber uint64, zipFilena
 
 		if err != nil {
 			if err.Error() == "signal: killed" {
-				base.InfofCtx(sg.context, base.KeyAdmin, "sgcollect_info cancelled after %v", duration)
+				//logger.InfofCtx(sg.context, logger.KeyAdmin, "sgcollect_info cancelled after %v", duration)
+				logger.For(logger.AdminKey).Info().Msgf("sgcollect_info cancelled after %v", duration)
 				return
 			}
 
-			base.ErrorfCtx(sg.context, "sgcollect_info failed after %v with reason: %v. Check warning level logs for more information.", duration, err)
+			// logger.ErrorfCtx(sg.context, "sgcollect_info failed after %v with reason: %v. Check warning level logs for more information.", duration, err)
+			logger.For(logger.SystemKey).Error().Err(err).Msgf("sgcollect_info failed after %v. Check warning level logs for more information.", duration)
 			return
 		}
 
-		base.InfofCtx(sg.context, base.KeyAdmin, "sgcollect_info finished successfully after %v", duration)
+		//logger.InfofCtx(sg.context, logger.KeyAdmin, "sgcollect_info finished successfully after %v", duration)
+		logger.For(logger.AdminKey).Info().Msgf("sgcollect_info finished successfully after %v", duration)
 	}()
 
 	return nil
@@ -308,7 +318,7 @@ func sgCollectPaths() (sgBinary, sgCollectBinary string, err error) {
 		return "", "", err
 	}
 
-	logCtx := context.Background()
+	// logCtx := context.Background()
 	hasBinDir := true
 	sgCollectPath := filepath.Join("tools", "sgcollect_info")
 
@@ -326,7 +336,8 @@ func sgCollectPaths() (sgBinary, sgCollectBinary string, err error) {
 		}
 
 		// Check sgcollect_info exists at the path we guessed.
-		base.DebugfCtx(logCtx, base.KeyAdmin, "Checking sgcollect_info binary exists at: %v", sgCollectBinary)
+		//logger.DebugfCtx(logCtx, logger.KeyAdmin, "Checking sgcollect_info binary exists at: %v", sgCollectBinary)
+		logger.For(logger.AdminKey).Debug().Msgf("Checking sgcollect_info binary exists at: %v", sgCollectBinary)
 		_, err = os.Stat(sgCollectBinary)
 		if err != nil {
 

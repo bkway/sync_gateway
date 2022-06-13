@@ -31,6 +31,8 @@ import (
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -417,7 +419,7 @@ func TestLoggingKeys(t *testing.T) {
 	}
 
 	// Reset logging to initial state, in case any other tests forgot to clean up after themselves
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyNone)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyNone)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -497,7 +499,7 @@ func TestLoggingLevels(t *testing.T) {
 	}
 
 	// Reset logging to initial state, in case any other tests forgot to clean up after themselves
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyNone)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyNone)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -535,7 +537,7 @@ func TestLoggingCombined(t *testing.T) {
 	}
 
 	// Reset logging to initial state, in case any other tests forgot to clean up after themselves
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyNone)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyNone)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -577,7 +579,7 @@ func TestGetStatus(t *testing.T) {
 // Test user delete while that user has an active changes feed (see issue 809)
 func TestUserDeleteDuringChangesWithAccess(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyChanges, base.KeyCache, base.KeyHTTP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyChanges, logger.KeyCache, logger.KeyHTTP)
 
 	rtConfig := RestTesterConfig{SyncFn: `function(doc) {channel(doc.channel); if(doc.type == "setaccess") { access(doc.owner, doc.channel);}}`}
 	rt := NewRestTester(t, &rtConfig)
@@ -722,7 +724,7 @@ func TestGuestUser(t *testing.T) {
 	assert.True(t, body["disabled"].(bool))
 
 	// Check that the actual User object is correct:
-	user, _ := rt.ServerContext().Database("db").Authenticator(base.TestCtx(t)).GetUser("")
+	user, _ := rt.ServerContext().Database("db").Authenticator(logger.TestCtx(t)).GetUser("")
 	assert.Empty(t, user.Name())
 	assert.Nil(t, user.ExplicitChannels())
 	assert.True(t, user.Disabled())
@@ -753,7 +755,7 @@ func TestSessionTtlGreaterThan30Days(t *testing.T) {
 	response := rt.SendRequest("PUT", "/db/doc", `{"hi": "there"}`)
 	assertStatus(t, response, 401)
 
-	user, err = a.NewUser("pupshaw", "letmein", channels.SetOf(t, "*"))
+	user, err = a.NewUser("pupshaw", "letmein", channels.SetOfTester(t, "*"))
 	assert.NoError(t, a.Save(user))
 
 	// create a session with the maximum offset ttl value (30days) 2592000 seconds
@@ -1189,7 +1191,7 @@ func TestDBOfflineSingleResync(t *testing.T) {
 }
 
 func TestResync(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	testCases := []struct {
 		name               string
@@ -1488,7 +1490,7 @@ func TestResyncRegenerateSequences(t *testing.T) {
 		}
 	}`
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	var testBucket *base.TestBucket
 
@@ -1605,7 +1607,7 @@ func TestResyncRegenerateSequences(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		docID := fmt.Sprintf("doc%d", i)
 
-		doc, err := rt.GetDatabase().GetDocument(base.TestCtx(t), docID, db.DocUnmarshalAll)
+		doc, err := rt.GetDatabase().GetDocument(logger.TestCtx(t), docID, db.DocUnmarshalAll)
 		assert.NoError(t, err)
 
 		assert.True(t, float64(doc.Sequence) > docSeqArr[i])
@@ -1770,7 +1772,7 @@ func TestDBOnlineWithDelayAndImmediate(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	base.SetUpTestLogging(t, base.LevelTrace, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelTrace, logger.KeyAll)
 
 	// CBG-1513: This test is prone to panicing when the walrus bucket was closed and still used
 	assert.NotPanicsf(t, func() {
@@ -2339,7 +2341,7 @@ func TestSessionExpirationDateTimeFormat(t *testing.T) {
 	defer rt.Close()
 
 	authenticator := auth.NewAuthenticator(rt.Bucket(), nil, auth.DefaultAuthenticatorOptions())
-	user, err := authenticator.NewUser("alice", "letMe!n", channels.SetOf(t, "*"))
+	user, err := authenticator.NewUser("alice", "letMe!n", channels.SetOfTester(t, "*"))
 	assert.NoError(t, err, "Couldn't create new user")
 	assert.NoError(t, authenticator.Save(user), "Couldn't save new user")
 
@@ -2435,7 +2437,7 @@ func TestUserAndRoleResponseContentType(t *testing.T) {
 
 	// Create a new user and save to database to create user session.
 	authenticator := auth.NewAuthenticator(rt.Bucket(), nil, auth.DefaultAuthenticatorOptions())
-	user, err := authenticator.NewUser("eve", "cGFzc3dvcmQ=", channels.SetOf(t, "*"))
+	user, err := authenticator.NewUser("eve", "cGFzc3dvcmQ=", channels.SetOfTester(t, "*"))
 	assert.NoError(t, err, "Couldn't create new user")
 	assert.NoError(t, authenticator.Save(user), "Couldn't save new user")
 
@@ -2523,7 +2525,7 @@ func TestConfigRedaction(t *testing.T) {
 
 // Reproduces panic seen in CBG-1053
 func TestAdhocReplicationStatus(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll, base.KeyReplicate)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll, logger.KeyReplicate)
 	rt := NewRestTester(t, &RestTesterConfig{sgReplicateEnabled: true})
 	defer rt.Close()
 
@@ -2567,7 +2569,7 @@ func TestRolePurge(t *testing.T) {
 	assertStatus(t, resp, http.StatusNotFound)
 
 	// Ensure role is 'soft-deleted' and we can still get the doc
-	role, err := rt.GetDatabase().Authenticator(base.TestCtx(t)).GetRoleIncDeleted("role")
+	role, err := rt.GetDatabase().Authenticator(logger.TestCtx(t)).GetRoleIncDeleted("role")
 	assert.NoError(t, err)
 	assert.NotNil(t, role)
 
@@ -2580,7 +2582,7 @@ func TestRolePurge(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 
 	// Ensure role is purged, can't access at all
-	role, err = rt.GetDatabase().Authenticator(base.TestCtx(t)).GetRoleIncDeleted("role")
+	role, err = rt.GetDatabase().Authenticator(logger.TestCtx(t)).GetRoleIncDeleted("role")
 	assert.Nil(t, err)
 	assert.Nil(t, role)
 
@@ -2686,7 +2688,7 @@ func TestObtainUserChannelsForDeletedRoleCasFail(t *testing.T) {
 				triggerCallback = true
 			}
 
-			authenticator := rt.GetDatabase().Authenticator(base.TestCtx(t))
+			authenticator := rt.GetDatabase().Authenticator(logger.TestCtx(t))
 			user, err := authenticator.GetUser("user")
 			assert.NoError(t, err)
 
@@ -2857,13 +2859,13 @@ func TestConfigEndpoint(t *testing.T) {
 	testCases := []struct {
 		Name              string
 		Config            string
-		ConsoleLevel      base.LogLevel
+		ConsoleLevel      logger.LogLevel
 		ConsoleLogKeys    []string
 		ExpectError       bool
 		FileLoggerCheckFn func() bool
 	}{
 		{
-			Name: "Set LogLevel and LogKeys",
+			Name: "Set logger.LogLevel and LogKeys",
 			Config: `
 			{
 				"logging": {
@@ -2873,12 +2875,12 @@ func TestConfigEndpoint(t *testing.T) {
 					}
 				}
 			}`,
-			ConsoleLevel:   base.LevelTrace,
+			ConsoleLevel:   logger.LevelTrace,
 			ConsoleLogKeys: []string{"Config"},
 			ExpectError:    false,
 		},
 		{
-			Name: "Set LogLevel and multiple LogKeys",
+			Name: "Set logger.LogLevel and multiple LogKeys",
 			Config: `
 			{
 				"logging": {
@@ -2888,7 +2890,7 @@ func TestConfigEndpoint(t *testing.T) {
 					}
 				}
 			}`,
-			ConsoleLevel:   base.LevelInfo,
+			ConsoleLevel:   logger.LevelInfo,
 			ConsoleLogKeys: []string{"Config", "HTTP"},
 			ExpectError:    false,
 		},
@@ -2904,7 +2906,7 @@ func TestConfigEndpoint(t *testing.T) {
 					"fake": {}
 				}
 			}`,
-			ConsoleLevel:   base.LevelTrace,
+			ConsoleLevel:   logger.LevelTrace,
 			ConsoleLogKeys: []string{"Config"},
 			ExpectError:    true,
 		},
@@ -2922,7 +2924,7 @@ func TestConfigEndpoint(t *testing.T) {
 					"server": "couchbase://0.0.0.0"
 				}
 			}`,
-			ConsoleLevel:   base.LevelTrace,
+			ConsoleLevel:   logger.LevelTrace,
 			ConsoleLogKeys: []string{"Config"},
 			ExpectError:    true,
 		},
@@ -2940,11 +2942,11 @@ func TestConfigEndpoint(t *testing.T) {
 					}
 				}
 			}`,
-			ConsoleLevel:   base.LevelInfo,
+			ConsoleLevel:   logger.LevelInfo,
 			ConsoleLogKeys: []string{"Config", "HTTP"},
 			ExpectError:    false,
 			FileLoggerCheckFn: func() bool {
-				return base.ErrorLoggerIsEnabled()
+				return logger.ErrorLoggerIsEnabled()
 			},
 		},
 		{
@@ -2976,21 +2978,21 @@ func TestConfigEndpoint(t *testing.T) {
 					}
 				}
 			}`,
-			ConsoleLevel:   base.LevelInfo,
+			ConsoleLevel:   logger.LevelInfo,
 			ConsoleLogKeys: []string{"*"},
 			ExpectError:    false,
 			FileLoggerCheckFn: func() bool {
-				return base.ErrorLoggerIsEnabled() && base.WarnLoggerIsEnabled() && base.InfoLoggerIsEnabled() &&
-					base.DebugLoggerIsEnabled() && base.TraceLoggerIsEnabled() && base.StatsLoggerIsEnabled()
+				return logger.ErrorLoggerIsEnabled() && logger.WarnLoggerIsEnabled() && logger.InfoLoggerIsEnabled() &&
+					logger.DebugLoggerIsEnabled() && logger.TraceLoggerIsEnabled() && logger.StatsLoggerIsEnabled()
 			},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+			base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
-			base.InitializeMemoryLoggers()
+			logger.InitializeMemoryLoggers()
 			tempDir := os.TempDir()
 			test := DefaultStartupConfig(tempDir)
 			err := test.SetupAndValidateLogging()
@@ -3000,12 +3002,12 @@ func TestConfigEndpoint(t *testing.T) {
 			defer rt.Close()
 
 			// By default disable all loggers
-			base.EnableErrorLogger(false)
-			base.EnableWarnLogger(false)
-			base.EnableInfoLogger(false)
-			base.EnableDebugLogger(false)
-			base.EnableTraceLogger(false)
-			base.EnableStatsLogger(false)
+			logger.EnableErrorLogger(false)
+			logger.EnableWarnLogger(false)
+			logger.EnableInfoLogger(false)
+			logger.EnableDebugLogger(false)
+			logger.EnableTraceLogger(false)
+			logger.EnableStatsLogger(false)
 
 			// Request to _config
 			resp := rt.SendAdminRequest("PUT", "/_config", testCase.Config)
@@ -3017,8 +3019,8 @@ func TestConfigEndpoint(t *testing.T) {
 
 			assertStatus(t, resp, http.StatusOK)
 
-			assert.Equal(t, testCase.ConsoleLevel, *base.ConsoleLogLevel())
-			assert.Equal(t, testCase.ConsoleLogKeys, base.ConsoleLogKey().EnabledLogKeys())
+			assert.Equal(t, testCase.ConsoleLevel, *logger.ConsoleLogLevel())
+			assert.Equal(t, testCase.ConsoleLogKeys, logger.ConsoleLogKey().EnabledLogKeys())
 
 			if testCase.FileLoggerCheckFn != nil {
 				assert.True(t, testCase.FileLoggerCheckFn())
@@ -3028,7 +3030,7 @@ func TestConfigEndpoint(t *testing.T) {
 }
 
 func TestLoggingDeprecationWarning(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -3054,7 +3056,7 @@ func TestLoggingDeprecationWarning(t *testing.T) {
 }
 
 func TestInitialStartupConfig(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -3075,7 +3077,7 @@ func TestInitialStartupConfig(t *testing.T) {
 	assert.Nil(t, initialStartupConfig.Logging.Error)
 
 	// Set logging running config
-	rt.ServerContext().config.Logging.Error = &base.FileLoggerConfig{}
+	rt.ServerContext().config.Logging.Error = &logger.FileLoggerConfig{}
 
 	// Get config
 	resp = rt.SendAdminRequest("GET", "/_config", "")
@@ -3089,9 +3091,9 @@ func TestInitialStartupConfig(t *testing.T) {
 }
 
 func TestIncludeRuntimeStartupConfig(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
-	base.InitializeMemoryLoggers()
+	logger.InitializeMemoryLoggers()
 	tempDir := os.TempDir()
 	test := DefaultStartupConfig(tempDir)
 	err := test.SetupAndValidateLogging()
@@ -3100,12 +3102,12 @@ func TestIncludeRuntimeStartupConfig(t *testing.T) {
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
 
-	base.EnableErrorLogger(false)
-	base.EnableWarnLogger(false)
-	base.EnableInfoLogger(false)
-	base.EnableDebugLogger(false)
-	base.EnableTraceLogger(false)
-	base.EnableStatsLogger(false)
+	logger.EnableErrorLogger(false)
+	logger.EnableWarnLogger(false)
+	logger.EnableInfoLogger(false)
+	logger.EnableDebugLogger(false)
+	logger.EnableTraceLogger(false)
+	logger.EnableStatsLogger(false)
 
 	// Get config
 	resp := rt.SendAdminRequest("GET", "/_config?include_runtime=true", "")
@@ -3248,7 +3250,7 @@ func TestDeleteDatabasePointingAtSameBucket(t *testing.T) {
 	if base.UnitTestUrlIsWalrus() || !base.TestUseXattrs() {
 		t.Skip("This test only works against Couchbase Server with xattrs")
 	}
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP)
 	tb := base.GetTestBucket(t)
 	rt := NewRestTester(t, &RestTesterConfig{TestBucket: tb})
 	defer rt.Close()
@@ -3267,7 +3269,7 @@ func TestDeleteDatabasePointingAtSameBucket(t *testing.T) {
 // CBG-1046: Add ability to specify user for active peer in sg-replicate2
 func TestSpecifyUserDocsToReplicate(t *testing.T) {
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	testCases := []struct {
 		direction string
@@ -3296,11 +3298,11 @@ function (doc) {
 					Users: map[string]*db.PrincipalConfig{
 						"alice": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("chanAlpha", "chanBeta", "chanCharlie", "chanHotel", "chanIndia"),
+							ExplicitChannels: utils.SetOf("chanAlpha", "chanBeta", "chanCharlie", "chanHotel", "chanIndia"),
 						},
 						"bob": {
 							Password:         base.StringPtr("pass"),
-							ExplicitChannels: base.SetOf("chanDelta", "chanEcho"),
+							ExplicitChannels: utils.SetOf("chanDelta", "chanEcho"),
 						},
 					},
 				}},

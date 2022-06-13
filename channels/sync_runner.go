@@ -9,12 +9,12 @@
 package channels
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/robertkrimen/otto"
 	_ "github.com/robertkrimen/otto/underscore"
 )
@@ -116,12 +116,18 @@ type SyncRunner struct {
 }
 
 func NewSyncRunner(funcSource string) (*SyncRunner, error) {
-	ctx := context.Background()
+	// ctx := context.Background()
 	funcSource = wrappedFuncSource(funcSource)
 	runner := &SyncRunner{}
 	err := runner.InitWithLogging(funcSource,
-		func(s string) { base.ErrorfCtx(ctx, base.KeyJavascript.String()+": Sync %s", base.UD(s)) },
-		func(s string) { base.InfofCtx(ctx, base.KeyJavascript, "Sync %s", base.UD(s)) })
+		func(s string) {
+			logger.For(logger.JavascriptKey).Error().Msgf("Sync %s", logger.UD(s))
+			// log.Ctx(ctx).Error().Err(err).Msgf(logger.KeyJavascript.String()+": Sync %s", logger.UD(s))
+		},
+		func(s string) {
+			logger.For(logger.JavascriptKey).Info().Msgf("Sync %s", logger.UD(s))
+			// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyJavascript, "Sync %s", logger.UD(s))
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +171,8 @@ func NewSyncRunner(funcSource string) (*SyncRunner, error) {
 		if len(call.ArgumentList) > 0 {
 			rawExpiry, exportErr := call.Argument(0).Export()
 			if exportErr != nil {
-				base.WarnfCtx(ctx, "SyncRunner: Unable to export expiry parameter: %v Error: %s", call.Argument(0), exportErr)
+				logger.For(logger.JavascriptKey).Warn().Err(exportErr).Msgf("SyncRunner: Unable to export expiry parameter: %v", call.Argument(0))
+				// log.Ctx(ctx, "SyncRunner: Unable to export expiry parameter: %v Error: %s").Warn().Err(err).Msgf(call.Argument(0), exportErr)
 				return otto.UndefinedValue()
 			}
 
@@ -176,7 +183,8 @@ func NewSyncRunner(funcSource string) (*SyncRunner, error) {
 
 			expiry, reflectErr := base.ReflectExpiry(rawExpiry)
 			if reflectErr != nil {
-				base.WarnfCtx(ctx, "SyncRunner: Invalid value passed to expiry().  Value:%+v ", call.Argument(0))
+				logger.For(logger.JavascriptKey).Warn().Err(reflectErr).Msgf("SyncRunner: Invalid value passed to expiry().  Value:%+v", call.Argument(0))
+				// log.Ctx(ctx).Warn().Err(err).Msgf("SyncRunner: Invalid value passed to expiry().  Value:%+v ", call.Argument(0))
 				return otto.UndefinedValue()
 			}
 
@@ -237,7 +245,7 @@ func compileAccessMap(input map[string][]string, prefix string) (AccessMap, erro
 				if strings.HasPrefix(value, prefix) {
 					values[i] = value[len(prefix):]
 				} else {
-					return nil, base.RedactErrorf("Value %q does not begin with %q", base.UD(value), base.UD(prefix))
+					return nil, logger.RedactErrorf("Value %q does not begin with %q", logger.UD(value), logger.UD(prefix))
 				}
 			}
 		}
@@ -264,7 +272,8 @@ func ottoValueToStringArray(value otto.Value) []string {
 	result, nonStrings := base.ValueToStringArray(nativeValue)
 
 	if !value.IsNull() && !value.IsUndefined() && nonStrings != nil {
-		base.WarnfCtx(context.Background(), "Channel names must be string values only. Ignoring non-string channels: %s", base.UD(nonStrings))
+		logger.For(logger.JavascriptKey).Warn().Msgf("Channel names must be string values only. Ignoring non-string channels: %s", logger.UD(nonStrings))
+		// log.Ctx(context.Background()).Warn().Err(err).Msgf("Channel names must be string values only. Ignoring non-string channels: %s", logger.UD(nonStrings))
 	}
 	return result
 }

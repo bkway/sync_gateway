@@ -19,13 +19,14 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDuplicateDocID(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -72,7 +73,7 @@ func TestDuplicateDocID(t *testing.T) {
 
 func TestLateArrivingSequence(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -105,7 +106,7 @@ func TestLateArrivingSequence(t *testing.T) {
 
 func TestLateSequenceAsFirst(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -138,7 +139,7 @@ func TestLateSequenceAsFirst(t *testing.T) {
 
 func TestDuplicateLateArrivingSequence(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -212,7 +213,7 @@ func TestDuplicateLateArrivingSequence(t *testing.T) {
 
 func TestPrependChanges(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -396,7 +397,7 @@ func TestPrependChanges(t *testing.T) {
 
 func TestChannelCacheRemove(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -435,7 +436,7 @@ func TestChannelCacheRemove(t *testing.T) {
 
 func TestChannelCacheStats(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -505,7 +506,7 @@ func TestChannelCacheStats(t *testing.T) {
 
 func TestChannelCacheStatsOnPrune(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -535,7 +536,7 @@ func TestChannelCacheStatsOnPrune(t *testing.T) {
 
 func TestChannelCacheStatsOnPrepend(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(t), false, DatabaseContextOptions{})
 	require.NoError(t, err)
@@ -595,7 +596,7 @@ func TestChannelCacheStatsOnPrepend(t *testing.T) {
 }
 
 func TestBypassSingleChannelCache(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCache)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCache)
 
 	terminator := make(chan bool)
 	defer close(terminator)
@@ -711,7 +712,7 @@ func BenchmarkChannelCacheRepeatedDocs80(b *testing.B) {
 
 func BenchmarkChannelCacheRepeatedDocs95(b *testing.B) {
 
-	base.SetUpBenchmarkLogging(b, base.LevelInfo, base.KeyHTTP)
+	base.SetUpBenchmarkLogging(b, logger.LevelInfo, logger.KeyHTTP)
 
 	context, err := NewDatabaseContext("db", base.GetTestBucket(b), false, DatabaseContextOptions{})
 	require.NoError(b, err)

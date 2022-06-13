@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/couchbase/go-blip"
-	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +82,7 @@ func TestSubChangesSince(t *testing.T) {
 	rq := blip.NewRequest()
 	rq.Properties["since"] = `"1"`
 
-	subChangesParams, err := db.NewSubChangesParams(base.TestCtx(t), rq, db.SequenceID{}, nil, testDb.ParseSequenceID)
+	subChangesParams, err := db.NewSubChangesParams(logger.TestCtx(t), rq, db.SequenceID{}, nil, testDb.ParseSequenceID)
 	require.NoError(t, err)
 
 	seqID := subChangesParams.Since()
@@ -106,7 +106,7 @@ func TestSubChangesFuture(t *testing.T) {
 	rq.Properties["future"] = "true"
 	rq.Properties["since"] = `"1"`
 
-	subChangesParams, err := db.NewSubChangesParams(base.TestCtx(t), rq, db.SequenceID{}, latestSeq, testDb.ParseSequenceID)
+	subChangesParams, err := db.NewSubChangesParams(logger.TestCtx(t), rq, db.SequenceID{}, latestSeq, testDb.ParseSequenceID)
 	require.NoError(t, err)
 
 	seqID := subChangesParams.Since()

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,9 +33,9 @@ func TestAllConfigFlags(t *testing.T) {
 			switch rConfigVal.Interface().(type) {
 			case *base.ConfigDuration:
 				val = "5h2m33s"
-			case *base.RedactionLevel:
+			case *logger.RedactionLevel:
 				val = "partial"
-			case *base.LogLevel:
+			case *logger.LogLevel:
 				val = "trace"
 			case *PerDatabaseCredentialsConfig:
 				val = `{"db1":{"password":"foo"}}`

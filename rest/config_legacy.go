@@ -13,31 +13,33 @@ import (
 	"github.com/couchbase/gocbcore/v10/connstr"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	pkgerrors "github.com/pkg/errors"
 )
 
 // JSON object that defines the server configuration.
 type LegacyServerConfig struct {
-	TLSMinVersion                             *string                        `json:"tls_minimum_version,omitempty"`    // Set TLS Version
-	UseTLSServer                              *bool                          `json:"use_tls_server,omitempty"`         // Use TLS for CBS <> SGW communications
-	Interface                                 *string                        `json:",omitempty"`                       // Interface to bind REST API to, default ":4984"
-	ServerTLSSkipVerify                       *bool                          `json:"server_tls_skip_verify,omitempty"` // Allow empty server CA Cert Path without attempting to use system root pool
-	SSLCert                                   *string                        `json:",omitempty"`                       // Path to SSL cert file, or nil
-	SSLKey                                    *string                        `json:",omitempty"`                       // Path to SSL private key file, or nil
-	ServerReadTimeout                         *int                           `json:",omitempty"`                       // maximum duration.Second before timing out read of the HTTP(S) request
-	ServerWriteTimeout                        *int                           `json:",omitempty"`                       // maximum duration.Second before timing out write of the HTTP(S) response
-	ReadHeaderTimeout                         *int                           `json:",omitempty"`                       // The amount of time allowed to read request headers.
-	IdleTimeout                               *int                           `json:",omitempty"`                       // The maximum amount of time to wait for the next request when keep-alives are enabled.
-	AdminInterface                            *string                        `json:",omitempty"`                       // Interface to bind admin API to, default "localhost:4985"
-	AdminUI                                   *string                        `json:",omitempty"`                       // Path to Admin HTML page, if omitted uses bundled HTML
-	ProfileInterface                          *string                        `json:",omitempty"`                       // Interface to bind Go profile API to (no default)
-	ConfigServer                              *string                        `json:",omitempty"`                       // URL of config server (for dynamic db discovery)
-	Facebook                                  *FacebookConfigLegacy          `json:",omitempty"`                       // Configuration for Facebook validation
-	Google                                    *GoogleConfigLegacy            `json:",omitempty"`                       // Configuration for Google validation
-	CORS                                      *CORSConfigLegacy              `json:",omitempty"`                       // Configuration for allowing CORS
-	DeprecatedLog                             []string                       `json:"log,omitempty"`                    // Log keywords to enable
-	DeprecatedLogFilePath                     *string                        `json:"logFilePath,omitempty"`            // Path to log file, if missing write to stderr
-	Logging                                   *base.LegacyLoggingConfig      `json:",omitempty"`                       // Configuration for logging with optional log file rotation
+	TLSMinVersion         *string               `json:"tls_minimum_version,omitempty"`    // Set TLS Version
+	UseTLSServer          *bool                 `json:"use_tls_server,omitempty"`         // Use TLS for CBS <> SGW communications
+	Interface             *string               `json:",omitempty"`                       // Interface to bind REST API to, default ":4984"
+	ServerTLSSkipVerify   *bool                 `json:"server_tls_skip_verify,omitempty"` // Allow empty server CA Cert Path without attempting to use system root pool
+	SSLCert               *string               `json:",omitempty"`                       // Path to SSL cert file, or nil
+	SSLKey                *string               `json:",omitempty"`                       // Path to SSL private key file, or nil
+	ServerReadTimeout     *int                  `json:",omitempty"`                       // maximum duration.Second before timing out read of the HTTP(S) request
+	ServerWriteTimeout    *int                  `json:",omitempty"`                       // maximum duration.Second before timing out write of the HTTP(S) response
+	ReadHeaderTimeout     *int                  `json:",omitempty"`                       // The amount of time allowed to read request headers.
+	IdleTimeout           *int                  `json:",omitempty"`                       // The maximum amount of time to wait for the next request when keep-alives are enabled.
+	AdminInterface        *string               `json:",omitempty"`                       // Interface to bind admin API to, default "localhost:4985"
+	AdminUI               *string               `json:",omitempty"`                       // Path to Admin HTML page, if omitted uses bundled HTML
+	ProfileInterface      *string               `json:",omitempty"`                       // Interface to bind Go profile API to (no default)
+	ConfigServer          *string               `json:",omitempty"`                       // URL of config server (for dynamic db discovery)
+	Facebook              *FacebookConfigLegacy `json:",omitempty"`                       // Configuration for Facebook validation
+	Google                *GoogleConfigLegacy   `json:",omitempty"`                       // Configuration for Google validation
+	CORS                  *CORSConfigLegacy     `json:",omitempty"`                       // Configuration for allowing CORS
+	DeprecatedLog         []string              `json:"log,omitempty"`                    // Log keywords to enable
+	DeprecatedLogFilePath *string               `json:"logFilePath,omitempty"`            // Path to log file, if missing write to stderr
+	// FIXME: Logging                                   *logger.LegacyLoggingConfig    `json:",omitempty"`                       // Configuration for logging with optional log file rotation
 	Pretty                                    bool                           `json:",omitempty"`                       // Pretty-print JSON responses?
 	DeploymentID                              *string                        `json:",omitempty"`                       // Optional customer/deployment ID for stats reporting
 	StatsReportInterval                       *float64                       `json:",omitempty"`                       // Optional stats report interval (0 to disable)
@@ -131,7 +133,7 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 		server, username, password, err := legacyServerAddressUpgrade(*dbConfig.Server)
 		if err != nil {
 			server = *dbConfig.Server
-			base.ErrorfCtx(context.Background(), "Error upgrading server address: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Error upgrading server address")
 		}
 
 		dbConfig.Server = base.StringPtr(server)
@@ -170,7 +172,7 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 			MetricsInterfaceAuthentication:            lc.MetricsInterfaceAuthentication,
 			EnableAdminAuthenticationPermissionsCheck: lc.EnableAdminAuthenticationPermissionsCheck,
 		},
-		Logging: base.LoggingConfig{},
+		Logging: logger.ConfigOpts{},
 		Auth: AuthConfig{
 			BcryptCost: lc.BcryptCost,
 		},
@@ -207,17 +209,18 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 		sc.Replicator.MaxHeartbeat = base.NewConfigDuration(time.Second * time.Duration(*lc.MaxHeartbeat))
 	}
 
-	if lc.Logging != nil {
-		sc.Logging.LogFilePath = lc.Logging.LogFilePath
-		sc.Logging.RedactionLevel = lc.Logging.RedactionLevel
-		sc.Logging.Console = &lc.Logging.Console
-		sc.Logging.Error = &lc.Logging.Error
-		sc.Logging.Warn = &lc.Logging.Warn
-		sc.Logging.Info = &lc.Logging.Info
-		sc.Logging.Debug = &lc.Logging.Debug
-		sc.Logging.Trace = &lc.Logging.Trace
-		sc.Logging.Stats = &lc.Logging.Stats
-	}
+	// TODO review before removing
+	// if lc.Logging != nil {
+	// 	sc.Logging.LogFilePath = lc.Logging.LogFilePath
+	// 	sc.Logging.RedactionLevel = lc.Logging.RedactionLevel
+	// 	sc.Logging.Console = &lc.Logging.Console
+	// 	sc.Logging.Error = &lc.Logging.Error
+	// 	sc.Logging.Warn = &lc.Logging.Warn
+	// 	sc.Logging.Info = &lc.Logging.Info
+	// 	sc.Logging.Debug = &lc.Logging.Debug
+	// 	sc.Logging.Trace = &lc.Logging.Trace
+	// 	sc.Logging.Stats = &lc.Logging.Stats
+	// }
 
 	if lc.CORS != nil {
 		sc.API.CORS = &CORSConfig{
@@ -393,7 +396,8 @@ func setupServerConfig(args []string) (config *LegacyServerConfig, err error) {
 	multiError = multiError.Append(config.validate())
 	multiError = multiError.Append(config.setupAndValidateDatabases())
 	if multiError.ErrorOrNil() != nil {
-		base.ErrorfCtx(context.Background(), "Error during config validation: %v", multiError)
+		logger.For(logger.ConfigKey).Err(multiError).Msg("Error during config validation")
+		// logger.ErrorfCtx(context.Background(), "Error during config validation: %v", multiError)
 		return nil, fmt.Errorf("error(s) during config validation: %v", multiError)
 	}
 
@@ -459,15 +463,16 @@ func (self *LegacyServerConfig) MergeWith(other *LegacyServerConfig) error {
 	for _, flag := range other.DeprecatedLog {
 		self.DeprecatedLog = append(self.DeprecatedLog, flag)
 	}
-	if self.Logging == nil {
-		self.Logging = other.Logging
-	}
+	// FIXME
+	// if self.Logging == nil {
+	// 	self.Logging = other.Logging
+	// }
 	if other.Pretty {
 		self.Pretty = true
 	}
 	for name, db := range other.Databases {
 		if self.Databases[name] != nil {
-			return base.RedactErrorf("Database %q already specified earlier", base.UD(name))
+			return logger.RedactErrorf("Database %q already specified earlier", logger.UD(name))
 		}
 		if self.Databases == nil {
 			self.Databases = make(DbConfigMap)
@@ -480,7 +485,7 @@ func (self *LegacyServerConfig) MergeWith(other *LegacyServerConfig) error {
 func (sc *LegacyServerConfig) Redacted() (*LegacyServerConfig, error) {
 	var config LegacyServerConfig
 
-	err := base.DeepCopyInefficient(&config, sc)
+	err := utils.DeepCopyInefficient(&config, sc)
 	if err != nil {
 		return nil, err
 	}
@@ -513,9 +518,9 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 	couchbaseURL := flagSet.String("url", "", "Address of Couchbase server")
 	dbName := flagSet.String("dbname", "", "Name of Couchbase Server database (defaults to name of bucket)")
 	pretty := flagSet.Bool("pretty", false, "Pretty-print JSON responses")
-	verbose := flagSet.Bool("verbose", false, "Log more info about requests")
-	logKeys := flagSet.String("log", "", "Log keys, comma separated")
-	logFilePath := flagSet.String("logFilePath", "", "Path to log files")
+	// verbose := flagSet.Bool("verbose", false, "Log more info about requests")
+	// logKeys := flagSet.String("log", "", "Log keys, comma separated")
+	// logFilePath := flagSet.String("logFilePath", "", "Path to log files")
 	certpath := flagSet.String("certpath", "", "Client certificate path")
 	cacertpath := flagSet.String("cacertpath", "", "Root CA certificate path")
 	keypath := flagSet.String("keypath", "", "Client certificate key path")
@@ -574,18 +579,19 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 			config.AdminInterface = &DefaultAdminInterface
 		}
 
-		if *logFilePath != "" {
-			config.Logging.LogFilePath = *logFilePath
-		}
+		// FIXME
+		// if *logFilePath != "" {
+		// 	config.Logging.LogFilePath = *logFilePath
+		// }
 
-		if *logKeys != "" {
-			config.Logging.Console.LogKeys = strings.Split(*logKeys, ",")
-		}
+		// if *logKeys != "" {
+		// 	config.Logging.Console.LogKeys = strings.Split(*logKeys, ",")
+		// }
 
-		// Log HTTP Responses if verbose is enabled.
-		if verbose != nil && *verbose {
-			config.Logging.Console.LogKeys = append(config.Logging.Console.LogKeys, "HTTP+")
-		}
+		// // Log HTTP Responses if verbose is enabled.
+		// if verbose != nil && *verbose {
+		// 	config.Logging.Console.LogKeys = append(config.Logging.Console.LogKeys, "HTTP+")
+		// }
 
 	} else {
 		// If no config file is given, create a default config, filled in from command line flags:
@@ -610,14 +616,15 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 			ProfileInterface: profAddr,
 			Pretty:           *pretty,
 			ConfigServer:     configServer,
-			Logging: &base.LegacyLoggingConfig{
-				Console: base.ConsoleLoggerConfig{
-					// Enable the logger only when log keys have explicitly been set on the command line
-					FileLoggerConfig: base.FileLoggerConfig{Enabled: base.BoolPtr(*logKeys != "")},
-					LogKeys:          strings.Split(*logKeys, ","),
-				},
-				LogFilePath: *logFilePath,
-			},
+			// TODO review before removing
+			// Logging: &logger.LegacyLoggingConfig{
+			// 	Console: logger.ConsoleLoggerConfig{
+			// 		// Enable the logger only when log keys have explicitly been set on the command line
+			// 		FileLoggerConfig: logger.FileLoggerConfig{Enabled: base.BoolPtr(*logKeys != "")},
+			// 		LogKeys:          strings.Split(*logKeys, ","),
+			// 	},
+			// 	LogFilePath: *logFilePath,
+			// },
 			Databases: map[string]*DbConfig{
 				*dbName: {
 					Name: *dbName,
@@ -631,7 +638,7 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 					Users: map[string]*db.PrincipalConfig{
 						base.GuestUsername: {
 							Disabled:         base.BoolPtr(false),
-							ExplicitChannels: base.SetFromArray([]string{"*"}),
+							ExplicitChannels: utils.SetFromArray([]string{"*"}),
 						},
 					},
 				},

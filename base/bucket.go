@@ -9,7 +9,6 @@
 package base
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -29,6 +28,7 @@ import (
 	"github.com/couchbase/gocbcore/v10/memd"
 	"github.com/couchbase/gomemcached"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/couchbaselabs/walrus"
 	pkgerrors "github.com/pkg/errors"
 	gocbV1 "gopkg.in/couchbase/gocb.v1"
@@ -63,6 +63,7 @@ type WrappingBucket interface {
 	GetUnderlyingBucket() Bucket
 }
 
+// TODO move to a Couchbase specific directory
 // CouchbaseStore defines operations specific to Couchbase data stores
 type CouchbaseStore interface {
 	BucketName() string
@@ -108,10 +109,9 @@ func ChooseCouchbaseDriver(bucketType CouchbaseBucketType) CouchbaseDriver {
 		return GoCBv2
 	default:
 		// If a new bucket type is added and this method isn't updated, flag a warning (or, could panic)
-		WarnfCtx(context.Background(), "Unexpected bucket type: %v", bucketType)
+		logger.For(logger.BucketKey).Warn().Msgf("Unexpected bucket type: %v", bucketType)
 		return GoCBv2
 	}
-
 }
 
 func (couchbaseDriver CouchbaseDriver) String() string {
@@ -284,7 +284,7 @@ func (b BucketSpec) TLSConfig() *tls.Config {
 		var err error
 		certPool, err = getRootCAs(b.CACertPath)
 		if err != nil {
-			ErrorfCtx(context.Background(), "Error creating tlsConfig for DCP processing: %v", err)
+			logger.For(logger.BucketKey).Err(err).Msg("Error creating tlsConfig for DCP processing")
 			return nil
 		}
 	}
@@ -298,7 +298,7 @@ func (b BucketSpec) TLSConfig() *tls.Config {
 	if b.Certpath != "" && b.Keypath != "" {
 		cert, err := tls.LoadX509KeyPair(b.Certpath, b.Keypath)
 		if err != nil {
-			ErrorfCtx(context.Background(), "Error creating tlsConfig for DCP processing: %v", err)
+			logger.For(logger.BucketKey).Err(err).Msgf("Error creating tlsConfig for DCP processing")
 			return nil
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
@@ -381,8 +381,9 @@ func GetStatsVbSeqno(stats map[string]map[string]string, maxVbno uint16, useAbsH
 
 func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 	if spec.IsWalrusBucket() {
-		InfofCtx(context.TODO(), KeyAll, "Opening Walrus database %s on <%s>", MD(spec.BucketName), SD(spec.Server))
-		sgbucket.SetLogging(ConsoleLogKey().Enabled(KeyBucket))
+		logger.For(logger.BucketKey).Info().Msgf("Opening Walrus database %s on <%s>", logger.MD(spec.BucketName), logger.SD(spec.Server))
+		// TODO what did this do?
+		// sgbucket.SetLogging(logger.ConsoleLogKey().Enabled(logger.BucketKey))
 		bucket, err = walrus.GetBucket(spec.Server, DefaultPool, spec.BucketName)
 		// If feed type is not specified (defaults to DCP) or isn't TAP, wrap with pseudo-vbucket handling for walrus
 		if spec.FeedType != TapFeedType {
@@ -394,7 +395,7 @@ func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 		if spec.Auth != nil {
 			username, _, _ = spec.Auth.GetCredentials()
 		}
-		InfofCtx(context.TODO(), KeyAll, "%v Opening Couchbase database %s on <%s> as user %q", spec.CouchbaseDriver, MD(spec.BucketName), SD(spec.Server), UD(username))
+		logger.For(logger.BucketKey).Info().Msgf("%v Opening Couchbase database %s on <%s> as user %q", spec.CouchbaseDriver, logger.MD(spec.BucketName), logger.SD(spec.Server), logger.UD(username))
 
 		switch spec.CouchbaseDriver {
 		case GoCB, GoCBCustomSGTranscoder:
@@ -417,16 +418,17 @@ func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 		// or later, otherwise refuse to connect to the bucket since pre 5.0 versions don't support XATTRs
 		if spec.UseXattrs {
 			if !bucket.IsSupported(sgbucket.DataStoreFeatureXattrs) {
-				WarnfCtx(context.Background(), "If using XATTRS, Couchbase Server version must be >= 5.0.")
+				logger.For(logger.BucketKey).Warn().Msgf("If using XATTRS, Couchbase Server version must be >= 5.0.")
 				return nil, ErrFatalBucketConnection
 			}
 		}
 
 	}
 
-	if LogDebugEnabled(KeyBucket) {
-		bucket = &LoggingBucket{bucket: bucket}
-	}
+	// if logger.LogDebugEnabled(logger.KeyBucket) {
+	// FIXME bucket logging can be handled directly? otherwise reactivate this as an option
+	bucket = &LoggingBucket{bucket: bucket}
+	// }
 	return
 }
 
@@ -491,8 +493,8 @@ func GetFeedType(bucket Bucket) (feedType string) {
 		return GetFeedType(typedBucket.bucket)
 	case *LoggingBucket:
 		return GetFeedType(typedBucket.bucket)
-	case *TestBucket:
-		return GetFeedType(typedBucket.Bucket)
+	// case *TestBucket:
+	// 	return GetFeedType(typedBucket.Bucket)
 	default:
 		return TapFeedType
 	}
@@ -590,7 +592,7 @@ func retrievePurgeInterval(bucket CouchbaseStore, uri string) (time.Duration, er
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusForbidden {
-		WarnfCtx(resp.Request.Context(), "403 Forbidden attempting to access %s.  Bucket user must have Bucket Full Access and Bucket Admin roles to retrieve metadata purge interval.", UD(uri))
+		logger.For(logger.BucketKey).Warn().Msgf("403 Forbidden attempting to access %s.  Bucket user must have Bucket Full Access and Bucket Admin roles to retrieve metadata purge interval.", logger.UD(uri))
 	} else if resp.StatusCode != http.StatusOK {
 		return 0, errors.New(resp.Status)
 	}
@@ -611,7 +613,5 @@ func retrievePurgeInterval(bucket CouchbaseStore, uri string) (time.Duration, er
 
 func ensureBodyClosed(body io.ReadCloser) {
 	err := body.Close()
-	if err != nil {
-		DebugfCtx(context.TODO(), KeyBucket, "Failed to close socket: %v", err)
-	}
+	logger.For(logger.BucketKey).Err(err).Msgf("closing bucket")
 }

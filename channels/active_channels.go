@@ -11,10 +11,10 @@ licenses/APL2.txt.
 package channels
 
 import (
-	"context"
 	"sync"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // activeChannels is a concurrency-safe map of active replications per channel, modified via
@@ -99,7 +99,7 @@ func (ac *ActiveChannels) _incr(channelName string) {
 func (ac *ActiveChannels) _decr(channelName string) {
 	current, ok := ac.channelCounts[channelName]
 	if !ok {
-		base.WarnfCtx(context.Background(), "Attempt made to decrement inactive channel %s - will be ignored", base.UD(channelName))
+		logger.For(logger.ChannelKey).Warn().Msgf("Attempt made to decrement inactive channel %s - will be ignored", logger.UD(channelName))
 		return
 	}
 	if current <= 1 {

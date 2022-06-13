@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -230,7 +231,7 @@ func testReplicationCfg(id, assignedNode string) *ReplicationCfg {
 
 func TestRebalanceReplications(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyReplicate)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyReplicate)
 
 	type rebalanceTest struct {
 		name                  string                     // Test name
@@ -390,8 +391,8 @@ func TestRebalanceReplications(t *testing.T) {
 		t.Run(fmt.Sprintf("%s", testCase.name), func(t *testing.T) {
 
 			cluster := NewSGRCluster()
-			cluster.loggingCtx = context.WithValue(base.TestCtx(t), base.LogContextKey{},
-				base.LogContext{CorrelationID: sgrClusterMgrContextID + "test"})
+			cluster.loggingCtx = context.WithValue(logger.TestCtx(t), logger.LogContextKey{},
+				logger.LogContext{CorrelationID: sgrClusterMgrContextID + "test"})
 			cluster.Nodes = testCase.nodes
 			cluster.Replications = testCase.replications
 			cluster.RebalanceReplications()
@@ -417,7 +418,7 @@ func TestRebalanceReplications(t *testing.T) {
 
 func TestUpsertReplicationConfig(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyReplicate)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyReplicate)
 
 	type rebalanceTest struct {
 		name           string                   // Test name
@@ -634,7 +635,7 @@ func TestIsCfgChanged(t *testing.T) {
 
 // Test replicators assigned nodes with different group IDs
 func TestReplicateGroupIDAssignedNodes(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 	tb := base.GetTestBucket(t)
 	defer tb.Close()
 

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -514,7 +515,7 @@ func TestAdminAuthWithX509(t *testing.T) {
 func TestAdminAPIAuth(t *testing.T) {
 
 	// Don't really care about the log level but this test hits the logging endpoint so this is used to reset the logging
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyNone)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyNone)
 
 	if base.UnitTestUrlIsWalrus() {
 		t.Skip("This test only works against Couchbase Server")

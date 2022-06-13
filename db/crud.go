@@ -23,6 +23,8 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/pkg/errors"
 )
 
@@ -421,7 +423,7 @@ func (db *Database) GetDelta(docID, fromRevID, toRevID string) (delta *RevisionD
 	return nil, nil, nil
 }
 
-func (db *Database) authorizeUserForChannels(docID, revID string, channels base.Set, isDeleted bool, history Revisions) (isAuthorized bool, redactedRev DocumentRevision) {
+func (db *Database) authorizeUserForChannels(docID, revID string, channels utils.Set, isDeleted bool, history Revisions) (isAuthorized bool, redactedRev DocumentRevision) {
 	if db.user != nil {
 		if err := db.user.AuthorizeAnyChannel(channels); err != nil {
 			// On access failure, return (only) the doc history and deletion/removal
@@ -734,7 +736,8 @@ func (db *Database) getAvailableRevAttachments(doc *Document, revid string) (anc
 func (db *Database) backupAncestorRevs(doc *Document, newDoc *Document) {
 	newBodyBytes, err := newDoc.BodyBytes()
 	if err != nil {
-		base.WarnfCtx(db.Ctx, "Error getting body bytes when backing up ancestor revs")
+		// 		log.Ctx(db.Ctx).Warn().Err(err).Msgf("Error getting body bytes when backing up ancestor revs")
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error getting body bytes when backing up ancestor revs")
 		return
 	}
 
@@ -898,7 +901,8 @@ func (db *Database) Put(docid string, body Body) (newRevID string, doc *Document
 		}
 
 		if err := doc.History.addRevision(newDoc.ID, RevInfo{ID: newRev, Parent: matchRev, Deleted: deleted}); err != nil {
-			base.InfofCtx(db.Ctx, base.KeyCRUD, "Failed to add revision ID: %s, for doc: %s, error: %v", newRev, base.UD(docid), err)
+			// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Failed to add revision ID: %s, for doc: %s, error: %v", newRev, logger.UD(docid), err)
+			logger.For(logger.CRUDKey).Info().Msgf("Failed to add revision ID: %s, for doc: %s, error: %v", newRev, logger.UD(docid), err)
 			return nil, nil, false, nil, base.ErrRevTreeAddRevFailure
 		}
 
@@ -962,7 +966,8 @@ func (db *Database) PutExistingRevWithConflictResolution(newDoc *Document, docHi
 			}
 		}
 		if currentRevIndex == 0 {
-			base.DebugfCtx(db.Ctx, base.KeyCRUD, "PutExistingRevWithBody(%q): No new revisions to add", base.UD(newDoc.ID))
+			// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "PutExistingRevWithBody(%q): No new revisions to add", logger.UD(newDoc.ID))
+			logger.For(logger.CRUDKey).Info().Msgf("PutExistingRevWithBody(%q): No new revisions to add", logger.UD(newDoc.ID))
 			newDoc.RevID = newRev
 			return nil, nil, false, nil, base.ErrUpdateCancel // No new revisions to add
 		}
@@ -978,7 +983,8 @@ func (db *Database) PutExistingRevWithConflictResolution(newDoc *Document, docHi
 			}
 			_, updatedHistory, err := db.resolveConflict(doc, newDoc, docHistory, conflictResolver)
 			if err != nil {
-				base.InfofCtx(db.Ctx, base.KeyCRUD, "Error resolving conflict for %s: %v", base.UD(doc.ID), err)
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Error resolving conflict for %s: %v", logger.UD(doc.ID), err)
+				logger.For(logger.CRUDKey).Info().Msgf("Error resolving conflict for %s: %v", logger.UD(doc.ID), err)
 				return nil, nil, false, nil, err
 			}
 			if updatedHistory != nil {
@@ -1111,7 +1117,8 @@ func (db *Database) resolveConflict(localDoc *Document, remoteDoc *Document, doc
 
 	resolvedBody, resolutionType, resolveFuncError := resolver.Resolve(conflict)
 	if resolveFuncError != nil {
-		base.InfofCtx(db.Ctx, base.KeyReplicate, "Error when running conflict resolution for doc %s: %v", base.UD(localDoc.ID), resolveFuncError)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyReplicate, "Error when running conflict resolution for doc %s: %v", logger.UD(localDoc.ID), resolveFuncError)
+		logger.For(logger.ReplicateKey).Info().Msgf("Error when running conflict resolution for doc %s: %v", logger.UD(localDoc.ID), resolveFuncError)
 		return "", nil, resolveFuncError
 	}
 
@@ -1142,7 +1149,8 @@ func (db *Database) resolveDocRemoteWins(localDoc *Document, conflict Conflict) 
 		return "", tombstoneErr
 	}
 	remoteRevID := conflict.RemoteDocument.ExtractRev()
-	base.DebugfCtx(db.Ctx, base.KeyReplicate, "Resolved conflict for doc %s as remote wins - remote rev is %s, previous local rev %s tombstoned by %s, ", base.UD(localDoc.ID), remoteRevID, localRevID, tombstoneRevID)
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyReplicate, "Resolved conflict for doc %s as remote wins - remote rev is %s, previous local rev %s tombstoned by %s, ", logger.UD(localDoc.ID), remoteRevID, localRevID, tombstoneRevID)
+	logger.For(logger.ReplicateKey).Info().Msgf("Resolved conflict for doc %s as remote wins - remote rev is %s, previous local rev %s tombstoned by %s, ", logger.UD(localDoc.ID), remoteRevID, localRevID, tombstoneRevID)
 	return remoteRevID, nil
 }
 
@@ -1214,7 +1222,7 @@ func (db *Database) resolveDocLocalWins(localDoc *Document, remoteDoc *Document,
 		for _, value := range remoteDoc.DocAttachments {
 			attachmentMeta, ok := value.(map[string]interface{})
 			if !ok {
-				base.WarnfCtx(db.Ctx, "Unable to parse attachment meta during conflict resolution for %s/%s: %v", base.UD(localDoc.ID), localDoc.SyncData.CurrentRev, value)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to parse attachment meta during conflict resolution for %s/%s: %v", logger.UD(localDoc.ID), localDoc.SyncData.CurrentRev, value)
 				continue
 			}
 			revpos, ok := base.ToInt64(attachmentMeta["revpos"])
@@ -1233,7 +1241,8 @@ func (db *Database) resolveDocLocalWins(localDoc *Document, remoteDoc *Document,
 		return "", nil, tombstoneErr
 	}
 
-	base.DebugfCtx(db.Ctx, base.KeyReplicate, "Resolved conflict for doc %s as localWins - local rev %s moved to %s, and tombstoned with %s", base.UD(localDoc.ID), localRevID, newRevID, tombstoneRevID)
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyReplicate, "Resolved conflict for doc %s as localWins - local rev %s moved to %s, and tombstoned with %s", logger.UD(localDoc.ID), localRevID, newRevID, tombstoneRevID)
+	logger.For(logger.ReplicateKey).Info().Msgf("Resolved conflict for doc %s as localWins - local rev %s moved to %s, and tombstoned with %s", logger.UD(localDoc.ID), localRevID, newRevID, tombstoneRevID)
 	return newRevID, docHistory, nil
 }
 
@@ -1275,7 +1284,8 @@ func (db *Database) resolveDocMerge(localDoc *Document, remoteDoc *Document, con
 	// Update the history for the remote doc to prepend the merged revID
 	docHistory = append([]string{mergedRevID}, docHistory...)
 
-	base.DebugfCtx(db.Ctx, base.KeyReplicate, "Resolved conflict for doc %s as merge - merged rev %s added as child of %s, previous local rev %s tombstoned by %s", base.UD(localDoc.ID), mergedRevID, remoteRevID, localRevID, tombstoneRevID)
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyReplicate, "Resolved conflict for doc %s as merge - merged rev %s added as child of %s, previous local rev %s tombstoned by %s", logger.UD(localDoc.ID), mergedRevID, remoteRevID, localRevID, tombstoneRevID)
+	logger.For(logger.ReplicateKey).Info().Msgf("Resolved conflict for doc %s as merge - merged rev %s added as child of %s, previous local rev %s tombstoned by %s", logger.UD(localDoc.ID), mergedRevID, remoteRevID, localRevID, tombstoneRevID)
 	return mergedRevID, docHistory, nil
 }
 
@@ -1283,12 +1293,13 @@ func (db *Database) resolveDocMerge(localDoc *Document, remoteDoc *Document, con
 func (db *Database) tombstoneActiveRevision(doc *Document, revID string) (tombstoneRevID string, err error) {
 
 	if doc.CurrentRev != revID {
-		return "", fmt.Errorf("Attempted to tombstone active revision for doc (%s), but provided rev (%s) doesn't match current rev(%s)", base.UD(doc.ID), revID, doc.CurrentRev)
+		return "", fmt.Errorf("Attempted to tombstone active revision for doc (%s), but provided rev (%s) doesn't match current rev(%s)", logger.UD(doc.ID), revID, doc.CurrentRev)
 	}
 
 	// Don't tombstone an already deleted revision, return the incoming revID instead.
 	if doc.IsDeleted() {
-		base.DebugfCtx(db.Ctx, base.KeyReplicate, "Active revision %s/%s is already tombstoned.", base.UD(doc.ID), revID)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyReplicate, "Active revision %s/%s is already tombstoned.", logger.UD(doc.ID), revID)
+		logger.For(logger.ReplicateKey).Info().Msgf("Active revision %s/%s is already tombstoned.", logger.UD(doc.ID), revID)
 		return revID, nil
 	}
 
@@ -1333,7 +1344,7 @@ func (db *Database) storeOldBodyInRevTreeAndUpdateCurrent(doc *Document, prevCur
 		// Store the doc's previous body into the revision tree:
 		oldBodyJson, marshalErr := doc.BodyBytes()
 		if marshalErr != nil {
-			base.WarnfCtx(db.Ctx, "Unable to marshal document body for storage in rev tree: %v", marshalErr)
+			logger.For(logger.UnknownKey).Warn().Err(marshalErr).Msgf("Unable to marshal document body for storage in rev tree: %v", marshalErr)
 		}
 
 		var kvPairs []base.KVPair
@@ -1374,7 +1385,7 @@ func (db *Database) storeOldBodyInRevTreeAndUpdateCurrent(doc *Document, prevCur
 		// Stamp _attachments and _deleted into rev tree bodies
 		oldBodyJson, marshalErr = base.InjectJSONProperties(oldBodyJson, kvPairs...)
 		if marshalErr != nil {
-			base.WarnfCtx(db.Ctx, "Unable to marshal document body properties for storage in rev tree: %v", marshalErr)
+			logger.For(logger.UnknownKey).Warn().Err(marshalErr).Msgf("Unable to marshal document body properties for storage in rev tree: %v", marshalErr)
 		}
 		doc.setNonWinningRevisionBody(prevCurrentRev, oldBodyJson, db.AllowExternalRevBodyStorage(), oldDocHasAttachments)
 	}
@@ -1396,7 +1407,7 @@ func (db *Database) storeOldBodyInRevTreeAndUpdateCurrent(doc *Document, prevCur
 
 // Run the sync function on the given document and body. Need to inject the document ID and rev ID temporarily to run
 // the sync function.
-func (db *Database) runSyncFn(doc *Document, body Body, metaMap map[string]interface{}, newRevId string) (*uint32, string, base.Set, channels.AccessMap, channels.AccessMap, error) {
+func (db *Database) runSyncFn(doc *Document, body Body, metaMap map[string]interface{}, newRevId string) (*uint32, string, utils.Set, channels.AccessMap, channels.AccessMap, error) {
 	channelSet, access, roles, syncExpiry, oldBody, err := db.getChannelsAndAccess(doc, body, metaMap, newRevId)
 	if err != nil {
 		return nil, ``, nil, nil, nil, err
@@ -1405,7 +1416,7 @@ func (db *Database) runSyncFn(doc *Document, body Body, metaMap map[string]inter
 	return syncExpiry, oldBody, channelSet, access, roles, nil
 }
 
-func (db *Database) recalculateSyncFnForActiveRev(doc *Document, metaMap map[string]interface{}, newRevID string) (channelSet base.Set, access, roles channels.AccessMap, syncExpiry *uint32, oldBodyJSON string, err error) {
+func (db *Database) recalculateSyncFnForActiveRev(doc *Document, metaMap map[string]interface{}, newRevID string) (channelSet utils.Set, access, roles channels.AccessMap, syncExpiry *uint32, oldBodyJSON string, err error) {
 	// In some cases an older revision might become the current one. If so, get its
 	// channels & access, for purposes of updating the doc:
 	curBodyBytes, err := db.getAvailable1xRev(doc, doc.CurrentRev)
@@ -1420,16 +1431,19 @@ func (db *Database) recalculateSyncFnForActiveRev(doc *Document, metaMap map[str
 	}
 
 	if curBody != nil {
-		base.DebugfCtx(db.Ctx, base.KeyCRUD, "updateDoc(%q): Rev %q causes %q to become current again",
-			base.UD(doc.ID), newRevID, doc.CurrentRev)
+		logger.For(logger.CRUDKey).Info().
+			Msgf("updateDoc(%q): Rev %q causes %q to become current again", logger.UD(doc.ID), newRevID, doc.CurrentRev)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "updateDoc(%q): Rev %q causes %q to become current again",
+		// 	logger.UD(doc.ID), newRevID, doc.CurrentRev)
 		channelSet, access, roles, syncExpiry, oldBodyJSON, err = db.getChannelsAndAccess(doc, curBody, metaMap, doc.CurrentRev)
 		if err != nil {
 			return
 		}
 	} else {
 		// Shouldn't be possible (CurrentRev is a leaf so won't have been compacted)
-		base.WarnfCtx(db.Ctx, "updateDoc(%q): Rev %q missing, can't call getChannelsAndAccess "+
-			"on it (err=%v)", base.UD(doc.ID), doc.CurrentRev, err)
+		// 		log.Ctx(db.Ctx).Warn().Err(err).Msgf("updateDoc(%q): Rev %q missing, can't call getChannelsAndAccess "+
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("updateDoc(%q): Rev %q missing, can't call getChannelsAndAccess "+
+			"on it (err=%v)", logger.UD(doc.ID), doc.CurrentRev, err)
 		channelSet = nil
 		access = nil
 		roles = nil
@@ -1465,7 +1479,8 @@ func (db *Database) assignSequence(docSequence uint64, doc *Document, unusedSequ
 			// we previously allocated is unusable now. We have to allocate a new sequence
 			// instead, but we add the unused one(s) to the document so when the changeCache
 			// reads the doc it won't freak out over the break in the sequence numbering.
-			base.InfofCtx(db.Ctx, base.KeyCache, "updateDoc %q: Unused sequence #%d", base.UD(doc.ID), docSequence)
+			// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCache, "updateDoc %q: Unused sequence #%d", logger.UD(doc.ID), docSequence)
+			logger.For(logger.CacheKey).Info().Msgf("updateDoc %q: Unused sequence #%d", logger.UD(doc.ID), docSequence)
 			unusedSequences = append(unusedSequences, docSequence)
 		}
 
@@ -1479,7 +1494,7 @@ func (db *Database) assignSequence(docSequence uint64, doc *Document, unusedSequ
 			} else {
 				releaseErr := db.sequences.releaseSequence(docSequence)
 				if releaseErr != nil {
-					base.WarnfCtx(db.Ctx, "Error returned when releasing sequence %d. Falling back to skipped sequence handling.  Error:%v", docSequence, err)
+					logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error returned when releasing sequence %d. Falling back to skipped sequence handling.  Error:%v", docSequence, err)
 				}
 			}
 		}
@@ -1579,7 +1594,8 @@ func (db *Database) IsIllegalConflict(doc *Document, parentRevID string, deleted
 				return false
 			}
 		}
-		base.DebugfCtx(db.Ctx, base.KeyCRUD, "Conflict - tombstone updates to non-leaf or already tombstoned revisions aren't valid when allow_conflicts=false")
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Conflict - tombstone updates to non-leaf or already tombstoned revisions aren't valid when allow_conflicts=false")
+		logger.For(logger.CRUDKey).Info().Msgf("Conflict - tombstone updates to non-leaf or already tombstoned revisions aren't valid when allow_conflicts=false")
 		return true
 	}
 
@@ -1588,7 +1604,8 @@ func (db *Database) IsIllegalConflict(doc *Document, parentRevID string, deleted
 		for _, ancestorRevID := range docHistory {
 			_, ok := doc.History[ancestorRevID]
 			if ok {
-				base.DebugfCtx(db.Ctx, base.KeyCRUD, "Conflict - document is deleted, but update would branch from existing revision.")
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Conflict - document is deleted, but update would branch from existing revision.")
+				logger.For(logger.CRUDKey).Info().Msgf("Conflict - document is deleted, but update would branch from existing revision.")
 				return true
 			}
 		}
@@ -1596,7 +1613,8 @@ func (db *Database) IsIllegalConflict(doc *Document, parentRevID string, deleted
 	}
 
 	// If we haven't found a valid conflict scenario by this point, flag as invalid
-	base.DebugfCtx(db.Ctx, base.KeyCRUD, "Conflict - non-tombstone updates to non-winning revisions aren't valid when allow_conflicts=false")
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Conflict - non-tombstone updates to non-winning revisions aren't valid when allow_conflicts=false")
+	logger.For(logger.CRUDKey).Info().Msgf("Conflict - non-tombstone updates to non-winning revisions aren't valid when allow_conflicts=false")
 	return true
 }
 
@@ -1677,14 +1695,16 @@ func (db *Database) documentUpdateFunc(docExists bool, doc *Document, allowImpor
 		changedAccessPrincipals = doc.Access.updateAccess(doc, access)
 		changedRoleAccessUsers = doc.RoleAccess.updateAccess(doc, roles)
 	} else {
-
-		base.DebugfCtx(db.Ctx, base.KeyCRUD, "updateDoc(%q): Rev %q leaves %q still current",
-			base.UD(doc.ID), newRevID, prevCurrentRev)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "updateDoc(%q): Rev %q leaves %q still current",
+		// 	logger.UD(doc.ID), newRevID, prevCurrentRev)
+		logger.For(logger.CRUDKey).Info().
+			Msgf("updateDoc(%q): Rev %q leaves %q still current", logger.UD(doc.ID), newRevID, prevCurrentRev)
 	}
 
 	// Prune old revision history to limit the number of revisions:
 	if pruned := doc.pruneRevisions(db.RevsLimit, doc.CurrentRev); pruned > 0 {
-		base.DebugfCtx(db.Ctx, base.KeyCRUD, "updateDoc(%q): Pruned %d old revisions", base.UD(doc.ID), pruned)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "updateDoc(%q): Pruned %d old revisions", logger.UD(doc.ID), pruned)
+		logger.For(logger.CRUDKey).Info().Msgf("updateDoc(%q): Pruned %d old revisions", logger.UD(doc.ID), pruned)
 	}
 
 	updatedExpiry = doc.updateExpiry(syncExpiry, updatedExpiry, expiry)
@@ -1737,7 +1757,8 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 			previousAttachments, err = getAttachmentIDsForLeafRevisions(db, doc, newRevID)
 			if err != nil {
 				skipObsoleteAttachmentsRemoval = true
-				base.ErrorfCtx(db.Ctx, "Error retrieving previous leaf attachments of doc: %s, Error: %v", base.UD(docid), err)
+				// 				log.Ctx(db.Ctx).Error().Err(err).Msgf("Error retrieving previous leaf attachments of doc: %s, Error: %v", logger.UD(docid), err)
+				logger.For(logger.UnknownKey).Error().Err(err).Msgf("Error retrieving previous leaf attachments of doc: %s, Error: %v", logger.UD(docid), err)
 			}
 			prevCurrentRev = doc.CurrentRev
 			docExists := currentValue != nil
@@ -1750,7 +1771,8 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 			inConflict = doc.hasFlag(channels.Conflict)
 			// Return the new raw document value for the bucket to store.
 			raw, err = doc.MarshalBodyAndSync()
-			base.DebugfCtx(db.Ctx, base.KeyCRUD, "Saving doc (seq: #%d, id: %v rev: %v)", doc.Sequence, base.UD(doc.ID), doc.CurrentRev)
+			// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Saving doc (seq: #%d, id: %v rev: %v)", doc.Sequence, logger.UD(doc.ID), doc.CurrentRev)
+			logger.For(logger.CRUDKey).Info().Msgf("Saving doc (seq: #%d, id: %v rev: %v)", doc.Sequence, logger.UD(doc.ID), doc.CurrentRev)
 			docBytes = len(raw)
 			return raw, syncFuncExpiry, false, err
 		})
@@ -1783,7 +1805,8 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 			previousAttachments, err = getAttachmentIDsForLeafRevisions(db, doc, newRevID)
 			if err != nil {
 				skipObsoleteAttachmentsRemoval = true
-				base.ErrorfCtx(db.Ctx, "Error retrieving previous leaf attachments of doc: %s, Error: %v", base.UD(docid), err)
+				// 				log.Ctx(db.Ctx).Error().Err(err).Msgf("Error retrieving previous leaf attachments of doc: %s, Error: %v", logger.UD(docid), err)
+				logger.For(logger.UnknownKey).Error().Err(err).Msgf("Error retrieving previous leaf attachments of doc: %s, Error: %v", logger.UD(docid), err)
 			}
 
 			docExists := currentValue != nil
@@ -1796,7 +1819,7 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 
 			currentRevFromHistory, ok := doc.History[doc.CurrentRev]
 			if !ok {
-				err = base.RedactErrorf("WriteUpdateWithXattr() not able to find revision (%v) in history of doc: %+v.  Cannot update doc.", doc.CurrentRev, base.UD(doc))
+				err = logger.RedactErrorf("WriteUpdateWithXattr() not able to find revision (%v) in history of doc: %+v.  Cannot update doc.", doc.CurrentRev, logger.UD(doc))
 				return
 			}
 
@@ -1813,7 +1836,7 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 					xattrBytes = len(rawXattr)
 					if uint32(xattrBytes) >= *xattrBytesThreshold {
 						db.DbStats.Database().WarnXattrSizeCount.Add(1)
-						base.WarnfCtx(db.Ctx, "Doc id: %v sync metadata size: %d bytes exceeds %d bytes for sync metadata warning threshold", base.UD(doc.ID), xattrBytes, *xattrBytesThreshold)
+						logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Doc id: %v sync metadata size: %d bytes exceeds %d bytes for sync metadata warning threshold", logger.UD(doc.ID), xattrBytes, *xattrBytesThreshold)
 					}
 				}
 			}
@@ -1823,14 +1846,17 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 				db.revisionCache.Invalidate(db.Ctx, doc.ID, doc.CurrentRev)
 			}
 
-			base.DebugfCtx(db.Ctx, base.KeyCRUD, "Saving doc (seq: #%d, id: %v rev: %v)", doc.Sequence, base.UD(doc.ID), doc.CurrentRev)
+			// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Saving doc (seq: #%d, id: %v rev: %v)", doc.Sequence, logger.UD(doc.ID), doc.CurrentRev)
+			logger.For(logger.CRUDKey).Info().Msgf("Saving doc (seq: #%d, id: %v rev: %v)", doc.Sequence, logger.UD(doc.ID), doc.CurrentRev)
 			return raw, rawXattr, deleteDoc, syncFuncExpiry, err
 		})
 		if err != nil {
 			if err == base.ErrDocumentMigrated {
-				base.DebugfCtx(db.Ctx, base.KeyCRUD, "Migrated document %q to use xattr.", base.UD(key))
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Migrated document %q to use xattr.", logger.UD(key))
+				logger.For(logger.CRUDKey).Info().Msgf("Migrated document %q to use xattr.", logger.UD(key))
 			} else {
-				base.DebugfCtx(db.Ctx, base.KeyCRUD, "Did not update document %q w/ xattr: %v", base.UD(key), err)
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Did not update document %q w/ xattr: %v", logger.UD(key), err)
+				logger.For(logger.CRUDKey).Info().Msgf("Did not update document %q w/ xattr: %v", logger.UD(key), err)
 			}
 		} else if doc != nil {
 			doc.Cas = casOut
@@ -1841,13 +1867,13 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 	if err != nil {
 		if docSequence > 0 {
 			if seqErr := db.sequences.releaseSequence(docSequence); seqErr != nil {
-				base.WarnfCtx(db.Ctx, "Error returned when releasing sequence %d. Falling back to skipped sequence handling.  Error:%v", docSequence, seqErr)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error returned when releasing sequence %d. Falling back to skipped sequence handling.  Error:%v", docSequence, seqErr)
 			}
 
 		}
 		for _, sequence := range unusedSequences {
 			if seqErr := db.sequences.releaseSequence(sequence); seqErr != nil {
-				base.WarnfCtx(db.Ctx, "Error returned when releasing sequence %d. Falling back to skipped sequence handling.  Error:%v", sequence, seqErr)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error returned when releasing sequence %d. Falling back to skipped sequence handling.  Error:%v", sequence, seqErr)
 			}
 		}
 	}
@@ -1856,8 +1882,10 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 		return nil, "", nil
 	} else if err == couchbase.ErrOverwritten {
 		// ErrOverwritten is ok; if a later revision got persisted, that's fine too
-		base.DebugfCtx(db.Ctx, base.KeyCRUD, "Note: Rev %q/%q was overwritten in RAM before becoming indexable",
-			base.UD(docid), newRevID)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Note: Rev %q/%q was overwritten in RAM before becoming indexable",
+		// 	logger.UD(docid), newRevID)
+		logger.For(logger.CRUDKey).Info().Err(err).
+			Msgf("Note: Rev %q/%q was overwritten in RAM before becoming indexable", logger.UD(docid), newRevID)
 	} else if err != nil {
 		return nil, "", err
 	}
@@ -1904,29 +1932,33 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 		if db.EventMgr.HasHandlerForEvent(DocumentChange) {
 			webhookJSON, err := doc.BodyWithSpecialProperties()
 			if err != nil {
-				base.WarnfCtx(db.Ctx, "Error marshalling doc with id %s and revid %s for webhook post: %v", base.UD(docid), base.UD(newRevID), err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error marshalling doc with id %s and revid %s for webhook post: %v", logger.UD(docid), logger.UD(newRevID), err)
 			} else {
 				winningRevChange := prevCurrentRev != doc.CurrentRev
 				err = db.EventMgr.RaiseDocumentChangeEvent(webhookJSON, docid, oldBodyJSON, revChannels, winningRevChange)
 				if err != nil {
-					base.DebugfCtx(db.Ctx, base.KeyCRUD, "Error raising document change event: %v", err)
+					// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Error raising document change event: %v", err)
+					logger.For(logger.CRUDKey).Info().Msgf("Error raising document change event: %v", err)
 				}
 			}
 		}
 	} else {
 		// Revision has been pruned away so won't be added to cache
-		base.InfofCtx(db.Ctx, base.KeyCRUD, "doc %q / %q, has been pruned, it has not been inserted into the revision cache", base.UD(docid), newRevID)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "doc %q / %q, has been pruned, it has not been inserted into the revision cache", logger.UD(docid), newRevID)
+		logger.For(logger.CRUDKey).Info().Msgf("doc %q / %q, has been pruned, it has not been inserted into the revision cache", logger.UD(docid), newRevID)
 	}
 
 	// Now that the document has successfully been stored, we can make other db changes:
-	base.DebugfCtx(db.Ctx, base.KeyCRUD, "Stored doc %q / %q as #%v", base.UD(docid), newRevID, doc.Sequence)
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Stored doc %q / %q as #%v", logger.UD(docid), newRevID, doc.Sequence)
+	logger.For(logger.CRUDKey).Info().Msgf("Stored doc %q / %q as #%v", logger.UD(docid), newRevID, doc.Sequence)
 
 	leafAttachments := make(map[string]struct{})
 	if !skipObsoleteAttachmentsRemoval {
 		leafAttachments, err = getAttachmentIDsForLeafRevisions(db, doc, newRevID)
 		if err != nil {
 			skipObsoleteAttachmentsRemoval = true
-			base.ErrorfCtx(db.Ctx, "Error retrieving current leaf attachments of doc: %s, Error: %v", base.UD(docid), err)
+			// 			log.Ctx(db.Ctx).Error().Err(err).Msgf("Error retrieving current leaf attachments of doc: %s, Error: %v", logger.UD(docid), err)
+			logger.For(logger.UnknownKey).Error().Err(err).Msgf("Error retrieving current leaf attachments of doc: %s, Error: %v", logger.UD(docid), err)
 		}
 	}
 
@@ -1936,14 +1968,16 @@ func (db *Database) updateAndReturnDoc(docid string, allowImport bool, expiry ui
 			if _, found := leafAttachments[previousAttachmentID]; !found {
 				err = db.Bucket.Delete(previousAttachmentID)
 				if err != nil {
-					base.ErrorfCtx(db.Ctx, "Error deleting obsolete attachment %q of doc %q, Error: %v", previousAttachmentID, base.UD(doc.ID), err)
+					// 					log.Ctx(db.Ctx).Error().Err(err).Msgf("Error deleting obsolete attachment %q of doc %q, Error: %v", previousAttachmentID, logger.UD(doc.ID), err)
+					logger.For(logger.UnknownKey).Error().Err(err).Msgf("Error deleting obsolete attachment %q of doc %q, Error: %v", previousAttachmentID, logger.UD(doc.ID), err)
 				} else {
 					obsoleteAttachments = append(obsoleteAttachments, previousAttachmentID)
 				}
 			}
 		}
 		if len(obsoleteAttachments) > 0 {
-			base.DebugfCtx(db.Ctx, base.KeyCRUD, "Deleted obsolete attachments (key: %v, doc: %q)", obsoleteAttachments, base.UD(doc.ID))
+			// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Deleted obsolete attachments (key: %v, doc: %q)", obsoleteAttachments, logger.UD(doc.ID))
+			logger.For(logger.CRUDKey).Info().Msgf("Deleted obsolete attachments (key: %v, doc: %q)", obsoleteAttachments, logger.UD(doc.ID))
 		}
 	}
 
@@ -1996,7 +2030,7 @@ func getAttachmentIDsForLeafRevisions(db *Database, doc *Document, newRevID stri
 	return leafAttachments, nil
 }
 
-func (db *Database) checkDocChannelsAndGrantsLimits(docID string, channels base.Set, accessGrants channels.AccessMap, roleGrants channels.AccessMap) {
+func (db *Database) checkDocChannelsAndGrantsLimits(docID string, channels utils.Set, accessGrants channels.AccessMap, roleGrants channels.AccessMap) {
 	if db.Options.UnsupportedOptions == nil || db.Options.UnsupportedOptions.WarningThresholds == nil {
 		return
 	}
@@ -2006,7 +2040,7 @@ func (db *Database) checkDocChannelsAndGrantsLimits(docID string, channels base.
 		channelCount := len(channels)
 		if uint32(channelCount) >= *channelCountThreshold {
 			db.DbStats.Database().WarnChannelsPerDocCount.Add(1)
-			base.WarnfCtx(db.Ctx, "Doc id: %v channel count: %d exceeds %d for channels per doc warning threshold", base.UD(docID), channelCount, *channelCountThreshold)
+			logger.For(logger.UnknownKey).Warn().Msgf("Doc id: %v channel count: %d exceeds %d for channels per doc warning threshold", logger.UD(docID), channelCount, *channelCountThreshold)
 		}
 	}
 
@@ -2015,7 +2049,7 @@ func (db *Database) checkDocChannelsAndGrantsLimits(docID string, channels base.
 		grantCount := len(accessGrants) + len(roleGrants)
 		if uint32(grantCount) >= *grantThreshold {
 			db.DbStats.Database().WarnGrantsPerDocCount.Add(1)
-			base.WarnfCtx(db.Ctx, "Doc id: %v access and role grants count: %d exceeds %d for grants per doc warning threshold", base.UD(docID), grantCount, *grantThreshold)
+			logger.For(logger.UnknownKey).Warn().Msgf("Doc id: %v access and role grants count: %d exceeds %d for grants per doc warning threshold", logger.UD(docID), grantCount, *grantThreshold)
 		}
 	}
 
@@ -2024,7 +2058,7 @@ func (db *Database) checkDocChannelsAndGrantsLimits(docID string, channels base.
 		for c := range channels {
 			if uint32(len(c)) > *channelNameSizeThreshold {
 				db.DbStats.Database().WarnChannelNameSizeCount.Add(1)
-				base.WarnfCtx(db.Ctx, "Doc: %q channel %q exceeds %d characters for channel name size warning threshold", base.UD(docID), base.UD(c), *channelNameSizeThreshold)
+				logger.For(logger.UnknownKey).Warn().Msgf("Doc: %q channel %q exceeds %d characters for channel name size warning threshold", logger.UD(docID), logger.UD(c), *channelNameSizeThreshold)
 			}
 		}
 	}
@@ -2036,7 +2070,8 @@ func (db *Database) MarkPrincipalsChanged(docid string, newRevID string, changed
 
 	// Mark affected users/roles as needing to recompute their channel access:
 	if len(changedPrincipals) > 0 {
-		base.InfofCtx(db.Ctx, base.KeyAccess, "Rev %q / %q invalidates channels of %s", base.UD(docid), newRevID, changedPrincipals)
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Rev %q / %q invalidates channels of %s", logger.UD(docid), newRevID, changedPrincipals)
+		logger.For(logger.AccessKey).Info().Msgf("Rev %q / %q invalidates channels of %s", logger.UD(docid), newRevID, changedPrincipals)
 		for _, changedAccessPrincipalName := range changedPrincipals {
 			db.invalUserOrRoleChannels(changedAccessPrincipalName, invalSeq)
 			// Check whether the active user needs to be recalculated.  Skip check if reload has already been identified
@@ -2047,14 +2082,16 @@ func (db *Database) MarkPrincipalsChanged(docid string, newRevID string, changed
 				if isRole {
 					for roleName := range db.user.RoleNames() {
 						if roleName == changedPrincipalName {
-							base.DebugfCtx(db.Ctx, base.KeyAccess, "Active user belongs to role %q with modified channel access - user %q will be reloaded.", base.UD(roleName), base.UD(db.user.Name()))
+							// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Active user belongs to role %q with modified channel access - user %q will be reloaded.", logger.UD(roleName), logger.UD(db.user.Name()))
+							logger.For(logger.AccessKey).Info().Msgf("Active user belongs to role %q with modified channel access - user %q will be reloaded.", logger.UD(roleName), logger.UD(db.user.Name()))
 							reloadActiveUser = true
 							break
 						}
 					}
 				} else if db.user.Name() == changedPrincipalName {
 					// User matches
-					base.DebugfCtx(db.Ctx, base.KeyAccess, "Channel set for active user has been modified - user %q will be reloaded.", base.UD(db.user.Name()))
+					// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Channel set for active user has been modified - user %q will be reloaded.", logger.UD(db.user.Name()))
+					logger.For(logger.AccessKey).Info().Msgf("Channel set for active user has been modified - user %q will be reloaded.", logger.UD(db.user.Name()))
 					reloadActiveUser = true
 				}
 
@@ -2063,12 +2100,14 @@ func (db *Database) MarkPrincipalsChanged(docid string, newRevID string, changed
 	}
 
 	if len(changedRoleUsers) > 0 {
-		base.InfofCtx(db.Ctx, base.KeyAccess, "Rev %q / %q invalidates roles of %s", base.UD(docid), newRevID, base.UD(changedRoleUsers))
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Rev %q / %q invalidates roles of %s", logger.UD(docid), newRevID, logger.UD(changedRoleUsers))
+		logger.For(logger.AccessKey).Info().Msgf("Rev %q / %q invalidates roles of %s", logger.UD(docid), newRevID, logger.UD(changedRoleUsers))
 		for _, name := range changedRoleUsers {
 			db.invalUserRoles(name, invalSeq)
 			// If this is the current in memory db.user, reload to generate updated roles
 			if db.user != nil && db.user.Name() == name {
-				base.DebugfCtx(db.Ctx, base.KeyAccess, "Role set for active user has been modified - user %q will be reloaded.", base.UD(db.user.Name()))
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Role set for active user has been modified - user %q will be reloaded.", logger.UD(db.user.Name()))
+				logger.For(logger.AccessKey).Info().Msgf("Role set for active user has been modified - user %q will be reloaded.", logger.UD(db.user.Name()))
 				reloadActiveUser = true
 
 			}
@@ -2078,7 +2117,7 @@ func (db *Database) MarkPrincipalsChanged(docid string, newRevID string, changed
 	if reloadActiveUser {
 		user, err := db.Authenticator(db.Ctx).GetUser(db.user.Name())
 		if err != nil {
-			base.WarnfCtx(db.Ctx, "Error reloading active db.user[%s], security information will not be recalculated until next authentication --> %+v", base.UD(db.user.Name()), err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error reloading active db.user[%s], security information will not be recalculated until next authentication --> %+v", logger.UD(db.user.Name()), err)
 		} else {
 			db.user = user
 		}
@@ -2130,7 +2169,7 @@ func (db *Database) Purge(key string) error {
 	for attachmentID := range attachments {
 		err = db.Bucket.Delete(attachmentID)
 		if err != nil {
-			base.WarnfCtx(db.Ctx, "Unable to delete attachment %q. Error: %v", attachmentID, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to delete attachment %q. Error: %v", attachmentID, err)
 		}
 	}
 
@@ -2146,13 +2185,14 @@ func (db *Database) Purge(key string) error {
 // Calls the JS sync function to assign the doc to channels, grant users
 // access to channels, and reject invalid documents.
 func (db *Database) getChannelsAndAccess(doc *Document, body Body, metaMap map[string]interface{}, revID string) (
-	result base.Set,
+	result utils.Set,
 	access channels.AccessMap,
 	roles channels.AccessMap,
 	expiry *uint32,
 	oldJson string,
 	err error) {
-	base.DebugfCtx(db.Ctx, base.KeyCRUD, "Invoking sync on doc %q rev %s", base.UD(doc.ID), body[BodyRev])
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "Invoking sync on doc %q rev %s", logger.UD(doc.ID), body[BodyRev])
+	logger.For(logger.CRUDKey).Info().Msgf("Invoking sync on doc %q rev %s", logger.UD(doc.ID), body[BodyRev])
 
 	// Low-level protection against writes for read-only guest.  Handles write pathways that don't fail-fast
 	if db.user != nil && db.user.Name() == "" && db.DatabaseContext.IsGuestReadOnly() {
@@ -2184,8 +2224,10 @@ func (db *Database) getChannelsAndAccess(doc *Document, body Body, metaMap map[s
 			expiry = output.Expiry
 			err = output.Rejection
 			if err != nil {
-				base.InfofCtx(db.Ctx, base.KeyAll, "Sync fn rejected doc %q / %q --> %s", base.UD(doc.ID), base.UD(doc.NewestRev), err)
-				base.DebugfCtx(db.Ctx, base.KeyAll, "    rejected doc %q / %q : new=%+v  old=%s", base.UD(doc.ID), base.UD(doc.NewestRev), base.UD(body), base.UD(oldJson))
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "Sync fn rejected doc %q / %q --> %s", logger.UD(doc.ID), logger.UD(doc.NewestRev), err)
+				logger.For(logger.SystemKey).Info().Msgf("Sync fn rejected doc %q / %q --> %s", logger.UD(doc.ID), logger.UD(doc.NewestRev), err)
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "    rejected doc %q / %q : new=%+v  old=%s", logger.UD(doc.ID), logger.UD(doc.NewestRev), logger.UD(body), logger.UD(oldJson))
+				logger.For(logger.SystemKey).Info().Msgf("    rejected doc %q / %q : new=%+v  old=%s", logger.UD(doc.ID), logger.UD(doc.NewestRev), logger.UD(body), logger.UD(oldJson))
 				db.DbStats.Security().NumDocsRejected.Add(1)
 				if isAccessError(err) {
 					db.DbStats.Security().NumAccessErrors.Add(1)
@@ -2195,7 +2237,7 @@ func (db *Database) getChannelsAndAccess(doc *Document, body Body, metaMap map[s
 			}
 
 		} else {
-			base.WarnfCtx(db.Ctx, "Sync fn exception: %+v; doc = %s", err, base.UD(body))
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Sync fn exception: %+v; doc = %s", err, logger.UD(body))
 			err = base.HTTPErrorf(500, "Exception in JS sync function")
 		}
 
@@ -2205,7 +2247,7 @@ func (db *Database) getChannelsAndAccess(doc *Document, body Body, metaMap map[s
 		if value != nil {
 			array, nonStrings := base.ValueToStringArray(value)
 			if nonStrings != nil {
-				base.WarnfCtx(db.Ctx, "Channel names must be string values only. Ignoring non-string channels: %s", base.UD(nonStrings))
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Channel names must be string values only. Ignoring non-string channels: %s", logger.UD(nonStrings))
 			}
 			result, err = channels.SetFromArray(array, channels.KeepStar)
 		}
@@ -2230,7 +2272,7 @@ func validateAccessMap(access channels.AccessMap) bool {
 	for name := range access {
 		principalName, _ := channels.AccessNameToPrincipalName(name)
 		if !auth.IsValidPrincipalName(principalName) {
-			base.WarnfCtx(context.Background(), "Invalid principal name %q in access() or role() call", base.UD(principalName))
+			logger.For(logger.SystemKey).Warn().Msgf("Invalid principal name %q in access() or role() call", logger.UD(principalName))
 			return false
 		}
 	}
@@ -2244,7 +2286,7 @@ func validateRoleAccessMap(roleAccess channels.AccessMap) bool {
 	for _, roles := range roleAccess {
 		for rolename := range roles {
 			if !auth.IsValidPrincipalName(rolename) {
-				base.WarnfCtx(context.Background(), "Invalid role name %q in role() call", base.UD(rolename))
+				logger.For(logger.SystemKey).Warn().Msgf("Invalid role name %q in role() call", logger.UD(rolename))
 				return false
 			}
 		}
@@ -2266,7 +2308,7 @@ func (context *DatabaseContext) ComputeChannelsForPrincipal(ctx context.Context,
 
 	results, err := context.QueryAccess(ctx, key)
 	if err != nil {
-		base.WarnfCtx(ctx, "QueryAccess returned error: %v", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("QueryAccess returned error: %v", err)
 		return nil, err
 	}
 
@@ -2337,21 +2379,24 @@ func (db *Database) RevDiff(docid string, revids []string) (missing, possible []
 
 		if err != nil {
 			if !base.IsDocNotFoundError(err) {
-				base.WarnfCtx(db.Ctx, "RevDiff(%q) --> %T %v", base.UD(docid), err, err)
+				// 				log.Ctx(db.Ctx).Warn().Err(err).Msgf("RevDiff(%q) --> %T %v", logger.UD(docid), err, err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("RevDiff(%q) --> %T %v", logger.UD(docid), err, err)
 			}
 			missing = revids
 			return
 		}
 		doc, err := unmarshalDocumentWithXattr(docid, nil, xattrValue, nil, cas, DocUnmarshalSync)
 		if err != nil {
-			base.ErrorfCtx(db.Ctx, "RevDiff(%q) Doc Unmarshal Failed: %T %v", base.UD(docid), err, err)
+			// 			log.Ctx(db.Ctx).Error().Err(err).Msgf("RevDiff(%q) Doc Unmarshal Failed: %T %v", logger.UD(docid), err, err)
+			logger.For(logger.UnknownKey).Error().Err(err).Msgf("RevDiff(%q) Doc Unmarshal Failed: %T %v", logger.UD(docid), err, err)
 		}
 		history = doc.History
 	} else {
 		doc, err := db.GetDocument(db.Ctx, docid, DocUnmarshalSync)
 		if err != nil {
 			if !base.IsDocNotFoundError(err) {
-				base.WarnfCtx(db.Ctx, "RevDiff(%q) --> %T %v", base.UD(docid), err, err)
+				// 				log.Ctx(db.Ctx).Warn().Err(err).Msgf("RevDiff(%q) --> %T %v", logger.UD(docid), err, err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("RevDiff(%q) --> %T %v", logger.UD(docid), err, err)
 				// If something goes wrong getting the doc, treat it as though it's nonexistent.
 			}
 			missing = revids
@@ -2362,7 +2407,7 @@ func (db *Database) RevDiff(docid string, revids []string) (missing, possible []
 
 	// Check each revid to see if it's in the doc's rev tree:
 	revtree := history
-	revidsSet := base.SetFromArray(revids)
+	revidsSet := utils.SetFromArray(revids)
 	possibleSet := make(map[string]bool)
 	for _, revid := range revids {
 		if !revtree.contains(revid) {
@@ -2409,7 +2454,8 @@ func (db *Database) CheckProposedRev(docid string, revid string, parentRevID str
 	doc, err := db.GetDocument(db.Ctx, docid, DocUnmarshalAll)
 	if err != nil {
 		if !base.IsDocNotFoundError(err) {
-			base.WarnfCtx(db.Ctx, "CheckProposedRev(%q) --> %T %v", base.UD(docid), err, err)
+			// 			log.Ctx(db.Ctx).Warn().Err(err).Msgf("CheckProposedRev(%q) --> %T %v", logger.UD(docid), err, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("CheckProposedRev(%q) --> %T %v", logger.UD(docid), err, err)
 			return ProposedRev_Error, ""
 		}
 		// Doc doesn't exist locally; adding it is OK (even if it has a history)

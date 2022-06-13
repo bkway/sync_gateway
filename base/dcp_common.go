@@ -26,6 +26,7 @@ import (
 	"github.com/couchbase/go-couchbase/cbdatasource"
 	memcached "github.com/couchbase/gomemcached/client"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/google/uuid"
 	pkgerrors "github.com/pkg/errors"
 	"gopkg.in/couchbaselabs/gocbconnstr.v1"
@@ -102,10 +103,12 @@ func NewDCPCommon(callback sgbucket.FeedEventCallbackFunc, bucket Bucket, maxVbN
 		checkpointPrefix:       checkpointPrefix,
 	}
 
-	dcpContextID := fmt.Sprintf("%s-%s", MD(bucket.GetName()).Redact(), feedID)
-	c.loggingCtx = context.WithValue(context.Background(), LogContextKey{},
-		LogContext{CorrelationID: dcpContextID},
-	)
+	// FIXME make this work
+	// dcpContextID := fmt.Sprintf("%s-%s", logger.MD(bucket.GetName()).Redact(), feedID)
+	// c.loggingCtx = context.WithValue(context.Background(),
+	//  logger.LogContextKey{},
+	// 	logger.LogContext{CorrelationID: dcpContextID},
+	// )
 
 	return c
 }
@@ -147,7 +150,8 @@ func (c *DCPCommon) setMetaData(vbucketId uint16, value []byte) {
 
 		err := c.persistCheckpoint(vbucketId, value)
 		if err != nil {
-			WarnfCtx(c.loggingCtx, "Unable to persist DCP metadata - will retry next snapshot. Error: %v", err)
+			logger.For(logger.DCPKey).Warn().Err(err).Msg("Unable to persist DCP metadata - will retry next snapshot.")
+			// log.Ctx(c.loggingCtx, "Unable to persist DCP metadata - will retry next snapshot. Error: %v").Warn().Err(err).Msgf(err)
 		}
 		c.updatesSinceCheckpoint[vbucketId] = 0
 		c.lastCheckpointTime[vbucketId] = time.Now()
@@ -175,7 +179,8 @@ func (c *DCPCommon) getMetaData(vbucketId uint16) (
 // RollbackEx should be called by cbdatasource - Rollback required to maintain the interface.  In the event
 // it's called, logs warning and does a hard reset on metadata for the vbucket
 func (c *DCPCommon) rollback(vbucketId uint16, rollbackSeq uint64) error {
-	WarnfCtx(c.loggingCtx, "DCP Rollback request.  Expected RollbackEx call - resetting vbucket %d to 0.", vbucketId)
+	logger.For(logger.DCPKey).Warn().Msgf("DCP Rollback request.  Expected RollbackEx call - resetting vbucket %d to 0.", vbucketId)
+	// log.Ctx(c.loggingCtx, "DCP Rollback request.  Expected RollbackEx call - resetting vbucket %d to 0.").Warn().Err(err).Msgf(vbucketId)
 	c.dbStatsExpvars.Add("dcp_rollback_count", 1)
 	c.updateSeq(vbucketId, 0, false)
 	c.setMetaData(vbucketId, nil)
@@ -185,7 +190,8 @@ func (c *DCPCommon) rollback(vbucketId uint16, rollbackSeq uint64) error {
 
 // RollbackEx includes the vbucketUUID needed to reset the metadata correctly
 func (c *DCPCommon) rollbackEx(vbucketId uint16, vbucketUUID uint64, rollbackSeq uint64, rollbackMetaData []byte) error {
-	WarnfCtx(c.loggingCtx, "DCP RollbackEx request - rolling back DCP feed for: vbucketId: %d, rollbackSeq: %x.", vbucketId, rollbackSeq)
+	logger.For(logger.DCPKey).Warn().Msgf("DCP RollbackEx request - rolling back DCP feed for: vbucketId: %d, rollbackSeq: %x.", vbucketId, rollbackSeq)
+	// log.Ctx(c.loggingCtx, "DCP RollbackEx request - rolling back DCP feed for: vbucketId: %d, rollbackSeq: %x.", vbucketId).Warn().Err(err).Msgf(rollbackSeq)
 	c.dbStatsExpvars.Add("dcp_rollback_count", 1)
 	c.updateSeq(vbucketId, rollbackSeq, false)
 	c.setMetaData(vbucketId, rollbackMetaData)
@@ -229,7 +235,8 @@ func (c *DCPCommon) InitVbMeta(vbNo uint16) {
 	metadata, snapStart, _, err := c.loadCheckpoint(vbNo)
 	c.m.Lock()
 	if err != nil {
-		WarnfCtx(c.loggingCtx, "Unexpected error attempting to load DCP checkpoint for vbucket %d.  Will restart DCP for that vbucket from zero.  Error: %v", vbNo, err)
+		logger.For(logger.DCPKey).Warn().Err(err).Msgf("Unexpected error attempting to load DCP checkpoint for vbucket %d.  Will restart DCP for that vbucket from zero.", vbNo)
+		// log.Ctx(c.loggingCtx, "Unexpected error attempting to load DCP checkpoint for vbucket %d.  Will restart DCP for that vbucket from zero.  Error: %v", vbNo).Warn().Err(err).Msgf(err)
 		c.meta[vbNo] = []byte{}
 		c.seqs[vbNo] = 0
 	} else {
@@ -254,7 +261,8 @@ func (c *DCPCommon) initMetadata(maxVbNo uint16) {
 	for i := uint16(0); i < maxVbNo; i++ {
 		metadata, snapStart, snapEnd, err := c.loadCheckpoint(i)
 		if err != nil {
-			WarnfCtx(c.loggingCtx, "Unexpected error attempting to load DCP checkpoint for vbucket %d.  Will restart DCP for that vbucket from zero.  Error: %v", i, err)
+			logger.For(logger.DCPKey).Warn().Err(err).Msgf("Unexpected error attempting to load DCP checkpoint for vbucket %d.  Will restart DCP for that vbucket from zero.", i)
+			// log.Ctx(c.loggingCtx, "Unexpected error attempting to load DCP checkpoint for vbucket %d.  Will restart DCP for that vbucket from zero.  Error: %v", i).Warn().Err(err).Msgf(err)
 			c.meta[i] = []byte{}
 			c.seqs[i] = 0
 		} else {
@@ -268,11 +276,13 @@ func (c *DCPCommon) initMetadata(maxVbNo uint16) {
 				}
 				// If we have a backfill sequence later than the DCP checkpoint's snapStart, start from there
 				if partialBackfillSequence > snapStart {
-					InfofCtx(c.loggingCtx, KeyDCP, "Restarting vb %d using backfill sequence %d ([%d-%d])", i, partialBackfillSequence, backfillSeqs.SnapStart[i], backfillSeqs.SnapEnd[i])
+					logger.For(logger.DCPKey).Info().Msgf("Restarting vb %d using backfill sequence %d ([%d-%d])", i, partialBackfillSequence, backfillSeqs.SnapStart[i], backfillSeqs.SnapEnd[i])
+					// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Restarting vb %d using backfill sequence %d ([%d-%d])", i, partialBackfillSequence, backfillSeqs.SnapStart[i], backfillSeqs.SnapEnd[i])
 					c.seqs[i] = partialBackfillSequence
 					c.meta[i] = makeVbucketMetadata(c.vbuuids[i], partialBackfillSequence, backfillSeqs.SnapStart[i], backfillSeqs.SnapEnd[i])
 				} else {
-					InfofCtx(c.loggingCtx, KeyDCP, "Restarting vb %d using metadata sequence %d  (backfill %d not in [%d-%d])", i, snapStart, partialBackfillSequence, snapStart, snapEnd)
+					logger.For(logger.DCPKey).Info().Msgf("Restarting vb %d using metadata sequence %d  (backfill %d not in [%d-%d])", i, snapStart, partialBackfillSequence, snapStart, snapEnd)
+					// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Restarting vb %d using metadata sequence %d  (backfill %d not in [%d-%d])", i, snapStart, partialBackfillSequence, snapStart, snapEnd)
 				}
 			}
 		}
@@ -285,7 +295,7 @@ func (c *DCPCommon) initMetadata(maxVbNo uint16) {
 //         - Would only result in some repeated entry processing, which is already handled by the indexer
 //         - Is a relatively infrequent operation
 func (c *DCPCommon) persistCheckpoint(vbNo uint16, value []byte) error {
-	TracefCtx(c.loggingCtx, KeyDCP, "Persisting checkpoint for vbno %d", vbNo)
+	logger.For(logger.DCPKey).Trace().Msgf("Persisting checkpoint for vbno %d", vbNo)
 	return c.bucket.SetRaw(fmt.Sprintf("%s%d", c.checkpointPrefix, vbNo), 0, nil, value)
 }
 
@@ -301,7 +311,8 @@ func (c *DCPCommon) updateSeq(vbucketId uint16, seq uint64, warnOnLowerSeqNo boo
 	previousSequence := c.seqs[vbucketId]
 
 	if seq < previousSequence && warnOnLowerSeqNo == true {
-		WarnfCtx(c.loggingCtx, "Setting to _lower_ sequence number than previous: %v -> %v", c.seqs[vbucketId], seq)
+		logger.For(logger.DCPKey).Warn().Msgf("Setting to _lower_ sequence number than previous: %v -> %v", c.seqs[vbucketId], seq)
+		// log.Ctx(c.loggingCtx, "Setting to _lower_ sequence number than previous: %v -> %v", c.seqs[vbucketId]).Warn().Err(err).Msgf(seq)
 	}
 
 	// Update c.seqs for use by GetMetaData()
@@ -333,14 +344,16 @@ func (c *DCPCommon) initFeed(backfillType uint64) (highSeqnos map[uint16]uint64,
 	switch backfillType {
 	case sgbucket.FeedNoBackfill:
 		// For non-backfill, use vbucket uuids, high sequence numbers
-		DebugfCtx(c.loggingCtx, KeyDCP, "Initializing DCP with no backfill - seeding seqnos: %v", highSeqnos)
+		logger.For(logger.DCPKey).Info().Msgf("Initializing DCP with no backfill - seeding seqnos: %v", highSeqnos)
+		// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Initializing DCP with no backfill - seeding seqnos: %v", highSeqnos)
 		c.seedSeqnos(statsUuids, highSeqnos)
 	case sgbucket.FeedResume:
 		// For resume case, load previously persisted checkpoints from bucket
 		c.initMetadata(c.maxVbNo)
 		// Track backfill (from persisted checkpoints to current high seqno)
 		c.backfill.init(c.seqs, highSeqnos, c.maxVbNo, c.dbStatsExpvars)
-		DebugfCtx(c.loggingCtx, KeyDCP, "Initializing DCP feed based on persisted checkpoints")
+		logger.For(logger.DCPKey).Info().Msg("Initializing DCP feed based on persisted checkpoints")
+		// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Initializing DCP feed based on persisted checkpoints")
 	default:
 		// Otherwise, start feed from zero
 		startSeqnos := make(map[uint16]uint64, c.maxVbNo)
@@ -348,7 +361,8 @@ func (c *DCPCommon) initFeed(backfillType uint64) (highSeqnos map[uint16]uint64,
 		c.seedSeqnos(vbuuids, startSeqnos)
 		// Track backfill (from zero to current high seqno)
 		c.backfill.init(c.seqs, highSeqnos, c.maxVbNo, c.dbStatsExpvars)
-		DebugfCtx(c.loggingCtx, KeyDCP, "Initializing DCP feed to start from zero")
+		logger.For(logger.DCPKey).Info().Msg("Initializing DCP feed to start from zero")
+		// log.Ctx(c.loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Initializing DCP feed to start from zero")
 	}
 
 	return highSeqnos, nil
@@ -437,7 +451,6 @@ func (b *backfillStatus) updateStats(vbno uint16, previousVbSequence uint64, cur
 		return
 	}
 
-	logCtx := context.TODO()
 	currentVbSequence := currentSequences[vbno]
 
 	// Update backfill progress.  If this vbucket has run past the end of the backfill, only include up to
@@ -460,18 +473,18 @@ func (b *backfillStatus) updateStats(vbno uint16, previousVbSequence uint64, cur
 		b.lastPersistTime = time.Now()
 		err := b.persistBackfillSequences(bucket, currentSequences)
 		if err != nil {
-			WarnfCtx(logCtx, "Error persisting back-fill sequences: %v", err)
+			logger.For(logger.DCPKey).Err(err).Msg("Error persisting back-fill sequences")
 		}
 		b.logBackfillProgress()
 	}
 
 	// If backfill is complete, log and do backfill inactivation/cleanup
 	if b.receivedSequences >= b.expectedSequences {
-		InfofCtx(logCtx, KeyDCP, "Backfill complete")
+		logger.For(logger.DCPKey).Info().Msg("Backfill complete")
 		b.active = false
 		err := b.purgeBackfillSequences(bucket)
 		if err != nil {
-			WarnfCtx(logCtx, "Error purging back-fill sequences: %v", err)
+			logger.For(logger.DCPKey).Warn().Err(err).Msg("Error purging back-fill sequences: %v")
 		}
 	}
 }
@@ -481,7 +494,7 @@ func (b *backfillStatus) logBackfillProgress() {
 	if !b.active {
 		return
 	}
-	InfofCtx(context.TODO(), KeyDCP, "Backfill in progress: %d%% (%d / %d)", int(b.receivedSequences*100/b.expectedSequences), b.receivedSequences, b.expectedSequences)
+	logger.For(logger.DCPKey).Info().Msgf("Backfill in progress: %d%% (%d / %d)", int(b.receivedSequences*100/b.expectedSequences), b.receivedSequences, b.expectedSequences)
 }
 
 // BackfillSequences defines the format used to persist snapshot information to the _sync:dcp_backfill document
@@ -507,7 +520,7 @@ func (b *backfillStatus) loadBackfillSequences(bucket Bucket) (*BackfillSequence
 	if err != nil {
 		return nil, err
 	}
-	InfofCtx(context.TODO(), KeyDCP, "Previously persisted backfill sequences found - will resume")
+	logger.For(logger.DCPKey).Info().Msg("Previously persisted backfill sequences found - will resume")
 	return &backfillSeqs, nil
 }
 
@@ -610,7 +623,8 @@ func getExternalAlternateAddress(loggingCtx context.Context, alternateAddressMap
 			host = extHostname
 		}
 
-		InfofCtx(loggingCtx, KeyDCP, "Using alternate address %s => %s", MD(dest), MD(host+":"+port))
+		logger.For(logger.DCPKey).Info().Msgf("Using alternate address %s => %s", logger.MD(dest), logger.MD(host+":"+port))
+		// log.Ctx(loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Using alternate address %s => %s", logger.MD(dest), logger.MD(host+":"+port))
 		dest = host + ":" + port
 	}
 
@@ -633,7 +647,7 @@ func getNetworkTypeFromConnSpec(spec gocbconnstr.ConnSpec) clusterNetworkType {
 	networkType := clusterNetworkAuto
 	if networkOpt, ok := spec.Options["network"]; ok && len(networkOpt) > 0 {
 		if len(networkOpt) > 1 {
-			WarnfCtx(context.TODO(), "multiple 'network' options found in connection string - using first one: %q", networkOpt[0])
+			logger.For(logger.DCPKey).Warn().Msgf("multiple 'network' options found in connection string - using first one: %q", networkOpt[0])
 		}
 		networkType = clusterNetworkType(networkOpt[0])
 	}
@@ -652,7 +666,8 @@ func alternateAddressShims(loggingCtx context.Context, bucketSpecTLS bool, connS
 
 	// Copy of cbdatasource's default ConnectBucket function, which maps internal addresses to alternate addresses
 	connectBucketShim = func(serverURL, poolName, bucketName string, auth couchbase.AuthHandler) (cbdatasource.Bucket, error) {
-		TracefCtx(loggingCtx, KeyDCP, "ConnectBucket callback: %s %s %s", MD(serverURL), poolName, MD(bucketName))
+		//		logger.TracefCtx(loggingCtx, logger.KeyDCP, "ConnectBucket callback: %s %s %s", logger.MD(serverURL), poolName, logger.MD(bucketName))
+		logger.For(logger.DCPKey).Trace().Msgf("ConnectBucket callback: %s %s %s", logger.MD(serverURL), poolName, logger.MD(bucketName))
 
 		var (
 			err    error
@@ -686,7 +701,8 @@ func alternateAddressShims(loggingCtx context.Context, bucketSpecTLS bool, connS
 			// apply heuristic if auto to select between "default" and "external"
 			if networkType == clusterNetworkAuto {
 				if _, ok := connSpecAddressesHostMap[node.Hostname]; ok {
-					DebugfCtx(loggingCtx, KeyDCP, "Matched host %s in connection string - using default/internal networking.", MD(node.Hostname))
+					logger.For(logger.DCPKey).Info().Msgf("Matched host %s in connection string - using default/internal networking.", logger.MD(node.Hostname))
+					// log.Ctx(loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Matched host %s in connection string - using default/internal networking.", logger.MD(node.Hostname))
 					// Found default hostname in connSpec - abort all alternate address behaviour.
 					// The client MUST use the default/internal network.
 					externalAlternateAddresses = nil
@@ -696,7 +712,8 @@ func alternateAddressShims(loggingCtx context.Context, bucketSpecTLS bool, connS
 				networkType = clusterNetworkExternal
 			}
 
-			DebugfCtx(loggingCtx, KeyDCP, "Finding alternate addresses for network %s", networkType)
+			logger.For(logger.DCPKey).Info().Msgf("Finding alternate addresses for network %s", networkType)
+			// log.Ctx(loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Finding alternate addresses for network %s", networkType)
 
 			// only try to map alternate addresses if an alternate hostname is present
 			if alt, ok := node.AlternateNames[string(networkType)]; ok && alt.Hostname != "" {
@@ -704,23 +721,27 @@ func alternateAddressShims(loggingCtx context.Context, bucketSpecTLS bool, connS
 				if bucketSpecTLS {
 					extPort, ok := alt.Ports["kvSSL"]
 					if !ok {
-						TracefCtx(loggingCtx, KeyDCP, "kvSSL port was not exposed for %s alternate address. Skipping remapping of this node.", networkType)
+						logger.For(logger.DCPKey).Trace().Msgf("kvSSL port was not exposed for %s alternate address. Skipping remapping of this node.", networkType)
+						// logger.TracefCtx(loggingCtx, logger.KeyDCP, "kvSSL port was not exposed for %s alternate address. Skipping remapping of this node.", networkType)
 						continue
 					}
 
 					// found exposed kvSSL port, use when connecting
 					port = ":" + strconv.Itoa(extPort)
-					DebugfCtx(loggingCtx, KeyDCP, "Storing alternate address for kvSSL: %s => %s", MD(node.Hostname), MD(alt.Hostname+port))
+					logger.For(logger.DCPKey).Info().Msgf("Storing alternate address for kvSSL: %s => %s", logger.MD(node.Hostname), logger.MD(alt.Hostname+port))
+					// log.Ctx(loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Storing alternate address for kvSSL: %s => %s", logger.MD(node.Hostname), logger.MD(alt.Hostname+port))
 				} else {
 					extPort, ok := alt.Ports["kv"]
 					if !ok {
-						TracefCtx(loggingCtx, KeyDCP, "kv port was not exposed for %s alternate address. Skipping remapping of this node.", networkType)
+						logger.For(logger.DCPKey).Trace().Msgf("kv port was not exposed for %s alternate address. Skipping remapping of this node.", networkType)
+						// logger.TracefCtx(loggingCtx, logger.KeyDCP, "kv port was not exposed for %s alternate address. Skipping remapping of this node.", networkType)
 						continue
 					}
 
 					// found exposed kv port, use when connecting
 					port = ":" + strconv.Itoa(extPort)
-					DebugfCtx(loggingCtx, KeyDCP, "Storing alternate address for kv: %s => %s", MD(node.Hostname), MD(alt.Hostname+port))
+					logger.For(logger.DCPKey).Info().Msgf("Storing alternate address for kv: %s => %s", logger.MD(node.Hostname), logger.MD(alt.Hostname+port))
+					// log.Ctx(loggingCtx).Info().Err(err).Msgf(logger.KeyDCP, "Storing alternate address for kv: %s => %s", logger.MD(node.Hostname), logger.MD(alt.Hostname+port))
 				}
 
 				externalAlternateAddresses[node.Hostname] = alt.Hostname + port
@@ -747,7 +768,8 @@ func alternateAddressShims(loggingCtx context.Context, bucketSpecTLS bool, connS
 
 	// Copy of cbdatasource's default Connect function, which swaps the given destination, with alternate addresses we found in ConnectBucket.
 	connectShim = func(protocol, dest string) (client *memcached.Client, err error) {
-		TracefCtx(loggingCtx, KeyDCP, "Connect mutationCallback: %s %s", protocol, MD(dest))
+		logger.For(logger.DCPKey).Trace().Msgf("Connect mutationCallback: %s %s", protocol, logger.MD(dest))
+		// logger.TracefCtx(loggingCtx, logger.KeyDCP, "Connect mutationCallback: %s %s", protocol, logger.MD(dest))
 
 		dest, err = getExternalAlternateAddress(loggingCtx, externalAlternateAddresses, dest)
 		if err != nil {
@@ -759,7 +781,8 @@ func alternateAddressShims(loggingCtx context.Context, bucketSpecTLS bool, connS
 
 	// Copy of cbdatasource's default ConnectTLS function, which swaps the given destination, with alternate addresses we found in ConnectBucket.
 	connectTLSShim = func(protocol, dest string, tlsConfig *tls.Config) (client *memcached.Client, err error) {
-		TracefCtx(loggingCtx, KeyDCP, "ConnectTLS mutationCallback: %s %s", protocol, MD(dest))
+		logger.For(logger.DCPKey).Trace().Msgf("ConnectTLS mutationCallback: %s %s", protocol, logger.MD(dest))
+		// logger.TracefCtx(loggingCtx, logger.KeyDCP, "ConnectTLS mutationCallback: %s %s", protocol, logger.MD(dest))
 
 		newDest, err := getExternalAlternateAddress(loggingCtx, externalAlternateAddresses, dest)
 		if err != nil {

@@ -11,7 +11,6 @@ licenses/APL2.txt.
 package base
 
 import (
-	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -23,6 +22,7 @@ import (
 	"github.com/couchbase/gocb/v2"
 	"github.com/couchbase/gocbcore/v10"
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -31,11 +31,9 @@ var _ CouchbaseStore = &Collection{}
 
 // Connect to the default collection for the specified bucket
 func GetCouchbaseCollection(spec BucketSpec) (*Collection, error) {
-
-	logCtx := context.TODO()
 	connString, err := spec.GetGoCBConnString()
 	if err != nil {
-		WarnfCtx(logCtx, "Unable to parse server value: %s error: %v", SD(spec.Server), err)
+		logger.For(logger.AuthKey).Err(err).Msgf("Unable to parse server value: %s", logger.SD(spec.Server))
 		return nil, err
 	}
 
@@ -50,13 +48,13 @@ func GetCouchbaseCollection(spec BucketSpec) (*Collection, error) {
 	}
 
 	if _, ok := authenticator.(gocb.CertificateAuthenticator); ok {
-		InfofCtx(logCtx, KeyAuth, "Using cert authentication for bucket %s on %s", MD(spec.BucketName), MD(spec.Server))
+		logger.For(logger.AuthKey).Info().Msgf("Using cert authentication for bucket %s on %s", logger.MD(spec.BucketName), logger.MD(spec.Server))
 	} else {
-		InfofCtx(logCtx, KeyAuth, "Using credential authentication for bucket %s on %s", MD(spec.BucketName), MD(spec.Server))
+		logger.For(logger.AuthKey).Info().Msgf("Using credential authentication for bucket %s on %s", logger.MD(spec.BucketName), logger.MD(spec.Server))
 	}
 
 	timeoutsConfig := GoCBv2TimeoutsConfig(spec.BucketOpTimeout, StdlibDurationPtr(spec.GetViewQueryTimeout()))
-	InfofCtx(logCtx, KeyAll, "Setting query timeouts for bucket %s to %v", spec.BucketName, timeoutsConfig.QueryTimeout)
+	logger.For(logger.AuthKey).Info().Msgf("Setting query timeouts for bucket %s to %v", spec.BucketName, timeoutsConfig.QueryTimeout)
 
 	clusterOptions := gocb.ClusterOptions{
 		Authenticator:  authenticator,
@@ -71,7 +69,7 @@ func GetCouchbaseCollection(spec BucketSpec) (*Collection, error) {
 
 	cluster, err := gocb.Connect(connString, clusterOptions)
 	if err != nil {
-		InfofCtx(logCtx, KeyAuth, "Unable to connect to cluster: %v", err)
+		logger.For(logger.AuthKey).Err(err).Msgf("Unable to connect to cluster")
 		return nil, err
 	}
 
@@ -85,7 +83,7 @@ func GetCouchbaseCollection(spec BucketSpec) (*Collection, error) {
 		if errors.Is(err, gocb.ErrAuthenticationFailure) {
 			return nil, ErrAuthError
 		}
-		WarnfCtx(context.TODO(), "Error waiting for cluster to be ready: %v", err)
+		logger.For(logger.ClusterKey).Err(err).Msgf("Error waiting for cluster to be ready")
 		return nil, err
 	}
 
@@ -103,7 +101,7 @@ func GetCollectionFromCluster(cluster *gocb.Cluster, spec BucketSpec, waitUntilR
 		if errors.Is(err, gocb.ErrAuthenticationFailure) {
 			return nil, ErrAuthError
 		}
-		WarnfCtx(context.TODO(), "Error waiting for bucket to be ready: %v", err)
+		logger.For(logger.BucketKey).Err(err).Msgf("Error waiting for bucket to be ready")
 		return nil, err
 	}
 
@@ -137,7 +135,7 @@ func GetCollectionFromCluster(cluster *gocb.Cluster, spec BucketSpec, waitUntilR
 
 	if maxConcurrentQueryOps > DefaultHttpMaxIdleConnsPerHost*queryNodeCount {
 		maxConcurrentQueryOps = DefaultHttpMaxIdleConnsPerHost * queryNodeCount
-		InfofCtx(context.TODO(), KeyAll, "Setting max_concurrent_query_ops to %d based on query node count (%d)", maxConcurrentQueryOps, queryNodeCount)
+		logger.For(logger.CRUDKey).Info().Msgf("Setting max_concurrent_query_ops to %d based on query node count (%d)", maxConcurrentQueryOps, queryNodeCount)
 	}
 
 	collection.queryOps = make(chan struct{}, maxConcurrentQueryOps)
@@ -186,7 +184,7 @@ func (c *Collection) UUID() (string, error) {
 func (c *Collection) Close() {
 	if c.cluster != nil {
 		if err := c.cluster.Close(nil); err != nil {
-			WarnfCtx(context.TODO(), "Error closing collection cluster: %v", err)
+			logger.For(logger.ClusterKey).Err(err).Msgf("Error closing collection cluster")
 		}
 	}
 	return
@@ -650,7 +648,7 @@ func (c *Collection) Flush() error {
 	workerFlush := func() (shouldRetry bool, err error, value interface{}) {
 		err = bucketManager.FlushBucket(c.Bucket().Name(), nil)
 		if err != nil {
-			WarnfCtx(context.TODO(), "Error flushing bucket %s: %v  Will retry.", MD(c.Bucket().Name()).Redact(), err)
+			logger.For(logger.BucketKey).Warn().Err(err).Msgf("Error flushing bucket %s, Will retry.", logger.MD(c.Bucket().Name()).Redact())
 			shouldRetry = true
 		}
 		return shouldRetry, err, nil
@@ -681,7 +679,7 @@ func (c *Collection) Flush() error {
 	// Kick off retry loop
 	err, _ = RetryLoop("Wait until bucket has 0 items after flush", worker, CreateMaxDoublingSleeperFunc(25, 100, 10000))
 	if err != nil {
-		return pkgerrors.Wrapf(err, "Error during Wait until bucket %s has 0 items after flush", MD(c.Bucket().Name()).Redact())
+		return pkgerrors.Wrapf(err, "Error during Wait until bucket %s has 0 items after flush", logger.MD(c.Bucket().Name()).Redact())
 	}
 
 	return nil
@@ -741,7 +739,7 @@ func (c *Collection) MaxTTL() (int, error) {
 func (c *Collection) HttpClient() *http.Client {
 	router, routerErr := c.Bucket().Internal().IORouter()
 	if routerErr != nil {
-		WarnfCtx(context.TODO(), "Unable to obtain router while retrieving httpClient:%v", routerErr)
+		logger.For(logger.CRUDKey).Err(routerErr).Msg("Unable to obtain router while retrieving httpClient")
 		return nil
 	}
 	return router.HTTPClient()
@@ -754,7 +752,7 @@ func (c *Collection) GetExpiry(k string) (expiry uint32, getMetaError error) {
 
 	router, routerErr := c.Bucket().Internal().IORouter()
 	if routerErr != nil {
-		WarnfCtx(context.TODO(), "Unable to obtain router while retrieving expiry:%v", routerErr)
+		logger.For(logger.CRUDKey).Err(routerErr).Msg("Unable to obtain router while retrieving expiry")
 		return 0, routerErr
 	}
 	getMetaOptions := gocbcore.GetMetaOptions{

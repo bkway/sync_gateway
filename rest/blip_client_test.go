@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/couchbase/go-blip"
-	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/google/uuid"
 )
 
@@ -377,12 +377,12 @@ func (btr *BlipTesterReplicator) initHandlers(btc *BlipTesterClient) {
 
 		digest, ok := msg.Properties[db.GetAttachmentDigest]
 		if !ok {
-			base.PanicfCtx(context.TODO(), "couldn't find digest in getAttachment message properties")
+			logger.PanicfCtx(context.TODO(), "couldn't find digest in getAttachment message properties")
 		}
 
 		attachment, err := btc.getAttachment(digest)
 		if err != nil {
-			base.PanicfCtx(context.TODO(), "couldn't find attachment for digest: %v", digest)
+			logger.PanicfCtx(context.TODO(), "couldn't find attachment for digest: %v", digest)
 		}
 
 		response := msg.Response()
@@ -397,7 +397,7 @@ func (btr *BlipTesterReplicator) initHandlers(btc *BlipTesterClient) {
 
 	btr.bt.blipContext.DefaultHandler = func(msg *blip.Message) {
 		btr.storeMessage(msg)
-		base.PanicfCtx(context.TODO(), "Unknown profile: %s caught by client DefaultHandler - msg: %#v", msg.Profile(), msg)
+		logger.PanicfCtx(context.TODO(), "Unknown profile: %s caught by client DefaultHandler - msg: %#v", msg.Profile(), msg)
 	}
 }
 
@@ -666,7 +666,7 @@ func (btc *BlipTesterClient) PushRevWithHistory(docID, parentRev string, body []
 	revRequest.Properties[db.RevMessageHistory] = strings.Join(revisionHistory, ",")
 
 	if btc.ClientDeltas && proposeChangesResponse.Properties[db.ProposeChangesResponseDeltas] == "true" {
-		base.DebugfCtx(context.TODO(), base.KeySync, "Sending deltas from test client")
+		logger.DebugfCtx(context.TODO(), logger.KeySync, "Sending deltas from test client")
 		var parentDocJSON, newDocJSON db.Body
 		err := parentDocJSON.Unmarshal(parentDocBody)
 		if err != nil {
@@ -686,7 +686,7 @@ func (btc *BlipTesterClient) PushRevWithHistory(docID, parentRev string, body []
 		// revRequest.Properties[db.RevMessageDeltaSrc] = parentRev
 		// body = delta
 	} else {
-		base.DebugfCtx(context.TODO(), base.KeySync, "Not sending deltas from test client")
+		logger.DebugfCtx(context.TODO(), logger.KeySync, "Not sending deltas from test client")
 	}
 
 	revRequest.SetBody(body)

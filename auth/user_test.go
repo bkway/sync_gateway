@@ -16,6 +16,8 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -27,14 +29,14 @@ func TestUserAuthenticateDisabled(t *testing.T) {
 		oldPassword = "hunter2"
 	)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 
 	bucket := base.GetTestBucket(t)
 	defer bucket.Close()
 
 	// Create user
 	auth := NewAuthenticator(bucket, nil, DefaultAuthenticatorOptions())
-	u, err := auth.NewUser(username, oldPassword, base.Set{})
+	u, err := auth.NewUser(username, oldPassword, utils.Set{})
 	assert.NoError(t, err)
 	assert.NotNil(t, u)
 
@@ -62,14 +64,14 @@ func TestUserAuthenticatePasswordHashUpgrade(t *testing.T) {
 		newBcryptCost = 12
 	)
 
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 
 	bucket := base.GetTestBucket(t)
 	defer bucket.Close()
 
 	// Create user
 	auth := NewAuthenticator(bucket, nil, DefaultAuthenticatorOptions())
-	u, err := auth.NewUser(username, oldPassword, base.Set{})
+	u, err := auth.NewUser(username, oldPassword, utils.Set{})
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
@@ -246,20 +248,20 @@ func TestInvalidUsernamesRejected(t *testing.T) {
 }
 
 func TestCanSeeChannelSince(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	testBucket := base.GetTestBucket(t)
 	defer testBucket.Close()
 
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
-	freeChannels := base.SetFromArray([]string{"ESPN", "HBO", "FX", "AMC"})
+	freeChannels := utils.SetFromArray([]string{"ESPN", "HBO", "FX", "AMC"})
 	user, err := auth.NewUser("user", "password", freeChannels)
 	assert.Nil(t, err)
 
-	role, err := auth.NewRole("music", channels.SetOf(t, "Spotify", "Youtube"))
+	role, err := auth.NewRole("music", channels.SetOfTester(t, "Spotify", "Youtube"))
 	assert.Nil(t, err)
 	assert.Equal(t, nil, auth.Save(role))
 
-	role, err = auth.NewRole("video", channels.SetOf(t, "Netflix", "Hulu"))
+	role, err = auth.NewRole("video", channels.SetOfTester(t, "Netflix", "Hulu"))
 	assert.Nil(t, err)
 	assert.Equal(t, nil, auth.Save(role))
 
@@ -274,21 +276,21 @@ func TestCanSeeChannelSince(t *testing.T) {
 }
 
 func TestGetAddedChannels(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	testBucket := base.GetTestBucket(t)
 	defer testBucket.Close()
 
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
 
-	role, err := auth.NewRole("music", channels.SetOf(t, "Spotify", "Youtube"))
+	role, err := auth.NewRole("music", channels.SetOfTester(t, "Spotify", "Youtube"))
 	assert.Nil(t, err)
 	assert.Equal(t, nil, auth.Save(role))
 
-	role, err = auth.NewRole("video", channels.SetOf(t, "Netflix", "Hulu"))
+	role, err = auth.NewRole("video", channels.SetOfTester(t, "Netflix", "Hulu"))
 	assert.Nil(t, err)
 	assert.Equal(t, nil, auth.Save(role))
 
-	user, err := auth.NewUser("alice", "password", channels.SetOf(t, "ESPN", "HBO", "FX", "AMC"))
+	user, err := auth.NewUser("alice", "password", channels.SetOfTester(t, "ESPN", "HBO", "FX", "AMC"))
 	assert.Nil(t, err)
 	require.NoError(t, user.SetEmail("alice@couchbase.com"))
 
@@ -300,7 +302,7 @@ func TestGetAddedChannels(t *testing.T) {
 		"ESPN": channels.NewVbSimpleSequence(0x5),
 		"HBO":  channels.NewVbSimpleSequence(0x6)})
 
-	expectedChannels := channels.SetOf(t, "!", "AMC", "FX", "Hulu", "Netflix", "Spotify", "Youtube")
+	expectedChannels := channels.SetOfTester(t, "!", "AMC", "FX", "Hulu", "Netflix", "Spotify", "Youtube")
 	log.Printf("Added Channels: %v", addedChannels)
 	assert.Equal(t, expectedChannels, addedChannels)
 }
@@ -313,7 +315,7 @@ func TestUserAuthenticateWithNilUserReference(t *testing.T) {
 
 // Must not authenticate if the user account is disabled.
 func TestUserAuthenticateWithDisabledUserAccount(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	const (
 		username = "alice"
 		password = "hunter2"
@@ -323,7 +325,7 @@ func TestUserAuthenticateWithDisabledUserAccount(t *testing.T) {
 
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
 
-	user, err := auth.NewUser(username, password, base.Set{})
+	user, err := auth.NewUser(username, password, utils.Set{})
 	assert.NoError(t, err)
 	assert.NotNil(t, user)
 
@@ -335,7 +337,7 @@ func TestUserAuthenticateWithDisabledUserAccount(t *testing.T) {
 // Must not authenticate if old hash is present.
 // Password must be reset to use new (bcrypt) password hash.
 func TestUserAuthenticateWithOldPasswordHash(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	const (
 		username = "alice"
 		password = "hunter2"
@@ -345,7 +347,7 @@ func TestUserAuthenticateWithOldPasswordHash(t *testing.T) {
 
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
 
-	user, err := auth.NewUser(username, password, base.Set{})
+	user, err := auth.NewUser(username, password, utils.Set{})
 	assert.NoError(t, err)
 	assert.NotNil(t, user)
 
@@ -356,7 +358,7 @@ func TestUserAuthenticateWithOldPasswordHash(t *testing.T) {
 
 // Must not authenticate with bad password hash
 func TestUserAuthenticateWithBadPasswordHash(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	const (
 		username = "alice"
 		password = "hunter2"
@@ -366,7 +368,7 @@ func TestUserAuthenticateWithBadPasswordHash(t *testing.T) {
 
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
 
-	user, err := auth.NewUser(username, password, base.Set{})
+	user, err := auth.NewUser(username, password, utils.Set{})
 	assert.NoError(t, err)
 	assert.NotNil(t, user)
 
@@ -377,7 +379,7 @@ func TestUserAuthenticateWithBadPasswordHash(t *testing.T) {
 
 // Must not authenticate if No hash, but (incorrect) password provided.
 func TestUserAuthenticateWithNoHashAndBadPassword(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAuth)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAuth)
 	const (
 		username = "alice"
 		password = "hunter2"
@@ -387,7 +389,7 @@ func TestUserAuthenticateWithNoHashAndBadPassword(t *testing.T) {
 
 	auth := NewAuthenticator(testBucket, nil, DefaultAuthenticatorOptions())
 
-	user, err := auth.NewUser(username, password, base.Set{})
+	user, err := auth.NewUser(username, password, utils.Set{})
 	assert.NoError(t, err)
 	assert.NotNil(t, user)
 

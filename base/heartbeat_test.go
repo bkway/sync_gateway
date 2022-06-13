@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/sync_gateway/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,7 +103,7 @@ func TestCouchbaseHeartbeaters(t *testing.T) {
 		t.Skip("Skipping heartbeattest in short mode")
 	}
 
-	SetUpTestLogging(t, LevelDebug, KeyDCP)
+	SetUpTestLogging(t, logger.LevelDebug, logger.KeyDCP)
 
 	keyprefix := SyncPrefix + t.Name()
 
@@ -281,7 +282,7 @@ func TestCouchbaseHeartbeatersMultipleListeners(t *testing.T) {
 // one second, so retry polling is required.
 func TestCBGTManagerHeartbeater(t *testing.T) {
 
-	SetUpTestLogging(t, LevelDebug, KeyDCP)
+	SetUpTestLogging(t, logger.LevelDebug, logger.KeyDCP)
 
 	if UnitTestUrlIsWalrus() {
 		t.Skip("This test won't work under walrus - no expiry, required for heartbeats")

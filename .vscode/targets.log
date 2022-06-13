@@ -10,11 +10,12 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 make: *** No rule to make target `all'.  Stop.
 
 
-# Make data base, printed on Tue Jun  7 12:41:43 2022
+# Make data base, printed on Mon Jun 13 09:21:21 2022
 
 # Variables
 
 # automatic
+ 
 <D = $(patsubst %/,%,$(dir $<))
 # automatic
 ?F = $(notdir $?)
@@ -53,7 +54,7 @@ VSCODE_CWD = /Users/tom
 # environment
 GOPROXY = https://proxy.golang.org,direct
 # environment
-SSH_CONNECTION = fe80::a082:6539:756a:6eb0%en1 62515 fe80::1037:ee74:a08e:de71%en1 22
+SSH_CONNECTION = 192.168.1.42 51932 192.168.1.27 22
 # environment
 LESS_TERMCAP_me = [0m
 # environment
@@ -75,7 +76,7 @@ VSCODE_PIPE_LOGGING = true
 # environment
 PWD = /Users/tom/src/github.com/bkway/sync_gateway
 # environment
-VSCODE_IPC_HOOK_CLI = /var/folders/47/gpts2hw9161df93rl91s813r0000gn/T/vscode-ipc-21552f27-db67-4edd-8162-2c7cf495df14.sock
+VSCODE_IPC_HOOK_CLI = /var/folders/47/gpts2hw9161df93rl91s813r0000gn/T/vscode-ipc-dcce8b0c-e90c-4953-bff8-c8bbdeb3b0b1.sock
 # automatic
 *D = $(patsubst %/,%,$(dir $*))
 # environment
@@ -107,7 +108,7 @@ MAKE = $(MAKE_COMMAND)
 # default
 MAKECMDGOALS := all
 # environment
-PATH = /Users/tom/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/remote-cli:/Users/tom/.asdf/shims:/opt/homebrew/Cellar/asdf/0.8.1_1/libexec/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/opt/homebrew/bin:/opt/homebrew/sbin
+PATH = /Users/tom/.vscode-server/bin/4af164ea3a06f701fe3e89a2bcbb421d2026b68f/bin/remote-cli:/Users/tom/.asdf/shims:/opt/homebrew/Cellar/asdf/0.8.1_1/libexec/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/opt/homebrew/bin:/opt/homebrew/sbin
 # environment
 SHLVL = 3
 # environment
@@ -137,9 +138,10 @@ MAKEFLAGS = Rrqp
 # environment
 MFLAGS = -Rrqp
 # environment
-SSH_CLIENT = fe80::a082:6539:756a:6eb0%en1 62515 22
+SSH_CLIENT = 192.168.1.42 51932 22
 # environment
 HOMEBREW_SHELLENV_PREFIX = /opt/homebrew
+ 
 # environment
 LESS_TERMCAP_us = [01;32m
 # environment
@@ -147,7 +149,7 @@ HOMEBREW_PREFIX = /opt/homebrew
 # automatic
 +D = $(patsubst %/,%,$(dir $+))
 # environment
-BROWSER = /Users/tom/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/helpers/browser.sh
+BROWSER = /Users/tom/.vscode-server/bin/4af164ea3a06f701fe3e89a2bcbb421d2026b68f/bin/helpers/browser.sh
 # environment
 HOMEBREW_REPOSITORY = /opt/homebrew
 # environment
@@ -177,7 +179,6 @@ LANG = C
 # environment
 VSCODE_EXTHOST_WILL_SEND_SOCKET = true
 # variable set hash-table stats:
- 
 # Load=81/1024=8%, Rehash=0, Collisions=7/104=7%
 
 # Pattern-specific Variable Values
@@ -186,9 +187,9 @@ VSCODE_EXTHOST_WILL_SEND_SOCKET = true
 
 # Directories
 
-# . (device 16777230, inode 65932708): 42 files, no impossibilities.
+# . (device 16777230, inode 65932708): 46 files, no impossibilities.
 
-# 42 files, no impossibilities in 1 directories.
+# 46 files, no impossibilities in 1 directories.
 
 # Implicit Rules
 
@@ -273,6 +274,6 @@ buildclean: clean buildit
 # strcache size: total = 4096 / max = 4096 / min = 4096 / avg = 4096
 # strcache free: total = 4087 / max = 4087 / min = 4087 / avg = 4087
 
-# Finished Make data base on Tue Jun  7 12:41:43 2022
+# Finished Make data base on Mon Jun 13 09:21:21 2022
 
  

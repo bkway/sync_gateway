@@ -19,14 +19,16 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // 1-one -- 2-two -- 3-three
 var testmap = RevTree{"3-three": {ID: "3-three", Parent: "2-two", Body: []byte("{}")},
-	"2-two": {ID: "2-two", Parent: "1-one", Channels: base.SetOf("ABC", "CBS")},
-	"1-one": {ID: "1-one", Channels: base.SetOf("ABC")}}
+	"2-two": {ID: "2-two", Parent: "1-one", Channels: utils.SetOf("ABC", "CBS")},
+	"1-one": {ID: "1-one", Channels: utils.SetOf("ABC")}}
 
 //               / 3-three
 // 1-one -- 2-two
@@ -839,7 +841,7 @@ func TestRevsHistoryInfiniteLoop(t *testing.T) {
 // Repair tool for https://github.com/couchbase/sync_gateway/issues/2847
 func TestRepairRevsHistoryWithCycles(t *testing.T) {
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyCRUD)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyCRUD)
 
 	for i, testdocProblematicRevTree := range testdocProblematicRevTrees {
 
@@ -1102,7 +1104,7 @@ func addRevs(revTree RevTree, startingParentRevId string, numRevs int, revDigest
 		panic(fmt.Sprintf("Error: %v", err))
 	}
 
-	channels := base.SetOf("ABC", "CBS")
+	channels := utils.SetOf("ABC", "CBS")
 
 	generation, _ := ParseRevID(startingParentRevId)
 

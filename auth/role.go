@@ -20,6 +20,7 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	ch "github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 /** A group that users can belong to, with associated channel permissions. */
@@ -94,7 +95,7 @@ func (pair *GrantHistorySequencePair) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (role *roleImpl) initRole(name string, channels base.Set) error {
+func (role *roleImpl) initRole(name string, channels utils.Set) error {
 	channels = ch.ExpandingStar(channels)
 	role.Name_ = name
 	role.ExplicitChannels_ = ch.AtSequence(channels, 1)
@@ -128,7 +129,7 @@ func IsValidPrincipalName(name string) bool {
 }
 
 // Creates a new Role object.
-func (auth *Authenticator) NewRole(name string, channels base.Set) (Role, error) {
+func (auth *Authenticator) NewRole(name string, channels utils.Set) (Role, error) {
 	role := &roleImpl{}
 	existingRole, err := auth.GetRoleIncDeleted(name)
 	if err != nil {
@@ -265,17 +266,17 @@ func (role *roleImpl) CanSeeChannelSince(channel string) uint64 {
 	return seq.Sequence
 }
 
-func (role *roleImpl) AuthorizeAllChannels(channels base.Set) error {
+func (role *roleImpl) AuthorizeAllChannels(channels utils.Set) error {
 	return authorizeAllChannels(role, channels)
 }
 
-func (role *roleImpl) AuthorizeAnyChannel(channels base.Set) error {
+func (role *roleImpl) AuthorizeAnyChannel(channels utils.Set) error {
 	return authorizeAnyChannel(role, channels)
 }
 
 // Returns an HTTP 403 error if the Principal is not allowed to access all the given channels.
 // A nil Principal means access control is disabled, so the function will return nil.
-func authorizeAllChannels(princ Principal, channels base.Set) error {
+func authorizeAllChannels(princ Principal, channels utils.Set) error {
 	var forbidden []string
 	for channel := range channels {
 		if !princ.CanSeeChannel(channel) {
@@ -293,7 +294,7 @@ func authorizeAllChannels(princ Principal, channels base.Set) error {
 
 // Returns an HTTP 403 error if the Principal is not allowed to access any of the given channels.
 // A nil Role means access control is disabled, so the function will return nil.
-func authorizeAnyChannel(princ Principal, channels base.Set) error {
+func authorizeAnyChannel(princ Principal, channels utils.Set) error {
 	if len(channels) > 0 {
 		for channel := range channels {
 			if princ.CanSeeChannel(channel) {

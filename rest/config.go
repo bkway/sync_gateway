@@ -33,6 +33,8 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 var (
@@ -440,7 +442,8 @@ var ErrPathNotFound = errors.New("path not found")
 func readFromPath(path string, insecureSkipVerify bool) (rc io.ReadCloser, err error) {
 	messageFormat := "Loading content from [%s] ..."
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		base.InfofCtx(context.Background(), base.KeyAll, messageFormat, path)
+		//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyAll, messageFormat, path)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf(messageFormat, path)
 		client := base.GetHttpClient(insecureSkipVerify)
 		resp, err := client.Get(path)
 		if err != nil {
@@ -450,8 +453,9 @@ func readFromPath(path string, insecureSkipVerify bool) (rc io.ReadCloser, err e
 			return nil, base.HTTPErrorf(resp.StatusCode, http.StatusText(resp.StatusCode))
 		}
 		rc = resp.Body
-	} else if base.FileExists(path) {
-		base.InfofCtx(context.Background(), base.KeyAll, messageFormat, path)
+	} else if utils.FileExists(path) {
+		//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyAll, messageFormat, path)
+		logger.For(logger.SystemKey).Info().Err(err).Msgf(messageFormat, path)
 		rc, err = os.Open(path)
 		if err != nil {
 			return nil, err
@@ -473,7 +477,7 @@ func (dbConfig *DbConfig) AutoImportEnabled() (bool, error) {
 
 	str, ok := dbConfig.AutoImport.(string)
 	if ok && str == "continuous" {
-		base.WarnfCtx(context.Background(), `Using deprecated config value for "import_docs": "continuous". Use "import_docs": true instead.`)
+		logger.For(logger.SystemKey).Warn().Msg(`Using deprecated config value for "import_docs": "continuous". Use "import_docs": true instead.`)
 		return true, nil
 	}
 
@@ -563,7 +567,7 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, validateOIDCConfi
 			revCacheSize := dbConfig.CacheConfig.RevCacheConfig.Size
 			if revCacheSize != nil && *revCacheSize == 0 {
 				// TODO this basically just can't be 0
-				base.WarnfCtx(ctx, "%s cannot be 0. leave out completely to disable. Setting to default %d", "cache.rev_cache.size", db.DefaultRevisionCacheSize)
+				logger.For(logger.UnknownKey).Warn().Msgf("%s cannot be 0. leave out completely to disable. Setting to default %d", "cache.rev_cache.size", db.DefaultRevisionCacheSize)
 				dbConfig.CacheConfig.RevCacheConfig.Size = nil
 			}
 
@@ -589,7 +593,8 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, validateOIDCConfi
 	}
 
 	if dbConfig.DeprecatedPool != nil {
-		base.WarnfCtx(ctx, `"pool" config option is not supported. The pool will be set to "default". The option should be removed from config file.`)
+		logger.For(logger.SystemKey).Warn().Msgf(`"pool" config option is not supported. The pool will be set to "default". The option should be removed from config file.`)
+		// log.Ctx(ctx).Warn().Err(err).Msgf(`"pool" config option is not supported. The pool will be set to "default". The option should be removed from config file.`)
 	}
 
 	if isEmpty, err := validateJavascriptFunction(dbConfig.Sync); err != nil {
@@ -808,7 +813,7 @@ func (dbConfig *DbConfig) UseXattrs() bool {
 func (dbConfig *DbConfig) Redacted() (*DbConfig, error) {
 	var config DbConfig
 
-	err := base.DeepCopyInefficient(&config, dbConfig)
+	err := utils.DeepCopyInefficient(&config, dbConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -865,7 +870,8 @@ func expandEnv(config []byte) (value []byte, err error) {
 	var multiError *base.MultiError
 	val := []byte(os.Expand(string(config), func(key string) string {
 		if key == "$" {
-			base.DebugfCtx(context.Background(), base.KeyConfig, "Skipping environment variable expansion: %s", key)
+			//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyConfig, "Skipping environment variable expansion: %s", key)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Skipping environment variable expansion: %s", key)
 			return key
 		}
 		val, err := envDefaultExpansion(key, os.Getenv)
@@ -896,12 +902,13 @@ func envDefaultExpansion(key string, getEnvFn func(string) string) (value string
 	if value == "" && len(kvPair) == 2 {
 		// Set value to the default.
 		value = kvPair[1]
-		base.DebugfCtx(context.Background(), base.KeyConfig, "Replacing config environment variable '${%s}' with "+
-			"default value specified", key)
+		logger.For(logger.ConfigKey).Info().
+			Msgf("Replacing config environment variable '${%s}' with default value specified", key)
 	} else if value == "" && len(kvPair) != 2 {
 		return "", ErrEnvVarUndefined{key: key}
 	} else {
-		base.DebugfCtx(context.Background(), base.KeyConfig, "Replacing config environment variable '${%s}'", key)
+		//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyConfig, "Replacing config environment variable '${%s}'", key)
+		logger.For(logger.ConfigKey).Info().Msgf("Replacing config environment variable '${%s}'", key)
 	}
 	return value, nil
 }
@@ -909,22 +916,21 @@ func envDefaultExpansion(key string, getEnvFn func(string) string) (value string
 // SetupAndValidateLogging validates logging config and initializes all logging.
 func (sc *StartupConfig) SetupAndValidateLogging() (err error) {
 
-	base.SetRedaction(sc.Logging.RedactionLevel)
+	// TODO reintroduce somwhere
+	// logger.SetRedaction(sc.Logging.RedactionLevel)
 
-	if sc.Logging.LogFilePath == "" {
-		sc.Logging.LogFilePath = defaultLogFilePath
-	}
-
-	return base.InitLogging(
-		sc.Logging.LogFilePath,
-		sc.Logging.Console,
-		sc.Logging.Error,
-		sc.Logging.Warn,
-		sc.Logging.Info,
-		sc.Logging.Debug,
-		sc.Logging.Trace,
-		sc.Logging.Stats,
-	)
+	// TODO this is done elsewhere
+	return nil
+	// return logger.InitLogging(
+	// 	sc.Logging.LogFilePath,
+	// 	sc.Logging.Console,
+	// 	sc.Logging.Error,
+	// 	sc.Logging.Warn,
+	// 	sc.Logging.Info,
+	// 	sc.Logging.Debug,
+	// 	sc.Logging.Trace,
+	// 	sc.Logging.Stats,
+	// )
 }
 
 func SetMaxFileDescriptors(maxP *uint64) error {
@@ -934,7 +940,8 @@ func SetMaxFileDescriptors(maxP *uint64) error {
 	}
 	_, err := base.SetMaxFileDescriptors(maxFDs)
 	if err != nil {
-		base.ErrorfCtx(context.Background(), "Error setting MaxFileDescriptors to %d: %v", maxFDs, err)
+		//log.Ctx(context.Background()).Error().Err(err).Msgf("Error setting MaxFileDescriptors to %d: %v", maxFDs, err)
+		logger.For(logger.ConfigKey).Err(err).Msgf("Error setting MaxFileDescriptors to %d", maxFDs)
 		return err
 	}
 	return nil
@@ -986,11 +993,11 @@ func (sc *StartupConfig) validate() (errorMessages error) {
 	secureServer := base.ServerIsTLS(sc.Bootstrap.Server)
 	if base.BoolDefault(sc.Bootstrap.UseTLSServer, DefaultUseTLSServer) {
 		if !secureServer && !base.ServerIsWalrus(sc.Bootstrap.Server) {
-			multiError = multiError.Append(fmt.Errorf("Must use secure scheme in Couchbase Server URL, or opt out by setting bootstrap.use_tls_server to false. Current URL: %s", base.SD(sc.Bootstrap.Server)))
+			multiError = multiError.Append(fmt.Errorf("Must use secure scheme in Couchbase Server URL, or opt out by setting bootstrap.use_tls_server to false. Current URL: %s", logger.SD(sc.Bootstrap.Server)))
 		}
 	} else {
 		if secureServer {
-			multiError = multiError.Append(fmt.Errorf("Couchbase server URL cannot use secure protocol when bootstrap.use_tls_server is false. Current URL: %s", base.SD(sc.Bootstrap.Server)))
+			multiError = multiError.Append(fmt.Errorf("Couchbase server URL cannot use secure protocol when bootstrap.use_tls_server is false. Current URL: %s", logger.SD(sc.Bootstrap.Server)))
 		}
 	}
 
@@ -1031,11 +1038,14 @@ func setupServerContext(config *StartupConfig, persistentConfig bool) (*ServerCo
 		return nil, fmt.Errorf("error setting up logging: %v", err)
 	}
 
-	base.FlushLoggerBuffers()
+	// logger.FlushLoggerBuffers()
 
-	base.InfofCtx(context.Background(), base.KeyAll, "Logging: Console level: %v", base.ConsoleLogLevel())
-	base.InfofCtx(context.Background(), base.KeyAll, "Logging: Console keys: %v", base.ConsoleLogKey().EnabledLogKeys())
-	base.InfofCtx(context.Background(), base.KeyAll, "Logging: Redaction level: %s", config.Logging.RedactionLevel)
+	//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyAll, "Logging: Console level: %v", logger.ConsoleLogLevel())
+	// logger.For(logger.SystemKey).Info().Msgf("Logging: Console level: %v", logger.ConsoleLogLevel())
+	//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyAll, "Logging: Console keys: %v", logger.ConsoleLogKey().EnabledLogKeys())
+	// logger.For(logger.SystemKey).Info().Msgf("Logging: Console keys: %v", logger.ConsoleLogKey().EnabledLogKeys())
+	//log.Ctx(context.Background()).Info().Err(err).Msgf(logger.KeyAll, "Logging: Redaction level: %s", config.Logging.RedactionLevel)
+	logger.For(logger.SystemKey).Info().Msgf("Logging: Redaction level: %s", config.Logging.Redaction)
 
 	if err := setGlobalConfig(config); err != nil {
 		return nil, err
@@ -1067,7 +1077,8 @@ func (sc *ServerContext) fetchAndLoadConfigs(isInitialStartup bool) (count int, 
 
 	for _, dbName := range sc.bucketDbName {
 		if _, foundMatchingDb := fetchedConfigs[dbName]; !foundMatchingDb {
-			base.InfofCtx(context.TODO(), base.KeyConfig, "Database %q was running on this node, but config was not found on the server - removing database", base.MD(dbName))
+			//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyConfig, "Database %q was running on this node, but config was not found on the server - removing database", logger.MD(dbName))
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Database %q was running on this node, but config was not found on the server - removing database", logger.MD(dbName))
 			sc._removeDatabase(dbName)
 		}
 	}
@@ -1098,7 +1109,7 @@ func (sc *ServerContext) fetchDatabase(dbName string) (found bool, dbConfig *Dat
 	if err != nil {
 		return false, nil, fmt.Errorf("couldn't get buckets from cluster: %w", err)
 	}
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 
 	// move bucket matching dbName to the front so it's searched first
 	for i, bucket := range buckets {
@@ -1111,11 +1122,13 @@ func (sc *ServerContext) fetchDatabase(dbName string) (found bool, dbConfig *Dat
 		var cnf DatabaseConfig
 		cas, err := sc.bootstrapContext.connection.GetConfig(bucket, sc.config.Bootstrap.ConfigGroupID, &cnf)
 		if err == base.ErrNotFound {
-			base.DebugfCtx(logCtx, base.KeyConfig, "%q did not contain config in group %q", bucket, sc.config.Bootstrap.ConfigGroupID)
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "%q did not contain config in group %q", bucket, sc.config.Bootstrap.ConfigGroupID)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("%q did not contain config in group %q", bucket, sc.config.Bootstrap.ConfigGroupID)
 			continue
 		}
 		if err != nil {
-			base.DebugfCtx(logCtx, base.KeyConfig, "unable to fetch config in group %q from bucket %q: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "unable to fetch config in group %q from bucket %q: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("unable to fetch config in group %q from bucket %q: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
 			continue
 		}
 
@@ -1124,7 +1137,8 @@ func (sc *ServerContext) fetchDatabase(dbName string) (found bool, dbConfig *Dat
 		}
 
 		if cnf.Name != dbName {
-			base.TracefCtx(logCtx, base.KeyConfig, "%q did not contain config in group %q for db %q", bucket, sc.config.Bootstrap.ConfigGroupID, dbName)
+			//logger.TracefCtx(logCtx, logger.KeyConfig, "%q did not contain config in group %q for db %q", bucket, sc.config.Bootstrap.ConfigGroupID, dbName)
+			logger.For(logger.ConfigKey).Trace().Msgf("%q did not contain config in group %q for db %q", bucket, sc.config.Bootstrap.ConfigGroupID, dbName)
 			continue
 		}
 
@@ -1145,7 +1159,8 @@ func (sc *ServerContext) fetchDatabase(dbName string) (found bool, dbConfig *Dat
 			cnf.CertPath = sc.config.Bootstrap.X509CertPath
 			cnf.KeyPath = sc.config.Bootstrap.X509KeyPath
 		}
-		base.TracefCtx(logCtx, base.KeyConfig, "Got config for bucket %q with cas %d", bucket, cas)
+		//logger.TracefCtx(logCtx, logger.KeyConfig, "Got config for bucket %q with cas %d", bucket, cas)
+		logger.For(logger.ConfigKey).Trace().Msgf("Got config for bucket %q with cas %d", bucket, cas)
 		return true, &cnf, nil
 	}
 
@@ -1159,24 +1174,27 @@ func (sc *ServerContext) fetchConfigs(isInitialStartup bool) (dbNameConfigs map[
 		return nil, fmt.Errorf("couldn't get buckets from cluster: %w", err)
 	}
 
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 	fetchedConfigs := make(map[string]DatabaseConfig, len(buckets))
 
 	for _, bucket := range buckets {
-		base.TracefCtx(logCtx, base.KeyConfig, "Checking for config for group %q from bucket %q", sc.config.Bootstrap.ConfigGroupID, bucket)
+		//logger.TracefCtx(logCtx, logger.KeyConfig, "Checking for config for group %q from bucket %q", sc.config.Bootstrap.ConfigGroupID, bucket)
+		logger.For(logger.ConfigKey).Trace().Msgf("Checking for config for group %q from bucket %q", sc.config.Bootstrap.ConfigGroupID, bucket)
 		var cnf DatabaseConfig
 		cas, err := sc.bootstrapContext.connection.GetConfig(bucket, sc.config.Bootstrap.ConfigGroupID, &cnf)
 		if err == base.ErrNotFound {
-			base.DebugfCtx(logCtx, base.KeyConfig, "Bucket %q did not contain config for group %q", bucket, sc.config.Bootstrap.ConfigGroupID)
+			//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Bucket %q did not contain config for group %q", bucket, sc.config.Bootstrap.ConfigGroupID)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Bucket %q did not contain config for group %q", bucket, sc.config.Bootstrap.ConfigGroupID)
 			continue
 		}
 		if err != nil {
 			// Unexpected error fetching config - SDK has already performed retries, so we'll treat it as a database removal
 			// this could be due to invalid JSON or some other non-recoverable error.
 			if isInitialStartup {
-				base.WarnfCtx(logCtx, "Unable to fetch config for group %q from bucket %q on startup: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to fetch config for group %q from bucket %q on startup: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
 			} else {
-				base.DebugfCtx(logCtx, base.KeyConfig, "Unable to fetch config for group %q from bucket %q: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
+				//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Unable to fetch config for group %q from bucket %q: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
+				logger.For(logger.ConfigKey).Info().Err(err).Msgf("Unable to fetch config for group %q from bucket %q: %v", sc.config.Bootstrap.ConfigGroupID, bucket, err)
 			}
 			continue
 		}
@@ -1202,7 +1220,8 @@ func (sc *ServerContext) fetchConfigs(isInitialStartup bool) (dbNameConfigs map[
 			cnf.KeyPath = sc.config.Bootstrap.X509KeyPath
 		}
 
-		base.DebugfCtx(logCtx, base.KeyConfig, "Got config for group %q from bucket %q with cas %d", sc.config.Bootstrap.ConfigGroupID, bucket, cas)
+		//log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyConfig, "Got config for group %q from bucket %q with cas %d", sc.config.Bootstrap.ConfigGroupID, bucket, cas)
+		logger.For(logger.ConfigKey).Info().Err(err).Msgf("Got config for group %q from bucket %q with cas %d", sc.config.Bootstrap.ConfigGroupID, bucket, cas)
 		fetchedConfigs[cnf.Name] = cnf
 	}
 
@@ -1214,7 +1233,8 @@ func (sc *ServerContext) _applyConfigs(dbNameConfigs map[string]DatabaseConfig) 
 	for dbName, cnf := range dbNameConfigs {
 		applied, err := sc._applyConfig(cnf, false)
 		if err != nil {
-			base.ErrorfCtx(context.Background(), "Couldn't apply config for database %q: %v", base.MD(dbName), err)
+			//log.Ctx(context.Background()).Error().Err(err).Msgf("Couldn't apply config for database %q: %v", logger.MD(dbName), err)
+			logger.For(logger.ConfigKey).Err(err).Msgf("Couldn't apply config for database %q: %v", logger.MD(dbName))
 			continue
 		}
 		if applied {
@@ -1243,13 +1263,16 @@ func (sc *ServerContext) _applyConfig(cnf DatabaseConfig, failFast bool) (applie
 
 		if cnf.cas == 0 {
 			// force an update when the new config's cas was set to zero prior to load
-			base.InfofCtx(context.TODO(), base.KeyConfig, "Forcing update of config for database %q bucket %q", cnf.Name, *cnf.Bucket)
+			//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyConfig, "Forcing update of config for database %q bucket %q", cnf.Name, *cnf.Bucket)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Forcing update of config for database %q bucket %q", cnf.Name, *cnf.Bucket)
 		} else {
 			if sc.dbConfigs[foundDbName].cas >= cnf.cas {
-				base.DebugfCtx(context.TODO(), base.KeyConfig, "Database %q bucket %q config has not changed since last update", cnf.Name, *cnf.Bucket)
+				//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyConfig, "Database %q bucket %q config has not changed since last update", cnf.Name, *cnf.Bucket)
+				logger.For(logger.ConfigKey).Info().Err(err).Msgf("Database %q bucket %q config has not changed since last update", cnf.Name, *cnf.Bucket)
 				return false, nil
 			}
-			base.InfofCtx(context.TODO(), base.KeyConfig, "Updating database %q for bucket %q with new config from bucket", cnf.Name, *cnf.Bucket)
+			//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyConfig, "Updating database %q for bucket %q with new config from bucket", cnf.Name, *cnf.Bucket)
+			logger.For(logger.ConfigKey).Info().Err(err).Msgf("Updating database %q for bucket %q with new config from bucket", cnf.Name, *cnf.Bucket)
 		}
 	}
 
@@ -1288,24 +1311,28 @@ func (sc *ServerContext) addLegacyPrincipals(legacyDbUsers, legacyDbRoles map[st
 	for dbName, dbUser := range legacyDbUsers {
 		dbCtx, err := sc.GetDatabase(dbName)
 		if err != nil {
-			base.ErrorfCtx(context.Background(), "Couldn't get database context to install user principles: %v", err)
+			//log.Ctx(context.Background()).Error().Err(err).Msgf("Couldn't get database context to install user principles: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Couldn't get database context to install user principles")
 			continue
 		}
 		err = sc.installPrincipals(dbCtx, dbUser, "user")
 		if err != nil {
-			base.ErrorfCtx(context.Background(), "Couldn't install user principles: %v", err)
+			//log.Ctx(context.Background()).Error().Err(err).Msgf("Couldn't install user principles: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Couldn't install user principles")
 		}
 	}
 
 	for dbName, dbRole := range legacyDbRoles {
 		dbCtx, err := sc.GetDatabase(dbName)
 		if err != nil {
-			base.ErrorfCtx(context.Background(), "Couldn't get database context to install role principles: %v", err)
+			//log.Ctx(context.Background()).Error().Err(err).Msgf("Couldn't get database context to install role principles: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Couldn't get database context to install role principles")
 			continue
 		}
 		err = sc.installPrincipals(dbCtx, dbRole, "role")
 		if err != nil {
-			base.ErrorfCtx(context.Background(), "Couldn't install role principles: %v", err)
+			//log.Ctx(context.Background()).Error().Err(err).Msgf("Couldn't install role principles: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Couldn't install role principles")
 		}
 	}
 }
@@ -1314,7 +1341,8 @@ func (sc *ServerContext) addLegacyPrincipals(legacyDbUsers, legacyDbRoles map[st
 func startServer(config *StartupConfig, sc *ServerContext) error {
 	if config.API.ProfileInterface != "" {
 		// runtime.MemProfileRate = 10 * 1024
-		base.InfofCtx(context.TODO(), base.KeyAll, "Starting profile server on %s", base.UD(config.API.ProfileInterface))
+		//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Starting profile server on %s", logger.UD(config.API.ProfileInterface))
+		logger.For(logger.SystemKey).Info().Msgf("Starting profile server on %s", logger.UD(config.API.ProfileInterface))
 		go func() {
 			_ = http.ListenAndServe(config.API.ProfileInterface, nil)
 		}()
@@ -1322,21 +1350,26 @@ func startServer(config *StartupConfig, sc *ServerContext) error {
 
 	go sc.PostStartup()
 
-	base.Consolef(base.LevelInfo, base.KeyAll, "Starting metrics server on %s", config.API.MetricsInterface)
+	// logger.Consolef(logger.LevelInfo, logger.KeyAll, "Starting metrics server on %s", config.API.MetricsInterface)
+	logger.For(logger.SystemKey).Info().Msgf("Starting metrics server on %s", config.API.MetricsInterface)
 	go func() {
 		if err := sc.Serve(config, config.API.MetricsInterface, CreateMetricHandler(sc)); err != nil {
-			base.ErrorfCtx(context.TODO(), "Error serving the Metrics API: %v", err)
+			//log.Ctx(context.TODO()).Error().Err(err).Msgf("Error serving the Metrics API: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Error serving the Metrics API")
 		}
 	}()
 
-	base.Consolef(base.LevelInfo, base.KeyAll, "Starting admin server on %s", config.API.AdminInterface)
+	// logger.Consolef(logger.LevelInfo, logger.KeyAll, "Starting admin server on %s", config.API.AdminInterface)
+	logger.For(logger.SystemKey).Info().Msgf("Starting admin server on %s", config.API.AdminInterface)
 	go func() {
 		if err := sc.Serve(config, config.API.AdminInterface, CreateAdminHandler(sc)); err != nil {
-			base.ErrorfCtx(context.TODO(), "Error serving the Admin API: %v", err)
+			//log.Ctx(context.TODO()).Error().Err(err).Msgf("Error serving the Admin API: %v", err)
+			logger.For(logger.UnknownKey).Err(err).Msg("Error serving the Admin API")
 		}
 	}()
 
-	base.Consolef(base.LevelInfo, base.KeyAll, "Starting server on %s ...", config.API.PublicInterface)
+	// logger.Consolef(logger.LevelInfo, logger.KeyAll, "Starting server on %s ...", config.API.PublicInterface)
+	logger.For(logger.SystemKey).Info().Msgf("Starting server on %s ...", config.API.PublicInterface)
 	return sc.Serve(config, config.API.PublicInterface, CreatePublicHandler(sc))
 }
 
@@ -1355,7 +1388,8 @@ func sharedBucketDatabaseCheck(sc *ServerContext) (errors error) {
 		multiError = multiError.Append(sharedBucketError)
 		messageFormat := "Bucket %q is shared among databases %s. " +
 			"This may result in unexpected behaviour if security is not defined consistently."
-		base.WarnfCtx(context.Background(), messageFormat, base.MD(sharedBucket.bucketName), base.MD(sharedBucket.dbNames))
+			//log.Ctx(context.Background()).Warn().Err(err).Msgf(messageFormat, logger.MD(sharedBucket.bucketName), logger.MD(sharedBucket.dbNames))
+		logger.For(logger.UnknownKey).Warn().Msgf(messageFormat, logger.MD(sharedBucket.bucketName), logger.MD(sharedBucket.dbNames))
 	}
 	return multiError.ErrorOrNil()
 }
@@ -1394,11 +1428,13 @@ func sharedBuckets(dbContextMap map[string][]*db.DatabaseContext) (sharedBuckets
 }
 
 func HandleSighup() {
-	for logger, err := range base.RotateLogfiles() {
-		if err != nil {
-			base.WarnfCtx(context.Background(), "Error rotating %v: %v", logger, err)
-		}
-	}
+	// TODO we no longer do log rotation
+	// for logger, err := range logger.RotateLogfiles() {
+	// 	if err != nil {
+	// 		//log.Ctx(context.Background()).Warn().Err(err).Msgf("Error rotating %v: %v", logger, err)
+	// 		logger.For("Error rotating %v: %v").Warn().Err(err).Msgf(logger, err)
+	// 	}
+	// }
 }
 
 // RegisterSignalHandler invokes functions based on the given signals:
@@ -1411,13 +1447,14 @@ func RegisterSignalHandler() {
 
 	go func() {
 		for sig := range signalChannel {
-			base.InfofCtx(context.TODO(), base.KeyAll, "Handling signal: %v", sig)
+			//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Handling signal: %v", sig)
+			logger.For(logger.SystemKey).Info().Msgf("Handling signal: %v", sig)
 			switch sig {
 			case syscall.SIGHUP:
 				HandleSighup()
 			default:
 				// Ensure log buffers are flushed before exiting.
-				base.FlushLogBuffers()
+				// logger.FlushLogBuffers()
 				os.Exit(130) // 130 == exit code 128 + 2 (interrupt)
 			}
 		}

@@ -13,13 +13,14 @@ package channels
 import (
 	"testing"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
+// TODO move somewhere more useful?
 // Creates a set from zero or more inline string arguments.
 // Channel names must be valid, else the function will panic, so this should only be called
 // with hardcoded known-valid strings.
-func SetOf(tb testing.TB, names ...string) base.Set {
+func SetOfTester(tb testing.TB, names ...string) utils.Set {
 	set, err := SetFromArray(names, KeepStar)
 	if err != nil {
 		tb.Fatalf("channels.SetOf failed: %v", err)

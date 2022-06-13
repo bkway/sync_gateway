@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // CfgSG is used to manage shared information between Sync Gateway nodes.
@@ -43,11 +44,12 @@ var ErrCfgCasError = &cbgt.CfgCASError{}
 // urlStr: single URL or multiple URLs delimited by ';'
 // bucket: couchbase bucket name
 func NewCfgSG(bucket Bucket, groupID string) (*CfgSG, error) {
-
-	cfgContextID := MD(bucket.GetName()).Redact() + "-cfgSG"
-	loggingCtx := context.WithValue(context.Background(), LogContextKey{},
-		LogContext{CorrelationID: cfgContextID},
-	)
+	// FIXME make this do something
+	// cfgContextID := logger.MD(bucket.GetName()).Redact() + "-cfgSG"
+	// loggingCtx := context.WithValue(context.Background(), logger.LogContextKey{},
+	// 	logger.LogContext{CorrelationID: cfgContextID},
+	// )
+	loggingCtx := context.TODO()
 
 	c := &CfgSG{
 		bucket:        bucket,
@@ -65,17 +67,20 @@ func (c *CfgSG) sgCfgBucketKey(cfgKey string) string {
 func (c *CfgSG) Get(cfgKey string, cas uint64) (
 	[]byte, uint64, error) {
 
-	DebugfCtx(c.loggingCtx, KeyCluster, "cfg_sg: Get, key: %s, cas: %d", cfgKey, cas)
+	logger.For(logger.ClusterKey).Debug().Msgf("cfg_sg: Get, key: %s, cas: %d", cfgKey, cas)
+	// logger.DebugfCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Get, key: %s, cas: %d", cfgKey, cas)
 	bucketKey := c.sgCfgBucketKey(cfgKey)
 	var value []byte
 	casOut, err := c.bucket.Get(bucketKey, &value)
 	if err != nil && !IsKeyNotFoundError(c.bucket, err) {
-		InfofCtx(c.loggingCtx, KeyCluster, "cfg_sg: Get, key: %s, cas: %d, err: %v", cfgKey, cas, err)
+		logger.For(logger.ClusterKey).Info().Msgf("cfg_sg: Get, key: %s, cas: %d, err: %v", cfgKey, cas, err)
+		// logger.InfofCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Get, key: %s, cas: %d, err: %v", cfgKey, cas, err)
 		return nil, 0, err
 	}
 
 	if cas != 0 && casOut != cas {
-		InfofCtx(c.loggingCtx, KeyCluster, "cfg_sg: Get, CasError key: %s, cas: %d", cfgKey, cas)
+		logger.For(logger.ClusterKey).Info().Msgf("cfg_sg: Get, CasError key: %s, cas: %d", cfgKey, cas)
+		// logger.InfofCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Get, CasError key: %s, cas: %d", cfgKey, cas)
 		return nil, 0, ErrCfgCasError
 	}
 
@@ -84,7 +89,8 @@ func (c *CfgSG) Get(cfgKey string, cas uint64) (
 
 func (c *CfgSG) Set(cfgKey string, val []byte, cas uint64) (uint64, error) {
 
-	DebugfCtx(c.loggingCtx, KeyCluster, "cfg_sg: Set, key: %s, cas: %d", cfgKey, cas)
+	logger.For(logger.ClusterKey).Debug().Msgf("cfg_sg: Set, key: %s, cas: %d", cfgKey, cas)
+	// logger.DebugfCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Set, key: %s, cas: %d", cfgKey, cas)
 	if strings.HasPrefix(cfgKey, ":") {
 		return 0, fmt.Errorf("cfg_sg: key cannot start with a colon")
 	}
@@ -94,10 +100,12 @@ func (c *CfgSG) Set(cfgKey string, val []byte, cas uint64) (uint64, error) {
 	casOut, err := c.bucket.WriteCas(bucketKey, 0, 0, cas, val, 0)
 
 	if IsCasMismatch(err) {
-		InfofCtx(c.loggingCtx, KeyCluster, "cfg_sg: Set, ErrKeyExists key: %s, cas: %d", cfgKey, cas)
+		logger.For(logger.ClusterKey).Info().Msgf("cfg_sg: Set, ErrKeyExists key: %s, cas: %d", cfgKey, cas)
+		// logger.InfofCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Set, ErrKeyExists key: %s, cas: %d", cfgKey, cas)
 		return 0, ErrCfgCasError
 	} else if err != nil {
-		InfofCtx(c.loggingCtx, KeyCluster, "cfg_sg: Set Error key: %s, cas: %d err:%s", cfgKey, cas, err)
+		logger.For(logger.ClusterKey).Info().Msgf("cfg_sg: Set Error key: %s, cas: %d err:%s", cfgKey, cas, err)
+		// logger.InfofCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Set Error key: %s, cas: %d err:%s", cfgKey, cas, err)
 		return 0, err
 	}
 
@@ -106,7 +114,8 @@ func (c *CfgSG) Set(cfgKey string, val []byte, cas uint64) (uint64, error) {
 
 func (c *CfgSG) Del(cfgKey string, cas uint64) error {
 
-	DebugfCtx(c.loggingCtx, KeyCluster, "cfg_sg: Del, key: %s, cas: %d", cfgKey, cas)
+	logger.For(logger.ClusterKey).Debug().Msgf("cfg_sg: Del, key: %s, cas: %d", cfgKey, cas)
+	// logger.DebugfCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Del, key: %s, cas: %d", cfgKey, cas)
 	bucketKey := c.sgCfgBucketKey(cfgKey)
 	_, err := c.bucket.Remove(bucketKey, cas)
 	if IsCasMismatch(err) {
@@ -120,7 +129,8 @@ func (c *CfgSG) Del(cfgKey string, cas uint64) error {
 
 func (c *CfgSG) Subscribe(cfgKey string, ch chan cbgt.CfgEvent) error {
 
-	DebugfCtx(c.loggingCtx, KeyCluster, "cfg_sg: Subscribe, key: %s", cfgKey)
+	logger.For(logger.ClusterKey).Debug().Msgf("cfg_sg: Subscribe, key: %s", cfgKey)
+	// logger.DebugfCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Subscribe, key: %s", cfgKey)
 	c.lock.Lock()
 	a, exists := c.subscriptions[cfgKey]
 	if !exists || a == nil {
@@ -136,7 +146,8 @@ func (c *CfgSG) Subscribe(cfgKey string, ch chan cbgt.CfgEvent) error {
 func (c *CfgSG) FireEvent(docID string, cas uint64, err error) {
 	cfgKey := strings.TrimPrefix(docID, c.keyPrefix)
 	c.lock.Lock()
-	DebugfCtx(c.loggingCtx, KeyCluster, "cfg_sg: FireEvent, key: %s, cas %d", cfgKey, cas)
+	logger.For(logger.ClusterKey).Debug().Msgf("cfg_sg: FireEvent, key: %s, cas %d", cfgKey, cas)
+	// logger.DebugfCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: FireEvent, key: %s, cas %d", cfgKey, cas)
 	for _, ch := range c.subscriptions[cfgKey] {
 		go func(ch chan<- cbgt.CfgEvent) {
 			ch <- cbgt.CfgEvent{
@@ -149,7 +160,8 @@ func (c *CfgSG) FireEvent(docID string, cas uint64, err error) {
 
 func (c *CfgSG) Refresh() error {
 
-	DebugfCtx(c.loggingCtx, KeyCluster, "cfg_sg: Refresh")
+	logger.For(logger.ClusterKey).Debug().Msg("cfg_sg: Refresh")
+	// logger.DebugfCtx(c.loggingCtx, logger.KeyCluster, "cfg_sg: Refresh")
 	c.lock.Lock()
 	for cfgKey, cs := range c.subscriptions {
 		event := cbgt.CfgEvent{Key: cfgKey}

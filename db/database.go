@@ -25,6 +25,8 @@ import (
 	"github.com/couchbase/sync_gateway/auth"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/channels"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 const (
@@ -226,14 +228,16 @@ func connectToBucketErrorHandling(spec base.BucketSpec, gotErr error) (fatalErro
 	if gotErr != nil {
 		if errors.Is(gotErr, base.ErrAuthError) {
 			username, _, _ := spec.Auth.GetCredentials()
-			base.WarnfCtx(context.TODO(), "Unable to authenticate as user %q: %v", base.UD(username), gotErr)
+			// 			log.Ctx(context.TODO()).Warn().Err(err).Msgf("Unable to authenticate as user %q: %v", logger.UD(username), gotErr)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to authenticate as user %q: %v", logger.UD(username), gotErr)
 			// auth errors will be wrapped with HTTPError further up the stack where appropriate. Return the raw error that can still be checked.
 			return false, gotErr
 		}
 
 		// Fatal errors get an additional log message, but are otherwise still transformed below.
 		if errors.Is(gotErr, base.ErrFatalBucketConnection) {
-			base.WarnfCtx(context.TODO(), "Fatal error connecting to bucket: %v", gotErr)
+			// 			log.Ctx(context.TODO()).Warn().Err(err).Msgf("Fatal error connecting to bucket: %v", gotErr)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Fatal error connecting to bucket: %v", gotErr)
 			fatalError = true
 		}
 
@@ -332,7 +336,7 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 	)
 
 	dbContext.EventMgr = NewEventManager()
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 
 	var err error
 	dbContext.sequences, err = newSequenceAllocator(bucket, dbContext.DbStats.Database())
@@ -355,7 +359,7 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 	dbContext.changeCache = &changeCache{}
 
 	// Callback that is invoked whenever a set of channels is changed in the ChangeCache
-	notifyChange := func(changedChannels base.Set) {
+	notifyChange := func(changedChannels utils.Set) {
 		dbContext.mutationListener.Notify(changedChannels)
 	}
 
@@ -369,7 +373,8 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 		options.CacheOptions,
 	)
 	if err != nil {
-		base.DebugfCtx(logCtx, base.KeyDCP, "Error initializing the change cache", err)
+		// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyDCP, "Error initializing the change cache", err)
+		logger.For(logger.DCPKey).Info().Msgf("Error initializing the change cache", err)
 	}
 
 	// Set the DB Context notifyChange callback to call back the changecache DocChanged callback
@@ -404,7 +409,8 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 	}
 
 	// Start DCP feed
-	base.InfofCtx(logCtx, base.KeyDCP, "Starting mutation feed on bucket %v due to either channel cache mode or doc tracking (auto-import)", base.MD(bucket.GetName()))
+	// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyDCP, "Starting mutation feed on bucket %v due to either channel cache mode or doc tracking (auto-import)", logger.MD(bucket.GetName()))
+	logger.For(logger.DCPKey).Info().Msgf("Starting mutation feed on bucket %v due to either channel cache mode or doc tracking (auto-import)", logger.MD(bucket.GetName()))
 	cacheFeedStatsMap := dbContext.DbStats.Database().CacheFeedMapStats
 	err = dbContext.mutationListener.Start(bucket, cacheFeedStatsMap.Map)
 
@@ -452,20 +458,20 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 
 		for name, provider := range options.OIDCOptions.Providers {
 			if provider.Issuer == "" || provider.ClientID == "" {
-				base.WarnfCtx(logCtx, "Issuer and ClientID required for OIDC Provider - skipping provider %q", base.UD(name))
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Issuer and ClientID required for OIDC Provider - skipping provider %q", logger.UD(name))
 				continue
 			}
 
 			if provider.ValidationKey == nil {
-				base.WarnfCtx(logCtx, "Validation Key not defined in config for provider %q - auth code flow will not be supported for this provider", base.UD(name))
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Validation Key not defined in config for provider %q - auth code flow will not be supported for this provider", logger.UD(name))
 			}
 
 			if strings.Contains(name, "_") {
-				return nil, base.RedactErrorf("OpenID Connect provider names cannot contain underscore:%s", base.UD(name))
+				return nil, logger.RedactErrorf("OpenID Connect provider names cannot contain underscore:%s", logger.UD(name))
 			}
 			provider.Name = name
 			if _, ok := dbContext.OIDCProviders[provider.Issuer]; ok {
-				return nil, base.RedactErrorf("Multiple OIDC providers defined for issuer %v", base.UD(provider.Issuer))
+				return nil, logger.RedactErrorf("Multiple OIDC providers defined for issuer %v", logger.UD(provider.Issuer))
 			}
 
 			// If this is the default provider, or there's only one provider defined, set IsDefault
@@ -483,7 +489,7 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 			if !provider.IsDefault && provider.CallbackURL != nil {
 				updatedCallback, err := auth.SetURLQueryParam(*provider.CallbackURL, auth.OIDCAuthProvider, name)
 				if err != nil {
-					return nil, base.RedactErrorf("Failed to add provider %q to OIDC callback URL: %v", base.UD(name), err)
+					return nil, logger.RedactErrorf("Failed to add provider %q to OIDC callback URL: %v", logger.UD(name), err)
 				}
 				provider.CallbackURL = &updatedCallback
 			}
@@ -504,12 +510,13 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 		if ok {
 			serverPurgeInterval, err := cbStore.MetadataPurgeInterval()
 			if err != nil {
-				base.WarnfCtx(logCtx, "Unable to retrieve server's metadata purge interval - will use default value. %s", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to retrieve server's metadata purge interval - will use default value. %s", err)
 			} else if serverPurgeInterval > 0 {
 				dbContext.PurgeInterval = serverPurgeInterval
 			}
 		}
-		base.InfofCtx(logCtx, base.KeyAll, "Using metadata purge interval of %.2f days for tombstone compaction.", dbContext.PurgeInterval.Hours()/24)
+		// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAll, "Using metadata purge interval of %.2f days for tombstone compaction.", dbContext.PurgeInterval.Hours()/24)
+		logger.For(logger.SystemKey).Info().Msgf("Using metadata purge interval of %.2f days for tombstone compaction.", dbContext.PurgeInterval.Hours()/24)
 
 		if dbContext.Options.CompactInterval != 0 {
 			if autoImport {
@@ -523,7 +530,7 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 				bgt, err := NewBackgroundTask("Compact", dbContext.Name, func(ctx context.Context) error {
 					_, err := db.Compact(false, func(purgedDocCount *int) {}, bgtTerminator)
 					if err != nil {
-						base.WarnfCtx(ctx, "Error trying to compact tombstoned documents for %q with error: %v", dbContext.Name, err)
+						logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error trying to compact tombstoned documents for %q with error: %v", dbContext.Name, err)
 					}
 					return nil
 				}, time.Duration(dbContext.Options.CompactInterval)*time.Second, dbContext.terminator)
@@ -532,7 +539,8 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 				}
 				db.backgroundTasks = append(db.backgroundTasks, bgt)
 			} else {
-				base.WarnfCtx(logCtx, "Automatic compaction can only be enabled on nodes running an Import process")
+				// 				log.Ctx(logCtx).Warn().Err(err).Msgf("Automatic compaction can only be enabled on nodes running an Import process")
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Automatic compaction can only be enabled on nodes running an Import process")
 			}
 		}
 
@@ -583,7 +591,7 @@ func (context *DatabaseContext) GetOIDCProvider(providerName string) (*auth.OIDC
 	if provider, ok := context.OIDCProviders[providerName]; ok {
 		return provider, nil
 	} else {
-		return nil, base.RedactErrorf("No provider found for provider name %q", base.MD(providerName))
+		return nil, logger.RedactErrorf("No provider found for provider name %q", logger.MD(providerName))
 	}
 }
 
@@ -606,17 +614,19 @@ func (dbCtx *DatabaseContext) GetServerUUID() string {
 	if dbCtx.serverUUID == "" {
 		cbs, ok := base.AsCouchbaseStore(dbCtx.Bucket)
 		if !ok {
-			base.WarnfCtx(context.TODO(), "Database %v: Unable to get server UUID. Underlying bucket type was not GoCBBucket.", base.MD(dbCtx.Name))
+			logger.For(logger.SystemKey).Warn().Msgf("Database %v: Unable to get server UUID. Underlying bucket type was not GoCBBucket.", logger.MD(dbCtx.Name))
 			return ""
 		}
 
 		uuid, err := cbs.ServerUUID()
 		if err != nil {
-			base.WarnfCtx(context.TODO(), "Database %v: Unable to get server UUID: %v", base.MD(dbCtx.Name), err)
+			// 			log.Ctx(context.TODO()).Warn().Err(err).Msgf("Database %v: Unable to get server UUID: %v", logger.MD(dbCtx.Name), err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Database %v: Unable to get server UUID: %v", logger.MD(dbCtx.Name), err)
 			return ""
 		}
 
-		base.DebugfCtx(context.TODO(), base.KeyAll, "Database %v: Got server UUID %v", base.MD(dbCtx.Name), base.MD(uuid))
+		// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Database %v: Got server UUID %v", logger.MD(dbCtx.Name), logger.MD(uuid))
+		logger.For(logger.SystemKey).Info().Msgf("Database %v: Got server UUID %v", logger.MD(dbCtx.Name), logger.MD(uuid))
 		dbCtx.serverUUID = uuid
 	}
 
@@ -665,8 +675,10 @@ func waitForBGTCompletion(waitTimeMax time.Duration, tasks []BackgroundTask, dbN
 		case <-time.After(waitTime):
 			// Timeout after waiting for background task to terminate.
 		}
-		base.InfofCtx(context.TODO(), base.KeyAll, "Timeout after %v of waiting for background task %q to "+
-			"terminate, database: %s", waitTimeMax, t.taskName, dbName)
+		// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Timeout after %v of waiting for background task %q to "+
+		// 	"terminate, database: %s", waitTimeMax, t.taskName, dbName)
+		logger.For(logger.SystemKey).Info().
+			Msgf("Timeout after %v of waiting for background task %q to terminate, database: %s", waitTimeMax, t.taskName, dbName)
 	}
 }
 
@@ -691,7 +703,8 @@ func (context *DatabaseContext) RestartListener() error {
 
 // Cache flush support.  Currently test-only - added for unit test access from rest package
 func (dbCtx *DatabaseContext) FlushChannelCache() error {
-	base.InfofCtx(context.TODO(), base.KeyCache, "Flushing channel cache")
+	// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCache, "Flushing channel cache")
+	logger.For(logger.CacheKey).Info().Msgf("Flushing channel cache")
 	return dbCtx.changeCache.Clear()
 }
 
@@ -709,7 +722,8 @@ func (dbCtx *DatabaseContext) RemoveObsoleteIndexes(previewOnly bool) (removedIn
 
 	n1qlStore, ok := base.AsN1QLStore(dbCtx.Bucket)
 	if !ok {
-		base.WarnfCtx(context.TODO(), "Cannot remove obsolete indexes for non-gocb bucket - skipping.")
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Cannot remove obsolete indexes for non-gocb bucket - skipping.")
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Cannot remove obsolete indexes for non-gocb bucket - skipping.")
 		return make([]string, 0), nil
 	}
 
@@ -720,7 +734,7 @@ func (dbCtx *DatabaseContext) RemoveObsoleteIndexes(previewOnly bool) (removedIn
 // TODO: The underlying code (NotifyCheckForTermination) doesn't actually leverage the specific username - should be refactored
 //    to remove
 func (context *DatabaseContext) NotifyTerminatedChanges(username string) {
-	context.mutationListener.NotifyCheckForTermination(base.SetOf(base.UserPrefix + username))
+	context.mutationListener.NotifyCheckForTermination(utils.SetOf(base.UserPrefix + username))
 }
 
 func (dc *DatabaseContext) TakeDbOffline(reason string) error {
@@ -739,7 +753,8 @@ func (dc *DatabaseContext) TakeDbOffline(reason string) error {
 		atomic.StoreUint32(&dc.State, DBOffline)
 
 		if err := dc.EventMgr.RaiseDBStateChangeEvent(dc.Name, "offline", reason, dc.Options.AdminInterface); err != nil {
-			base.DebugfCtx(context.TODO(), base.KeyCRUD, "Error raising database state change event: %v", err)
+			// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCRUD, "Error raising database state change event: %v", err)
+			logger.For(logger.CRUDKey).Info().Msgf("Error raising database state change event: %v", err)
 		}
 
 		return nil
@@ -755,7 +770,8 @@ func (dc *DatabaseContext) TakeDbOffline(reason string) error {
 			msg = "Unable to take Database offline, another operation was already in progress. Please try again."
 		}
 
-		base.InfofCtx(context.TODO(), base.KeyCRUD, msg)
+		// log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyCRUD, msg)
+		logger.For(logger.CRUDKey).Info().Msgf(msg)
 		return base.HTTPErrorf(http.StatusServiceUnavailable, msg)
 	}
 }
@@ -1082,9 +1098,10 @@ func (db *DatabaseContext) DeleteUserSessions(ctx context.Context, userName stri
 
 	var sessionsRow QueryIdRow
 	for results.Next(&sessionsRow) {
-		base.InfofCtx(ctx, base.KeyCRUD, "\tDeleting %q", sessionsRow.Id)
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "\tDeleting %q", sessionsRow.Id)
+		logger.For(logger.CRUDKey).Info().Msgf("\tDeleting %q", sessionsRow.Id)
 		if err := db.Bucket.Delete(sessionsRow.Id); err != nil {
-			base.WarnfCtx(ctx, "Error deleting %q: %v", sessionsRow.Id, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error deleting %q: %v", sessionsRow.Id, err)
 		}
 	}
 	return results.Close()
@@ -1122,7 +1139,8 @@ func (db *Database) Compact(skipRunningStateCheck bool, callback compactCallback
 
 	ctx := db.Ctx
 
-	base.InfofCtx(ctx, base.KeyAll, "Starting compaction of purged tombstones for %s ...", base.MD(db.Name))
+	// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyAll, "Starting compaction of purged tombstones for %s ...", logger.MD(db.Name))
+	logger.For(logger.SystemKey).Info().Msgf("Starting compaction of purged tombstones for %s ...", logger.MD(db.Name))
 	purgeBody := Body{"_purged": true}
 	for {
 		purgedDocs := make([]string, 0)
@@ -1144,7 +1162,8 @@ func (db *Database) Compact(skipRunningStateCheck bool, callback compactCallback
 			}
 
 			resultCount++
-			base.DebugfCtx(ctx, base.KeyCRUD, "\tDeleting %q", tombstonesRow.Id)
+			// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyCRUD, "\tDeleting %q", tombstonesRow.Id)
+			logger.For(logger.CRUDKey).Info().Msgf("\tDeleting %q", tombstonesRow.Id)
 			// First, attempt to purge.
 			purgeErr := db.Purge(tombstonesRow.Id)
 			if purgeErr == nil {
@@ -1153,7 +1172,8 @@ func (db *Database) Compact(skipRunningStateCheck bool, callback compactCallback
 				// If key no longer exists, need to add and remove to trigger removal from view
 				_, addErr := db.Bucket.Add(tombstonesRow.Id, 0, purgeBody)
 				if addErr != nil {
-					base.WarnfCtx(ctx, "Error compacting key %s (add) - tombstone will not be compacted.  %v", base.UD(tombstonesRow.Id), addErr)
+					// 					log.Ctx(ctx).Warn().Err(err).Msgf("Error compacting key %s (add) - tombstone will not be compacted.  %v", logger.UD(tombstonesRow.Id), addErr)
+					logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error compacting key %s (add) - tombstone will not be compacted.  %v", logger.UD(tombstonesRow.Id), addErr)
 					continue
 				}
 
@@ -1162,10 +1182,12 @@ func (db *Database) Compact(skipRunningStateCheck bool, callback compactCallback
 				purgedDocs = append(purgedDocs, tombstonesRow.Id)
 
 				if delErr := db.Bucket.Delete(tombstonesRow.Id); delErr != nil {
-					base.ErrorfCtx(ctx, "Error compacting key %s (delete) - tombstone will not be compacted.  %v", base.UD(tombstonesRow.Id), delErr)
+					// 					log.Ctx(ctx).Error().Err(err).Msgf("Error compacting key %s (delete) - tombstone will not be compacted.  %v", logger.UD(tombstonesRow.Id), delErr)
+					logger.For(logger.UnknownKey).Error().Err(err).Msgf("Error compacting key %s (delete) - tombstone will not be compacted.  %v", logger.UD(tombstonesRow.Id), delErr)
 				}
 			} else {
-				base.WarnfCtx(ctx, "Error compacting key %s (purge) - tombstone will not be compacted.  %v", base.UD(tombstonesRow.Id), purgeErr)
+				// 				log.Ctx(ctx).Warn().Err(err).Msgf("Error compacting key %s (purge) - tombstone will not be compacted.  %v", logger.UD(tombstonesRow.Id), purgeErr)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error compacting key %s (purge) - tombstone will not be compacted.  %v", logger.UD(tombstonesRow.Id), purgeErr)
 			}
 		}
 
@@ -1181,7 +1203,8 @@ func (db *Database) Compact(skipRunningStateCheck bool, callback compactCallback
 			db.changeCache.Remove(purgedDocs, startTime)
 			db.DbStats.Database().NumTombstonesCompacted.Add(int64(count))
 		}
-		base.DebugfCtx(ctx, base.KeyAll, "Compacted %v tombstones", count)
+		// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyAll, "Compacted %v tombstones", count)
+		logger.For(logger.SystemKey).Info().Msgf("Compacted %v tombstones", count)
 
 		callback(&purgedDocCount)
 
@@ -1190,7 +1213,8 @@ func (db *Database) Compact(skipRunningStateCheck bool, callback compactCallback
 		}
 	}
 
-	base.InfofCtx(ctx, base.KeyAll, "Finished compaction of purged tombstones for %s... Total Tombstones Compacted: %d", base.MD(db.Name), purgedDocCount)
+	// log.Ctx(ctx).Info().Err(err).Msgf(logger.KeyAll, "Finished compaction of purged tombstones for %s... Total Tombstones Compacted: %d", logger.MD(db.Name), purgedDocCount)
+	logger.For(logger.SystemKey).Info().Msgf("Finished compaction of purged tombstones for %s... Total Tombstones Compacted: %d", logger.MD(db.Name), purgedDocCount)
 
 	return purgedDocCount, nil
 }
@@ -1210,7 +1234,8 @@ func (dbCtx *DatabaseContext) UpdateSyncFun(syncFun string) (changed bool, err e
 		dbCtx.ChannelMapper = channels.NewChannelMapper(syncFun)
 	}
 	if err != nil {
-		base.WarnfCtx(context.TODO(), "Error setting sync function: %s", err)
+		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Error setting sync function: %s", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error setting sync function: %s", err)
 		return
 	}
 
@@ -1247,8 +1272,10 @@ func (dbCtx *DatabaseContext) UpdateSyncFun(syncFun string) (changed bool, err e
 type updateAllDocChannelsCallbackFunc func(docsProcessed, docsChanged *int)
 
 func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback updateAllDocChannelsCallbackFunc, terminator *base.SafeTerminator) (int, error) {
-	base.InfofCtx(db.Ctx, base.KeyAll, "Recomputing document channels...")
-	base.InfofCtx(db.Ctx, base.KeyAll, "Re-running sync function on all documents...")
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "Recomputing document channels...")
+	logger.For(logger.SystemKey).Info().Msgf("Recomputing document channels...")
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "Re-running sync function on all documents...")
+	logger.For(logger.SystemKey).Info().Msgf("Re-running sync function on all documents...")
 
 	queryLimit := db.Options.QueryPaginationLimit
 	startSeq := uint64(0)
@@ -1279,8 +1306,12 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 		for results.Next(&importRow) {
 			select {
 			case <-terminator.Done():
-				base.InfofCtx(db.Ctx, base.KeyAll, "Resync was stopped before the operation could be completed. System "+
-					"may be in an inconsistent state. Docs changed: %d Docs Processed: %d", docsChanged, docsProcessed)
+				logger.For(logger.SystemKey).Info().
+					Msgf("Resync was stopped before the operation could be completed. System may be in an inconsistent state. Docs changed: %d Docs Processed: %d",
+						docsChanged,
+						docsProcessed)
+				// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "Resync was stopped before the operation could be completed. System "+
+				// 	"may be in an inconsistent state. Docs changed: %d Docs Processed: %d", docsChanged, docsProcessed)
 				closeErr := results.Close()
 				if closeErr != nil {
 					return 0, closeErr
@@ -1300,7 +1331,8 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 					// This is a document not known to the sync gateway. Ignore it:
 					return nil, false, nil, base.ErrUpdateCancel
 				} else {
-					base.DebugfCtx(db.Ctx, base.KeyCRUD, "\tRe-syncing document %q", base.UD(docid))
+					// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyCRUD, "\tRe-syncing document %q", logger.UD(docid))
+					logger.For(logger.CRUDKey).Info().Msgf("\tRe-syncing document %q", logger.UD(docid))
 				}
 
 				// Run the sync fn over each current/leaf revision, in case there are conflicts:
@@ -1308,11 +1340,11 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 				doc.History.forEachLeaf(func(rev *RevInfo) {
 					bodyBytes, _, err := db.get1xRevFromDoc(doc, rev.ID, false)
 					if err != nil {
-						base.WarnfCtx(db.Ctx, "Error getting rev from doc %s/%s %s", base.UD(docid), rev.ID, err)
+						logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error getting rev from doc %s/%s %s", logger.UD(docid), rev.ID, err)
 					}
 					var body Body
 					if err := body.Unmarshal(bodyBytes); err != nil {
-						base.WarnfCtx(db.Ctx, "Error unmarshalling body %s/%s for sync function %s", base.UD(docid), rev.ID, err)
+						logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error unmarshalling body %s/%s for sync function %s", logger.UD(docid), rev.ID, err)
 						return
 					}
 					metaMap, err := doc.GetMetaMap(db.Options.UserXattrKey)
@@ -1322,7 +1354,8 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 					channels, access, roles, syncExpiry, _, err := db.getChannelsAndAccess(doc, body, metaMap, rev.ID)
 					if err != nil {
 						// Probably the validator rejected the doc
-						base.WarnfCtx(db.Ctx, "Error calling sync() on doc %q: %v", base.UD(docid), err)
+						// 						log.Ctx(db.Ctx).Warn().Err(err).Msgf("Error calling sync() on doc %q: %v", logger.UD(docid), err)
+						logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error calling sync() on doc %q: %v", logger.UD(docid), err)
 						access = nil
 						channels = nil
 					}
@@ -1333,7 +1366,7 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 						if regenerateSequences {
 							unusedSequences, err = db.assignSequence(0, doc, unusedSequences)
 							if err != nil {
-								base.WarnfCtx(db.Ctx, "Unable to assign a sequence number: %v", err)
+								logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to assign a sequence number: %v", err)
 							}
 							forceUpdate = true
 						}
@@ -1373,7 +1406,8 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 						return nil, nil, deleteDoc, nil, err
 					}
 					if shouldUpdate {
-						base.InfofCtx(db.Ctx, base.KeyAccess, "Saving updated channels and access grants of %q", base.UD(docid))
+						// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Saving updated channels and access grants of %q", logger.UD(docid))
+						logger.For(logger.AccessKey).Info().Msgf("Saving updated channels and access grants of %q", logger.UD(docid))
 						if updatedExpiry != nil {
 							updatedDoc.UpdateExpiry(*updatedExpiry)
 						}
@@ -1401,7 +1435,8 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 						return nil, nil, false, err
 					}
 					if shouldUpdate {
-						base.InfofCtx(db.Ctx, base.KeyAccess, "Saving updated channels and access grants of %q", base.UD(docid))
+						// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAccess, "Saving updated channels and access grants of %q", logger.UD(docid))
+						logger.For(logger.AccessKey).Info().Msgf("Saving updated channels and access grants of %q", logger.UD(docid))
 						if updatedExpiry != nil {
 							updatedDoc.UpdateExpiry(*updatedExpiry)
 						}
@@ -1416,7 +1451,7 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 			if err == nil {
 				docsChanged++
 			} else if err != base.ErrUpdateCancel {
-				base.WarnfCtx(db.Ctx, "Error updating doc %q: %v", base.UD(docid), err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error updating doc %q: %v", logger.UD(docid), err)
 			}
 		}
 
@@ -1437,7 +1472,7 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 	for _, sequence := range unusedSequences {
 		err := db.sequences.releaseSequence(sequence)
 		if err != nil {
-			base.WarnfCtx(db.Ctx, "Error attempting to release sequence %d. Error %v", sequence, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error attempting to release sequence %d. Error %v", sequence, err)
 		}
 	}
 
@@ -1486,11 +1521,13 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 
 	}
 
-	base.InfofCtx(db.Ctx, base.KeyAll, "Finished re-running sync function; %d/%d docs changed", docsChanged, docsProcessed)
+	// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "Finished re-running sync function; %d/%d docs changed", docsChanged, docsProcessed)
+	logger.For(logger.SystemKey).Info().Msgf("Finished re-running sync function; %d/%d docs changed", docsChanged, docsProcessed)
 
 	if docsChanged > 0 {
 		// Now invalidate channel cache of all users/roles:
-		base.InfofCtx(db.Ctx, base.KeyAll, "Invalidating channel caches of users/roles...")
+		// log.Ctx(db.Ctx).Info().Err(err).Msgf(logger.KeyAll, "Invalidating channel caches of users/roles...")
+		logger.For(logger.SystemKey).Info().Msgf("Invalidating channel caches of users/roles...")
 		users, roles, _ := db.AllPrincipalIDs(db.Ctx)
 		for _, name := range users {
 			db.invalUserChannels(name, endSeq)
@@ -1505,21 +1542,21 @@ func (db *Database) UpdateAllDocChannels(regenerateSequences bool, callback upda
 func (db *Database) invalUserRoles(username string, invalSeq uint64) {
 	authr := db.Authenticator(db.Ctx)
 	if err := authr.InvalidateRoles(username, invalSeq); err != nil {
-		base.WarnfCtx(db.Ctx, "Error invalidating roles for user %s: %v", base.UD(username), err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error invalidating roles for user %s: %v", logger.UD(username), err)
 	}
 }
 
 func (db *Database) invalUserChannels(username string, invalSeq uint64) {
 	authr := db.Authenticator(db.Ctx)
 	if err := authr.InvalidateChannels(username, true, invalSeq); err != nil {
-		base.WarnfCtx(db.Ctx, "Error invalidating channels for user %s: %v", base.UD(username), err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error invalidating channels for user %s: %v", logger.UD(username), err)
 	}
 }
 
 func (db *Database) invalRoleChannels(rolename string, invalSeq uint64) {
 	authr := db.Authenticator(db.Ctx)
 	if err := authr.InvalidateChannels(rolename, false, invalSeq); err != nil {
-		base.WarnfCtx(db.Ctx, "Error invalidating channels for role %s: %v", base.UD(rolename), err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Error invalidating channels for role %s: %v", logger.UD(rolename), err)
 	}
 }
 
@@ -1536,7 +1573,7 @@ func (db *Database) invalUserOrRoleChannels(name string, invalSeq uint64) {
 func (dbCtx *DatabaseContext) ObtainManagementEndpoints() ([]string, error) {
 	cbStore, ok := base.AsCouchbaseStore(dbCtx.Bucket)
 	if !ok {
-		base.WarnfCtx(context.TODO(), "Database %v: Unable to get server management endpoints. Underlying bucket type was not GoCBBucket.", base.MD(dbCtx.Name))
+		logger.For(logger.SystemKey).Warn().Msgf("Database %v: Unable to get server management endpoints. Underlying bucket type was not GoCBBucket.", logger.MD(dbCtx.Name))
 		return nil, nil
 	}
 
@@ -1546,7 +1583,7 @@ func (dbCtx *DatabaseContext) ObtainManagementEndpoints() ([]string, error) {
 func (dbCtx *DatabaseContext) ObtainManagementEndpointsAndHTTPClient() ([]string, *http.Client, error) {
 	cbStore, ok := base.AsCouchbaseStore(dbCtx.Bucket)
 	if !ok {
-		base.WarnfCtx(context.TODO(), "Database %v: Unable to get server management endpoints. Underlying bucket type was not GoCBBucket.", base.MD(dbCtx.Name))
+		logger.For(logger.SystemKey).Warn().Msgf("Database %v: Unable to get server management endpoints. Underlying bucket type was not GoCBBucket.", logger.MD(dbCtx.Name))
 		return nil, nil, nil
 	}
 
@@ -1586,9 +1623,10 @@ func (context *DatabaseContext) DeltaSyncEnabled() bool {
 func (context *DatabaseContext) AllowExternalRevBodyStorage() bool {
 
 	// Support unit testing w/out xattrs enabled
-	if base.TestExternalRevStorage {
-		return false
-	}
+	// FIXME WTF are testing values in production code?!?
+	// if base.TestExternalRevStorage {
+	// 	return false
+	// }
 	return !context.UseXattrs()
 }
 

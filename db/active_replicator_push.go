@@ -19,7 +19,8 @@ import (
 	"time"
 
 	"github.com/couchbase/go-blip"
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 )
 
 // ActivePushReplicator is a unidirectional push active replicator.
@@ -48,13 +49,15 @@ func (apr *ActivePushReplicator) Start() error {
 	}
 
 	apr.setState(ReplicationStateStarting)
-	logCtx := context.WithValue(context.Background(), base.LogContextKey{}, base.LogContext{CorrelationID: apr.config.ID + "-" + string(ActiveReplicatorTypePush)})
+	// FIXME reintroduce context
+	// logCtx := context.WithValue(context.Background(), logger.LogContextKey{}, logger.LogContext{CorrelationID: apr.config.ID + "-" + string(ActiveReplicatorTypePush)})
+	logCtx := context.TODO()
 	apr.ctx, apr.ctxCancel = context.WithCancel(logCtx)
 
 	err := apr._connect()
 	if err != nil {
 		_ = apr.setError(err)
-		base.WarnfCtx(apr.ctx, "Couldn't connect. Attempting to reconnect in background: %v", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Couldn't connect. Attempting to reconnect in background: %v", err)
 		apr.reconnectActive.Set(true)
 		go apr.reconnectLoop()
 	}
@@ -93,12 +96,12 @@ func (apr *ActivePushReplicator) _connect() error {
 
 	seq, err := apr.config.ActiveDB.ParseSequenceID(apr.Checkpointer.lastCheckpointSeq)
 	if err != nil {
-		base.WarnfCtx(apr.ctx, "couldn't parse checkpointed sequence ID, starting push from seq:0")
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("couldn't parse checkpointed sequence ID, starting push from seq:0")
 	}
 
-	var channels base.Set
+	var channels utils.Set
 	if apr.config.FilterChannels != nil {
-		channels = base.SetFromArray(apr.config.FilterChannels)
+		channels = utils.SetFromArray(apr.config.FilterChannels)
 	}
 
 	apr.blipSyncContext.fatalErrorCallback = func(err error) {
@@ -107,12 +110,14 @@ func (apr *ActivePushReplicator) _connect() error {
 			_ = apr.setError(PreHydrogenTargetAllowConflictsError)
 			err = apr.stopAndDisconnect()
 			if err != nil {
-				base.ErrorfCtx(apr.ctx, "Failed to stop and disconnect replication: %v", err)
+				logger.For(logger.ReplicateKey).Err(err).Msg("Failed to stop and disconnect replication")
+				// logger.ErrorfCtx(apr.ctx, "Failed to stop and disconnect replication: %v", err)
 			}
 		} else if strings.Contains(err.Error(), ErrDatabaseWentAway.Message) {
 			err = apr.reconnect()
 			if err != nil {
-				base.ErrorfCtx(apr.ctx, "Failed to reconnect replication: %v", err)
+				logger.For(logger.ReplicateKey).Err(err).Msg("Failed to reconnect replication")
+				// logger.ErrorfCtx(apr.ctx, "Failed to reconnect replication: %v", err)
 			}
 		}
 		// No special handling for error
@@ -154,19 +159,22 @@ func (apr *ActivePushReplicator) Complete() {
 	// Wait for any pending changes responses to arrive and be processed
 	err := apr._waitForPendingChangesResponse()
 	if err != nil {
-		base.InfofCtx(apr.ctx, base.KeyReplicate, "Timeout waiting for pending changes response for replication %s - stopping: %v", apr.config.ID, err)
+		//		logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Timeout waiting for pending changes response for replication %s - stopping: %v", apr.config.ID, err)
+		logger.For(logger.ReplicateKey).Info().Msgf("Timeout waiting for pending changes response for replication %s - stopping: %v", apr.config.ID, err)
 	}
 
 	err = apr.Checkpointer.waitForExpectedSequences()
 	if err != nil {
-		base.InfofCtx(apr.ctx, base.KeyReplicate, "Timeout draining replication %s - stopping: %v", apr.config.ID, err)
+		//		logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Timeout draining replication %s - stopping: %v", apr.config.ID, err)
+		logger.For(logger.ReplicateKey).Info().Msgf("Timeout draining replication %s - stopping: %v", apr.config.ID, err)
 	}
 
 	apr._stop()
 
 	stopErr := apr._disconnect()
 	if stopErr != nil {
-		base.InfofCtx(apr.ctx, base.KeyReplicate, "Error attempting to stop replication %s: %v", apr.config.ID, stopErr)
+		//		logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Error attempting to stop replication %s: %v", apr.config.ID, stopErr)
+		logger.For(logger.ReplicateKey).Info().Msgf("Error attempting to stop replication %s: %v", apr.config.ID, stopErr)
 	}
 	apr.setState(ReplicationStateStopped)
 
@@ -190,7 +198,8 @@ func (apr *ActivePushReplicator) _initCheckpointer() error {
 
 	var err error
 	apr.initialStatus, err = apr.Checkpointer.fetchCheckpoints()
-	base.InfofCtx(apr.ctx, base.KeyReplicate, "Initialized push replication status: %+v", apr.initialStatus)
+	//	logger.InfofCtx(apr.ctx, logger.KeyReplicate, "Initialized push replication status: %+v", apr.initialStatus)
+	logger.For(logger.ReplicateKey).Info().Msgf("Initialized push replication status: %+v", apr.initialStatus)
 	if err != nil {
 		return err
 	}

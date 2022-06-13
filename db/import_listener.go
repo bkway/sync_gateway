@@ -11,11 +11,11 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"strings"
 
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // ImportListener manages the import DCP feed.  ProcessFeedEvent is triggered for each feed events,
@@ -41,7 +41,8 @@ func NewImportListener(groupID string) *importListener {
 // Writes DCP stats into the StatKeyImportDcpStats map
 func (il *importListener) StartImportFeed(bucket base.Bucket, dbStats *base.DbStats, dbContext *DatabaseContext) (err error) {
 
-	base.InfofCtx(context.TODO(), base.KeyDCP, "Attempting to start import DCP feed...")
+	//	logger.InfofCtx(context.TODO(), logger.KeyDCP, "Attempting to start import DCP feed...")
+	logger.For(logger.DCPKey).Info().Msgf("Attempting to start import DCP feed...")
 
 	il.bucketName = bucket.GetName()
 	il.database = Database{DatabaseContext: dbContext, user: nil}
@@ -60,7 +61,8 @@ func (il *importListener) StartImportFeed(bucket base.Bucket, dbStats *base.DbSt
 	base.StoreDestFactory(base.ImportDestKey(il.database.Name), il.NewImportDest)
 
 	// Start DCP mutation feed
-	base.InfofCtx(context.TODO(), base.KeyDCP, "Starting DCP import feed for bucket: %q ", base.UD(bucket.GetName()))
+	//	logger.InfofCtx(context.TODO(), logger.KeyDCP, "Starting DCP import feed for bucket: %q ", logger.UD(bucket.GetName()))
+	logger.For(logger.DCPKey).Info().Msgf("Starting DCP import feed for bucket: %q ", logger.UD(bucket.GetName()))
 
 	// TODO: need to clean up StartDCPFeed to push bucket dependencies down
 	// TODO is this evennecessary?
@@ -93,7 +95,8 @@ func (il *importListener) ProcessFeedEvent(event sgbucket.FeedEvent) (shouldPers
 
 	// If this is a delete and there are no xattrs (no existing SG revision), we shouldn't import
 	if event.Opcode == sgbucket.FeedOpDeletion && len(event.Value) == 0 {
-		base.DebugfCtx(context.TODO(), base.KeyImport, "Ignoring delete mutation for %s - no existing Sync Gateway metadata.", base.UD(event.Key))
+		//		logger.DebugfCtx(context.TODO(), logger.KeyImport, "Ignoring delete mutation for %s - no existing Sync Gateway metadata.", logger.UD(event.Key))
+		logger.For(logger.ImportKey).Debug().Msgf("Ignoring delete mutation for %s - no existing Sync Gateway metadata.", logger.UD(event.Key))
 		return true
 	}
 
@@ -107,14 +110,15 @@ func (il *importListener) ProcessFeedEvent(event sgbucket.FeedEvent) (shouldPers
 }
 
 func (il *importListener) ImportFeedEvent(event sgbucket.FeedEvent) {
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 
 	// Unmarshal the doc metadata (if present) to determine if this mutation requires import.
 	syncData, rawBody, rawXattr, rawUserXattr, err := UnmarshalDocumentSyncDataFromFeed(event.Value, event.DataType, il.database.Options.UserXattrKey, false)
 	if err != nil {
-		base.DebugfCtx(logCtx, base.KeyImport, "Found sync metadata, but unable to unmarshal for feed document %q.  Will not be imported.  Error: %v", base.UD(event.Key), err)
+		//		logger.DebugfCtx(logCtx, logger.KeyImport, "Found sync metadata, but unable to unmarshal for feed document %q.  Will not be imported.  Error: %v", logger.UD(event.Key), err)
+		logger.For(logger.ImportKey).Debug().Msgf("Found sync metadata, but unable to unmarshal for feed document %q.  Will not be imported.  Error: %v", logger.UD(event.Key), err)
 		if err == base.ErrEmptyMetadata {
-			base.WarnfCtx(logCtx, "Unexpected empty metadata when processing feed event.  docid: %s opcode: %v datatype:%v", base.UD(event.Key), event.Opcode, event.DataType)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unexpected empty metadata when processing feed event.  docid: %s opcode: %v datatype:%v", logger.UD(event.Key), event.Opcode, event.DataType)
 		}
 		return
 	}
@@ -139,7 +143,8 @@ func (il *importListener) ImportFeedEvent(event sgbucket.FeedEvent) {
 		// last attempt to exit processing if the importListener has been closed before attempting to write to the bucket
 		select {
 		case <-il.terminator:
-			base.InfofCtx(logCtx, base.KeyImport, "Aborting import for doc %q - importListener.terminator was closed", base.UD(docID))
+			//			logger.InfofCtx(logCtx, logger.KeyImport, "Aborting import for doc %q - importListener.terminator was closed", logger.UD(docID))
+			logger.For(logger.ImportKey).Info().Msgf("Aborting import for doc %q - importListener.terminator was closed", logger.UD(docID))
 			return
 		default:
 		}
@@ -147,11 +152,13 @@ func (il *importListener) ImportFeedEvent(event sgbucket.FeedEvent) {
 		_, err := il.database.ImportDocRaw(docID, rawBody, rawXattr, rawUserXattr, isDelete, event.Cas, &event.Expiry, ImportFromFeed)
 		if err != nil {
 			if err == base.ErrImportCasFailure {
-				base.DebugfCtx(logCtx, base.KeyImport, "Not importing mutation - document %s has been subsequently updated and will be imported based on that mutation.", base.UD(docID))
+				//				logger.DebugfCtx(logCtx, logger.KeyImport, "Not importing mutation - document %s has been subsequently updated and will be imported based on that mutation.", logger.UD(docID))
+				logger.For(logger.ImportKey).Debug().Msgf("Not importing mutation - document %s has been subsequently updated and will be imported based on that mutation.", logger.UD(docID))
 			} else if err == base.ErrImportCancelledFilter {
 				// No logging required - filter info already logged during importDoc
 			} else {
-				base.DebugfCtx(logCtx, base.KeyImport, "Did not import doc %q - external update will not be accessible via Sync Gateway.  Reason: %v", base.UD(docID), err)
+				//				logger.DebugfCtx(logCtx, logger.KeyImport, "Did not import doc %q - external update will not be accessible via Sync Gateway.  Reason: %v", logger.UD(docID), err)
+				logger.For(logger.ImportKey).Debug().Msgf("Did not import doc %q - external update will not be accessible via Sync Gateway.  Reason: %v", logger.UD(docID), err)
 			}
 		}
 	}
@@ -167,7 +174,8 @@ func (il *importListener) Stop() {
 			for _, pIndex := range pindexes {
 				err := il.cbgtContext.Manager.ClosePIndex(pIndex)
 				if err != nil {
-					base.DebugfCtx(context.TODO(), base.KeyImport, "Error closing pindex: %v", err)
+					//					logger.DebugfCtx(context.TODO(), logger.KeyImport, "Error closing pindex: %v", err)
+					logger.For(logger.ImportKey).Debug().Msgf("Error closing pindex: %v", err)
 				}
 			}
 			// ClosePIndex calls are synchronous, so can stop manager once they've completed

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 type BackgroundTaskFunc func(ctx context.Context) error
@@ -32,8 +33,9 @@ func NewBackgroundTask(taskName string, dbName string, task BackgroundTaskFunc, 
 		doneChan: make(chan struct{}),
 	}
 
-	logCtx := context.Background()
-	base.InfofCtx(logCtx, base.KeyAll, "Created background task: %q with interval %v", taskName, interval)
+	// logCtx := context.Background()
+	//	logger.InfofCtx(logCtx, logger.KeyAll, "Created background task: %q with interval %v", taskName, interval)
+	logger.For(logger.SystemKey).Info().Msgf("Created background task: %q with interval %v", taskName, interval)
 	go func() {
 		defer close(bgt.doneChan)
 		defer base.FatalPanicHandler()
@@ -42,13 +44,16 @@ func NewBackgroundTask(taskName string, dbName string, task BackgroundTaskFunc, 
 		for {
 			select {
 			case <-ticker.C:
-				ctx := context.WithValue(logCtx, base.LogContextKey{}, base.LogContext{CorrelationID: base.NewTaskID(dbName, taskName)})
+				// FIXME actually build a context
+				ctx := context.TODO()
+				// ctx := context.WithValue(logCtx, logger.LogContextKey{}, logger.LogContext{CorrelationID: logger.NewTaskID(dbName, taskName)})
 				if err := task(ctx); err != nil {
-					base.ErrorfCtx(ctx, "Background task returned error: %v", err)
+					logger.For(logger.SystemKey).Error().Err(err).Msg("Background task returned error")
 					return
 				}
 			case <-c:
-				base.DebugfCtx(logCtx, base.KeyAll, "Terminating background task: %q", taskName)
+				//				logger.DebugfCtx(logCtx, logger.KeyAll, "Terminating background task: %q", taskName)
+				logger.For(logger.SystemKey).Debug().Msgf("Terminating background task: %q", taskName)
 				return
 			}
 		}

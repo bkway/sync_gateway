@@ -11,13 +11,13 @@ licenses/APL2.txt.
 package db
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // RegisterImportPindexImpl registers the PIndex type definition.  This is invoked by cbgt when a Pindex (collection of
@@ -29,7 +29,8 @@ func RegisterImportPindexImpl(configGroup string) {
 	// config group scoped.  The associated importListener within the context is retrieved based on the
 	// dbname in the index params
 	pIndexType := base.CBGTIndexTypeSyncGatewayImport + configGroup
-	base.InfofCtx(context.TODO(), base.KeyDCP, "Registering PindexImplType for %s", pIndexType)
+	//	logger.InfofCtx(context.TODO(), logger.KeyDCP, "Registering PindexImplType for %s", pIndexType)
+	logger.For(logger.DCPKey).Info().Msgf("Registering PindexImplType for %s", pIndexType)
 	cbgt.RegisterPIndexImplType(pIndexType,
 		&cbgt.PIndexImplType{
 			New:       NewImportPIndexImpl,
@@ -63,7 +64,7 @@ func NewImportPIndexImpl(indexType, indexParams, path string, restart func()) (c
 
 	importDest, err := getListenerImportDest(indexParams)
 	if err != nil {
-		base.ErrorfCtx(context.TODO(), "Error creating NewImportDest during NewImportPIndexImpl: %v", err)
+		logger.For(logger.UnknownKey).Err(err).Msg("Error creating NewImportDest during NewImportPIndexImpl")
 	}
 	return nil, importDest, err
 }

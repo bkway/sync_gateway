@@ -1,11 +1,11 @@
 package base
 
 import (
-	"context"
 	"encoding/json"
 	"sync"
 
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // cbgtCredentials are global map of dbname to basic auth creds.  Updated on cbgt manager creation, required
@@ -141,26 +141,26 @@ func addCbgtAuthToDCPParams(dcpParams string) string {
 
 	unmarshalErr := json.Unmarshal([]byte(dcpParams), &sgSourceParams)
 	if unmarshalErr != nil {
-		WarnfCtx(context.Background(), "Unable to unmarshal params provided by cbgt as sgSourceParams: %v", unmarshalErr)
+		logger.For(logger.ImportKey).Warn().Err(unmarshalErr).Msg("Unable to unmarshal params provided by cbgt as sgSourceParams")
 		return dcpParams
 	}
 
 	if sgSourceParams.DbName == "" {
-		InfofCtx(context.Background(), KeyImport, "Database name not specified in dcp params, feed credentials not added")
+		logger.For(logger.ImportKey).Info().Msg("Database name not specified in dcp params, feed credentials not added")
 		return dcpParams
 	}
 
 	username, password, ok := getCbgtCredentials(sgSourceParams.DbName)
 	if !ok {
 		// no stored credentials includes the valid x.509 auth case
-		InfofCtx(context.Background(), KeyImport, "No feed credentials stored for db from sourceParams: %s", MD(sgSourceParams.DbName))
+		logger.For(logger.ImportKey).Info().Msgf("No feed credentials stored for db from sourceParams: %s", logger.MD(sgSourceParams.DbName))
 		return dcpParams
 	}
 
 	var feedParamsWithAuth cbgt.DCPFeedParams
 	unmarshalDCPErr := json.Unmarshal([]byte(dcpParams), &feedParamsWithAuth)
 	if unmarshalDCPErr != nil {
-		WarnfCtx(context.Background(), "Unable to unmarshal params provided by cbgt as dcpFeedParams: %v", unmarshalDCPErr)
+		logger.For(logger.ImportKey).Warn().Err(unmarshalDCPErr).Msgf("Unable to unmarshal params provided by cbgt as dcpFeedParams")
 	}
 
 	// Add creds to params
@@ -169,7 +169,7 @@ func addCbgtAuthToDCPParams(dcpParams string) string {
 
 	marshalledParamsWithAuth, marshalErr := json.Marshal(feedParamsWithAuth)
 	if marshalErr != nil {
-		WarnfCtx(context.Background(), "Unable to marshal updated cbgt dcp params: %v", marshalErr)
+		logger.For(logger.ImportKey).Warn().Err(marshalErr).Msgf("Unable to marshal updated cbgt dcp params")
 		return dcpParams
 	}
 

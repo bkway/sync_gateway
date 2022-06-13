@@ -14,7 +14,7 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -61,17 +61,18 @@ func compareHashAndPassword(cache Cache, hash []byte, password []byte) bool {
 func (auth *Authenticator) SetBcryptCost(cost int) error {
 	if cost <= 0 {
 		auth.BcryptCost = DefaultBcryptCost
-		base.DebugfCtx(auth.LogCtx, base.KeyAuth, "bcrypt cost set to default: %d", cost)
+		// logger.DebugfCtx(auth.LogCtx, logger.KeyAuth, "bcrypt cost set to default: %d", cost)
+		logger.For(logger.AuthKey).Debug().Msgf("bcrypt cost set to default: %d", cost)
 		return nil
 	}
 
 	if cost < DefaultBcryptCost || cost > bcrypt.MaxCost {
-		return errors.Wrapf(ErrInvalidBcryptCost,
-			"%d outside allowed range: %d-%d",
+		return errors.Wrapf(ErrInvalidBcryptCost, "%d outside allowed range: %d-%d",
 			cost, DefaultBcryptCost, bcrypt.MaxCost)
 	}
 
-	base.InfofCtx(auth.LogCtx, base.KeyAuth, "bcrypt cost set to: %d", cost)
+	// logger.InfofCtx(auth.LogCtx, logger.KeyAuth, "bcrypt cost set to: %d", cost)
+	logger.For(logger.AuthKey).Debug().Msgf("bcrypt cost set to: %d", cost)
 	auth.BcryptCost = cost
 	auth.bcryptCostChanged = true
 

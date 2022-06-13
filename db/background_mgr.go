@@ -9,7 +9,6 @@
 package db
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	sgbucket "github.com/couchbase/sg-bucket"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -99,7 +99,7 @@ func (b *BackgroundManager) Start(options map[string]interface{}) error {
 		return err
 	}
 
-	logCtx := context.TODO()
+	// logCtx := context.TODO()
 	var processClusterStatus []byte
 	if b.isClusterAware() {
 		processClusterStatus, _, err = b.clusterAwareOptions.bucket.GetRaw(b.clusterAwareOptions.StatusDocID())
@@ -124,7 +124,7 @@ func (b *BackgroundManager) Start(options map[string]interface{}) error {
 				case <-ticker.C:
 					err = b.UpdateStatusClusterAware()
 					if err != nil {
-						base.WarnfCtx(logCtx, "Failed to update background manager status: %v", err)
+						logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Failed to update background manager status: %v", err)
 					}
 
 				case <-b.terminator.Done():
@@ -141,7 +141,8 @@ func (b *BackgroundManager) Start(options map[string]interface{}) error {
 		}
 		err := b.Process.Run(options, updateStatusClusterAwareCallback, b.terminator)
 		if err != nil {
-			base.ErrorfCtx(logCtx, "Error: %v", err)
+			logger.For(logger.SystemKey).Error().Err(err).Msg("error running")
+			// log.Ctx(logCtx).Error().Err(err).Msgf("Error: %v", err)
 			b.SetError(err)
 		}
 
@@ -160,7 +161,7 @@ func (b *BackgroundManager) Start(options map[string]interface{}) error {
 		if b.isClusterAware() {
 			err = b.UpdateStatusClusterAware()
 			if err != nil {
-				base.WarnfCtx(logCtx, "Failed to update background manager status: %v", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Failed to update background manager status: %v", err)
 			}
 
 			// Delete the heartbeat doc to allow another process to run
@@ -172,7 +173,8 @@ func (b *BackgroundManager) Start(options map[string]interface{}) error {
 	if b.isClusterAware() {
 		err = b.UpdateStatusClusterAware()
 		if err != nil {
-			base.ErrorfCtx(logCtx, "Failed to update background manager status: %v", err)
+			// 			log.Ctx(logCtx).Error().Err(err).Msgf("Failed to update background manager status: %v", err)
+			logger.For(logger.UnknownKey).Error().Err(err).Msgf("Failed to update background manager status: %v", err)
 		}
 	}
 
@@ -209,7 +211,8 @@ func (b *BackgroundManager) markStart() error {
 				case <-ticker.C:
 					err = b.UpdateHeartbeatDocClusterAware()
 					if err != nil {
-						base.ErrorfCtx(context.TODO(), "Failed to update expiry on heartbeat doc: %v", err)
+						// 						log.Ctx(context.TODO()).Error().Err(err).Msgf("Failed to update expiry on heartbeat doc: %v", err)
+						logger.For(logger.UnknownKey).Error().Err(err).Msgf("Failed to update expiry on heartbeat doc: %v", err)
 						b.SetError(err)
 					}
 				case <-b.terminator.Done():
@@ -467,7 +470,8 @@ func (b *BackgroundManager) UpdateHeartbeatDocClusterAware() error {
 	if status.ShouldStop {
 		err = b.Stop()
 		if err != nil {
-			base.WarnfCtx(context.TODO(), "Failed to stop process %q: %v", b.clusterAwareOptions.processSuffix, err)
+			// 			log.Ctx(context.TODO()).Warn().Err(err).Msgf("Failed to stop process %q: %v", b.clusterAwareOptions.processSuffix, err)
+			logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Failed to stop process %q: %v", b.clusterAwareOptions.processSuffix, err)
 		}
 	}
 

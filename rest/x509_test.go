@@ -22,6 +22,7 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ import (
 // TestX509RoundtripUsingIP is a happy-path roundtrip write test for SG connecting to CBS using valid X.509 certs for authentication.
 // The test enforces SG connects using an IP address which is also present in the node cert.
 func TestX509RoundtripUsingIP(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	tb, teardownFn, _, _, _ := setupX509Tests(t, true)
 	defer tb.Close()
@@ -50,7 +51,7 @@ func TestX509RoundtripUsingIP(t *testing.T) {
 // TestX509RoundtripUsingDomain is a happy-path roundtrip write test for SG connecting to CBS using valid X.509 certs for authentication.
 // The test enforces SG connects using a domain name which is also present in the node cert.
 func TestX509RoundtripUsingDomain(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	tb, teardownFn, _, _, _ := setupX509Tests(t, false)
 	defer tb.Close()
@@ -69,7 +70,7 @@ func TestX509RoundtripUsingDomain(t *testing.T) {
 }
 
 func TestX509UnknownAuthorityWrap(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	tb, teardownFn, _, _, _ := setupX509Tests(t, true)
 	defer tb.Close()

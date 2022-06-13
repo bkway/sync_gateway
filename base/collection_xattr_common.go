@@ -1,12 +1,13 @@
 package base
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/logger"
 	pkgerrors "github.com/pkg/errors"
+	// "github.com/rs/zerolog/log"
 )
 
 const (
@@ -83,7 +84,7 @@ func WriteCasWithXattr(store SubdocXattrStore, k string, xattrKey string, exp ui
 	// Kick off retry loop
 	err, cas = RetryLoopCas("WriteCasWithXattr", worker, store.GetSpec().RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "WriteCasWithXattr with key %v", UD(k).Redact())
+		err = pkgerrors.Wrapf(err, "WriteCasWithXattr with key %v", logger.UD(k).Redact())
 	}
 
 	return cas, err
@@ -136,7 +137,7 @@ func UpdateTombstoneXattr(store SubdocXattrStore, k string, xattrKey string, exp
 	// Kick off retry loop
 	err, cas = RetryLoopCas("UpdateTombstoneXattr", worker, store.GetSpec().RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "Error during UpdateTombstoneXattr with key %v", UD(k).Redact())
+		err = pkgerrors.Wrapf(err, "Error during UpdateTombstoneXattr with key %v", logger.UD(k).Redact())
 		return cas, err
 	}
 
@@ -163,7 +164,7 @@ func UpdateTombstoneXattr(store SubdocXattrStore, k string, xattrKey string, exp
 
 		err, cas = RetryLoopCas("UpdateXattrDeleteBodySecondOp", worker, store.GetSpec().RetrySleeper())
 		if err != nil {
-			err = pkgerrors.Wrapf(err, "Error during UpdateTombstoneXattr delete op with key %v", UD(k).Redact())
+			err = pkgerrors.Wrapf(err, "Error during UpdateTombstoneXattr delete op with key %v", logger.UD(k).Redact())
 			return cas, err
 		}
 
@@ -200,7 +201,7 @@ func WriteUpdateWithXattr(store SubdocXattrStore, k string, xattrKey string, use
 			if err != nil {
 				if pkgerrors.Cause(err) != ErrNotFound {
 					// Unexpected error, cancel writeupdate
-					DebugfCtx(context.TODO(), KeyCRUD, "Retrieval of existing doc failed during WriteUpdateWithXattr for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), err)
+					logger.For(logger.CRUDKey).Err(err).Msgf("Retrieval of existing doc failed during WriteUpdateWithXattr for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 					return emptyCas, err
 				}
 				// Key not found - initialize values
@@ -240,7 +241,7 @@ func WriteUpdateWithXattr(store SubdocXattrStore, k string, xattrKey string, use
 			// conflict/duplicate handling on retry.
 		} else {
 			// WriteWithXattr already handles retry on recoverable errors, so fail on any errors other than ErrKeyExists
-			WarnfCtx(context.TODO(), "Failed to update doc with xattr for key=%s, xattrKey=%s: %v", UD(k), UD(xattrKey), writeErr)
+			logger.For(logger.CRUDKey).Err(writeErr).Msgf("Failed to update doc with xattr for key=%s, xattrKey=%s", logger.UD(k), logger.UD(xattrKey))
 			return emptyCas, writeErr
 		}
 
@@ -271,7 +272,7 @@ func SetXattr(store SubdocXattrStore, k string, xattrKey string, xv []byte) (cas
 
 	err, casOut = RetryLoopCas("SetXattr", worker, store.GetSpec().RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "SetXattr with key %v", UD(k).Redact())
+		err = pkgerrors.Wrapf(err, "SetXattr with key %v", logger.UD(k).Redact())
 	}
 
 	return casOut, err
@@ -296,7 +297,7 @@ func RemoveXattr(store SubdocXattrStore, k string, xattrKey string, cas uint64) 
 
 	err, _ := RetryLoop("RemoveXattr", worker, store.GetSpec().RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "RemoveXattr with key %v xattr %v", UD(k).Redact(), UD(xattrKey).Redact())
+		err = pkgerrors.Wrapf(err, "RemoveXattr with key %v xattr %v", logger.UD(k).Redact(), logger.UD(xattrKey).Redact())
 	}
 
 	return err
@@ -321,7 +322,7 @@ func DeleteXattrs(store SubdocXattrStore, k string, xattrKeys ...string) error {
 
 	err, _ := RetryLoop("DeleteXattrs", worker, store.GetSpec().RetrySleeper())
 	if err != nil {
-		err = pkgerrors.Wrapf(err, "DeleteXattrs with keys %q xattr %v", UD(k).Redact(), UD(strings.Join(xattrKeys, ",")).Redact())
+		err = pkgerrors.Wrapf(err, "DeleteXattrs with keys %q xattr %v", logger.UD(k).Redact(), logger.UD(strings.Join(xattrKeys, ",")).Redact())
 	}
 
 	return err
@@ -351,7 +352,7 @@ type deleteWithXattrRaceInjection func(k string, xattrKey string)
 
 func deleteWithXattrInternal(store KvXattrStore, k string, xattrKey string, callback deleteWithXattrRaceInjection) error {
 
-	DebugfCtx(context.TODO(), KeyCRUD, "DeleteWithXattr called with key: %v xattrKey: %v", UD(k), UD(xattrKey))
+	logger.For(logger.CRUDKey).Info().Msgf("DeleteWithXattr called with key: %v xattrKey: %v", logger.UD(k), logger.UD(xattrKey))
 
 	// Try to delete body and xattrs in single op
 	// NOTE: ongoing discussion w/ KV Engine team on whether this should handle cases where the body
@@ -426,8 +427,8 @@ func AsSubdocXattrStore(bucket Bucket) (SubdocXattrStore, bool) {
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
 	case *LeakyBucket:
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
-	case *TestBucket:
-		underlyingBucket = typedBucket.Bucket
+	// case *TestBucket:
+	// 	underlyingBucket = typedBucket.Bucket
 	default:
 		// bail out for unrecognised/unsupported buckets
 		return nil, false
@@ -448,8 +449,8 @@ func AsUserXattrStore(bucket Bucket) (UserXattrStore, bool) {
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
 	case *LeakyBucket:
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
-	case *TestBucket:
-		underlyingBucket = typedBucket.Bucket
+	// case *TestBucket:
+	// 	underlyingBucket = typedBucket.Bucket
 	default:
 		// bail out for unrecognised/unsupported buckets
 		return nil, false

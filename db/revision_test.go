@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -98,7 +99,7 @@ func TestParseRevisionsToAncestor(t *testing.T) {
 
 // TestBackupOldRevision ensures that old revisions are kept around temporarily for in-flight requests and delta sync purposes.
 func TestBackupOldRevision(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyAll)
 
 	deltasEnabled := false
 	xattrsEnabled := base.TestUseXattrs()
@@ -115,12 +116,12 @@ func TestBackupOldRevision(t *testing.T) {
 	require.NoError(t, err)
 
 	// make sure we didn't accidentally store an empty old revision
-	_, err = db.getOldRevisionJSON(base.TestCtx(t), docID, "")
+	_, err = db.getOldRevisionJSON(logger.TestCtx(t), docID, "")
 	assert.Error(t, err)
 	assert.Equal(t, "404 missing", err.Error())
 
 	// check for current rev backup in xattr+delta case (to support deltas by sdk imports)
-	_, err = db.getOldRevisionJSON(base.TestCtx(t), docID, rev1ID)
+	_, err = db.getOldRevisionJSON(logger.TestCtx(t), docID, rev1ID)
 	if deltasEnabled && xattrsEnabled {
 		require.NoError(t, err)
 	} else {
@@ -134,11 +135,11 @@ func TestBackupOldRevision(t *testing.T) {
 	require.NoError(t, err)
 
 	// now in all cases we'll have rev 1 backed up (for at least 5 minutes)
-	_, err = db.getOldRevisionJSON(base.TestCtx(t), docID, rev1ID)
+	_, err = db.getOldRevisionJSON(logger.TestCtx(t), docID, rev1ID)
 	require.NoError(t, err)
 
 	// check for current rev backup in xattr+delta case (to support deltas by sdk imports)
-	_, err = db.getOldRevisionJSON(base.TestCtx(t), docID, rev2ID)
+	_, err = db.getOldRevisionJSON(logger.TestCtx(t), docID, rev2ID)
 	if deltasEnabled && xattrsEnabled {
 		require.NoError(t, err)
 	} else {

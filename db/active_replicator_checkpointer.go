@@ -21,6 +21,7 @@ import (
 
 	"github.com/couchbase/go-blip"
 	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 )
 
 // Checkpointer implements replicator checkpointing, by keeping two lists of sequences. Those which we expect to be processing revs for (either push or pull), and a map for those which we have done so on.
@@ -190,7 +191,8 @@ func (c *Checkpointer) Start() {
 				case <-ticker.C:
 					c.CheckpointNow()
 				case <-c.ctx.Done():
-					base.DebugfCtx(c.ctx, base.KeyReplicate, "checkpointer goroutine stopped")
+					// logger.DebugfCtx(c.ctx, logger.KeyReplicate, "checkpointer goroutine stopped")
+					logger.For(logger.ReplicateKey).Debug().Msgf("checkpointer goroutine stopped")
 					return
 				}
 			}
@@ -210,17 +212,19 @@ func (c *Checkpointer) CheckpointNow() {
 	// Retrieve status after obtaining the lock to ensure
 	status := c.statusCallback(c._calculateSafeProcessedSeq())
 
-	base.TracefCtx(c.ctx, base.KeyReplicate, "checkpointer: running")
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "checkpointer: running")
+	logger.For(logger.ReplicateKey).Trace().Msgf("checkpointer: running")
 
 	seq := c._updateCheckpointLists()
 	if seq == "" {
 		return
 	}
 
-	base.InfofCtx(c.ctx, base.KeyReplicate, "checkpointer: calculated seq: %v", seq)
+	//	logger.InfofCtx(c.ctx, logger.KeyReplicate, "checkpointer: calculated seq: %v", seq)
+	logger.For(logger.ReplicateKey).Info().Msgf("checkpointer: calculated seq: %v", seq)
 	err := c._setCheckpoints(seq, status)
 	if err != nil {
-		base.WarnfCtx(c.ctx, "couldn't set checkpoints: %v", err)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("couldn't set checkpoints: %v", err)
 	}
 }
 
@@ -234,7 +238,8 @@ func (c *Checkpointer) Stats() CheckpointerStats {
 
 // _updateCheckpointLists determines the highest checkpointable sequence, and trims the processedSeqs/expectedSeqs lists up to this point.
 func (c *Checkpointer) _updateCheckpointLists() (safeSeq string) {
-	base.TracefCtx(c.ctx, base.KeyReplicate, "checkpointer: _updateCheckpointLists(expectedSeqs: %v, procssedSeqs: %v)", c.expectedSeqs, c.processedSeqs)
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "checkpointer: _updateCheckpointLists(expectedSeqs: %v, procssedSeqs: %v)", c.expectedSeqs, c.processedSeqs)
+	logger.For(logger.ReplicateKey).Trace().Msgf("checkpointer: _updateCheckpointLists(expectedSeqs: %v, procssedSeqs: %v)", c.expectedSeqs, c.processedSeqs)
 
 	maxI := c._calculateSafeExpectedSeqsIdx()
 	if maxI == -1 {
@@ -248,7 +253,8 @@ func (c *Checkpointer) _updateCheckpointLists() (safeSeq string) {
 	for i := 0; i <= maxI; i++ {
 		removeSeq := c.expectedSeqs[i]
 		delete(c.processedSeqs, removeSeq)
-		base.TracefCtx(c.ctx, base.KeyReplicate, "checkpointer: _updateCheckpointLists removed seq %v from processedSeqs map", removeSeq)
+		//		logger.TracefCtx(c.ctx, logger.KeyReplicate, "checkpointer: _updateCheckpointLists removed seq %v from processedSeqs map", removeSeq)
+		logger.For(logger.ReplicateKey).Trace().Msgf("checkpointer: _updateCheckpointLists removed seq %v from processedSeqs map", removeSeq)
 	}
 
 	// trim expectedSeqs list for all processed seqs
@@ -347,7 +353,8 @@ func (r *replicationCheckpoint) Copy() *replicationCheckpoint {
 // - Mismatched config hashes, use a zero value for sequence, so the replication can restart.
 // - Mismatched sequences, we'll pick the lower of the two, and attempt to roll back the higher checkpoint to that point.
 func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
-	base.TracefCtx(c.ctx, base.KeyReplicate, "fetchCheckpoints()")
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "fetchCheckpoints()")
+	logger.For(logger.ReplicateKey).Trace().Msgf("fetchCheckpoints()")
 
 	localCheckpoint, err := c.getLocalCheckpoint()
 	if err != nil {
@@ -355,14 +362,16 @@ func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
 	}
 	status := localCheckpoint.Status
 
-	base.DebugfCtx(c.ctx, base.KeyReplicate, "got local checkpoint: %v", localCheckpoint)
+	//	logger.DebugfCtx(c.ctx, logger.KeyReplicate, "got local checkpoint: %v", localCheckpoint)
+	logger.For(logger.ReplicateKey).Debug().Msgf("got local checkpoint: %v", localCheckpoint)
 	c.lastLocalCheckpointRevID = localCheckpoint.Rev
 
 	remoteCheckpoint, err := c.getRemoteCheckpoint()
 	if err != nil {
 		return nil, err
 	}
-	base.DebugfCtx(c.ctx, base.KeyReplicate, "got remote checkpoint: %v", remoteCheckpoint)
+	//	logger.DebugfCtx(c.ctx, logger.KeyReplicate, "got remote checkpoint: %v", remoteCheckpoint)
+	logger.For(logger.ReplicateKey).Debug().Msgf("got remote checkpoint: %v", remoteCheckpoint)
 	c.lastRemoteCheckpointRevID = remoteCheckpoint.Rev
 
 	localSeq := localCheckpoint.LastSeq
@@ -373,7 +382,8 @@ func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
 
 	// Determine the lowest sequence if they don't match
 	if localSeq != remoteSeq {
-		base.DebugfCtx(c.ctx, base.KeyReplicate, "sequences mismatched, finding lowest of %q %q", localSeq, remoteSeq)
+		//		logger.DebugfCtx(c.ctx, logger.KeyReplicate, "sequences mismatched, finding lowest of %q %q", localSeq, remoteSeq)
+		logger.For(logger.ReplicateKey).Debug().Msgf("sequences mismatched, finding lowest of %q %q", localSeq, remoteSeq)
 		localSeqVal, err := parseIntegerSequenceID(localSeq)
 		if err != nil {
 			return nil, err
@@ -392,9 +402,10 @@ func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
 			status = newLocalCheckpoint.Status
 			c.lastLocalCheckpointRevID, err = c.setLocalCheckpoint(newLocalCheckpoint)
 			if err != nil {
-				base.WarnfCtx(c.ctx, "Unable to roll back local checkpoint: %v", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to roll back local checkpoint: %v", err)
 			} else {
-				base.InfofCtx(c.ctx, base.KeyReplicate, "Rolled back local checkpoint to remote: %v", remoteSeqVal)
+				//				logger.InfofCtx(c.ctx, logger.KeyReplicate, "Rolled back local checkpoint to remote: %v", remoteSeqVal)
+				logger.For(logger.ReplicateKey).Info().Msgf("Rolled back local checkpoint to remote: %v", remoteSeqVal)
 			}
 		} else {
 			// checkpointSeq already set above for localSeq value
@@ -402,9 +413,10 @@ func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
 			newRemoteCheckpoint.Rev = c.lastRemoteCheckpointRevID
 			c.lastRemoteCheckpointRevID, err = c.setRemoteCheckpoint(newRemoteCheckpoint)
 			if err != nil {
-				base.WarnfCtx(c.ctx, "Unable to roll back remote checkpoint: %v", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to roll back remote checkpoint: %v", err)
 			} else {
-				base.InfofCtx(c.ctx, base.KeyReplicate, "Rolled back remote checkpoint to local: %v", localSeqVal)
+				//				logger.InfofCtx(c.ctx, logger.KeyReplicate, "Rolled back remote checkpoint to local: %v", localSeqVal)
+				logger.For(logger.ReplicateKey).Info().Msgf("Rolled back remote checkpoint to local: %v", localSeqVal)
 			}
 		}
 	}
@@ -412,11 +424,13 @@ func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
 	// If checkpoint hash has changed, reset checkpoint to zero. Shouldn't need to persist the updated checkpoints in
 	// the case both get rolled back to zero, can wait for next persistence.
 	if localCheckpoint.ConfigHash != c.configHash || remoteCheckpoint.ConfigHash != c.configHash {
-		base.DebugfCtx(c.ctx, base.KeyReplicate, "replicator config changed, unable to use previous checkpoint")
+		//		logger.DebugfCtx(c.ctx, logger.KeyReplicate, "replicator config changed, unable to use previous checkpoint")
+		logger.For(logger.ReplicateKey).Debug().Msgf("replicator config changed, unable to use previous checkpoint")
 		checkpointSeq = ""
 	}
 
-	base.InfofCtx(c.ctx, base.KeyReplicate, "using checkpointed seq: %q", checkpointSeq)
+	//	logger.InfofCtx(c.ctx, logger.KeyReplicate, "using checkpointed seq: %q", checkpointSeq)
+	logger.For(logger.ReplicateKey).Info().Msgf("using checkpointed seq: %q", checkpointSeq)
 
 	if checkpointSeq == "" {
 		c.stats.GetCheckpointMissCount++
@@ -430,7 +444,8 @@ func (c *Checkpointer) fetchCheckpoints() (*ReplicationStatus, error) {
 }
 
 func (c *Checkpointer) _setCheckpoints(seq string, status *ReplicationStatus) (err error) {
-	base.TracefCtx(c.ctx, base.KeyReplicate, "setCheckpoints(%v)", seq)
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "setCheckpoints(%v)", seq)
+	logger.For(logger.ReplicateKey).Trace().Msgf("setCheckpoints(%v)", seq)
 
 	c.lastLocalCheckpointRevID, err = c.setLocalCheckpointWithRetry(
 		&replicationCheckpoint{
@@ -462,14 +477,16 @@ func (c *Checkpointer) _setCheckpoints(seq string, status *ReplicationStatus) (e
 // getLocalCheckpoint returns the sequence and rev for the local checkpoint.
 // if the checkpoint does not exist, returns empty sequence and rev.
 func (c *Checkpointer) getLocalCheckpoint() (checkpoint *replicationCheckpoint, err error) {
-	base.TracefCtx(c.ctx, base.KeyReplicate, "getLocalCheckpoint")
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "getLocalCheckpoint")
+	logger.For(logger.ReplicateKey).Trace().Msgf("getLocalCheckpoint")
 
 	checkpointBytes, err := c.activeDB.GetSpecialBytes(DocTypeLocal, checkpointDocIDPrefix+c.clientID)
 	if err != nil {
 		if !base.IsKeyNotFoundError(c.activeDB.Bucket, err) {
 			return &replicationCheckpoint{}, err
 		}
-		base.DebugfCtx(c.ctx, base.KeyReplicate, "couldn't find existing local checkpoint for client %q", c.clientID)
+		//		logger.DebugfCtx(c.ctx, logger.KeyReplicate, "couldn't find existing local checkpoint for client %q", c.clientID)
+		logger.For(logger.ReplicateKey).Debug().Msgf("couldn't find existing local checkpoint for client %q", c.clientID)
 		return &replicationCheckpoint{}, nil
 	}
 
@@ -480,10 +497,12 @@ func (c *Checkpointer) getLocalCheckpoint() (checkpoint *replicationCheckpoint, 
 func (c *Checkpointer) setLocalCheckpoint(checkpoint *replicationCheckpoint) (newRev string, err error) {
 	newRev, err = c.activeDB.putSpecial(DocTypeLocal, checkpointDocIDPrefix+c.clientID, checkpoint.Rev, checkpoint.AsBody())
 	if err != nil {
-		base.TracefCtx(c.ctx, base.KeyReplicate, "Error setting local checkpoint(%v): %v", checkpoint, err)
+		//		logger.TracefCtx(c.ctx, logger.KeyReplicate, "Error setting local checkpoint(%v): %v", checkpoint, err)
+		logger.For(logger.ReplicateKey).Trace().Msgf("Error setting local checkpoint(%v): %v", checkpoint, err)
 		return "", err
 	}
-	base.TracefCtx(c.ctx, base.KeyReplicate, "setLocalCheckpoint(%v)", checkpoint)
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "setLocalCheckpoint(%v)", checkpoint)
+	logger.For(logger.ReplicateKey).Trace().Msgf("setLocalCheckpoint(%v)", checkpoint)
 	return newRev, nil
 }
 
@@ -507,7 +526,8 @@ func resetLocalCheckpoint(activeDB *Database, checkpointID string) error {
 // getRemoteCheckpoint returns the sequence and rev for the remote checkpoint.
 // if the checkpoint does not exist, returns empty sequence and rev.
 func (c *Checkpointer) getRemoteCheckpoint() (checkpoint *replicationCheckpoint, err error) {
-	base.TracefCtx(c.ctx, base.KeyReplicate, "getRemoteCheckpoint")
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "getRemoteCheckpoint")
+	logger.For(logger.ReplicateKey).Trace().Msgf("getRemoteCheckpoint")
 
 	rq := GetSGR2CheckpointRequest{
 		Client: c.clientID,
@@ -523,7 +543,8 @@ func (c *Checkpointer) getRemoteCheckpoint() (checkpoint *replicationCheckpoint,
 	}
 
 	if resp == nil {
-		base.DebugfCtx(c.ctx, base.KeyReplicate, "couldn't find existing remote checkpoint for client %q", c.clientID)
+		//		logger.DebugfCtx(c.ctx, logger.KeyReplicate, "couldn't find existing remote checkpoint for client %q", c.clientID)
+		logger.For(logger.ReplicateKey).Debug().Msgf("couldn't find existing remote checkpoint for client %q", c.clientID)
 		return &replicationCheckpoint{}, nil
 	}
 
@@ -531,7 +552,8 @@ func (c *Checkpointer) getRemoteCheckpoint() (checkpoint *replicationCheckpoint,
 }
 
 func (c *Checkpointer) setRemoteCheckpoint(checkpoint *replicationCheckpoint) (newRev string, err error) {
-	base.TracefCtx(c.ctx, base.KeyReplicate, "setRemoteCheckpoint(%v)", checkpoint)
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "setRemoteCheckpoint(%v)", checkpoint)
+	logger.For(logger.ReplicateKey).Trace().Msgf("setRemoteCheckpoint(%v)", checkpoint)
 
 	checkpointBody := checkpoint.AsBody()
 	rq := SetSGR2CheckpointRequest{
@@ -609,18 +631,20 @@ func (c *Checkpointer) setRetry(checkpoint *replicationCheckpoint, setFn setChec
 			if strings.HasPrefix(err.Error(), "409") {
 				existingCheckpoint, getErr := getFn()
 				if getErr == nil {
-					base.InfofCtx(c.ctx, base.KeyReplicate, "Revision mismatch in setCheckpoint - updated from %q to %q based on existing checkpoint, will retry", checkpoint.Rev, existingCheckpoint.Rev)
+					//					logger.InfofCtx(c.ctx, logger.KeyReplicate, "Revision mismatch in setCheckpoint - updated from %q to %q based on existing checkpoint, will retry", checkpoint.Rev, existingCheckpoint.Rev)
+					logger.For(logger.ReplicateKey).Info().Msgf("Revision mismatch in setCheckpoint - updated from %q to %q based on existing checkpoint, will retry", checkpoint.Rev, existingCheckpoint.Rev)
 					checkpoint.Rev = existingCheckpoint.Rev
 				} else {
-					base.InfofCtx(c.ctx, base.KeyReplicate, "Revision mismatch in setCheckpoint, and unable to retrieve existing, will retry", getErr)
+					//					logger.InfofCtx(c.ctx, logger.KeyReplicate, "Revision mismatch in setCheckpoint, and unable to retrieve existing, will retry", getErr)
+					logger.For(logger.ReplicateKey).Info().Msgf("Revision mismatch in setCheckpoint, and unable to retrieve existing, will retry", getErr)
 					// pause before falling through to retry, in case of temporary failure on getFn
 					time.Sleep(time.Millisecond * 100)
 				}
 			} else if strings.HasPrefix(err.Error(), "404") {
-				base.WarnfCtx(c.ctx, "checkpoint did not exist for attempted update - removing last known rev ID: %v", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("checkpoint did not exist for attempted update - removing last known rev ID: %v", err)
 				checkpoint.Rev = ""
 			} else {
-				base.WarnfCtx(c.ctx, "got unexpected error from setCheckpoint: %v", err)
+				logger.For(logger.UnknownKey).Warn().Err(err).Msgf("got unexpected error from setCheckpoint: %v", err)
 			}
 			continue
 		}
@@ -636,7 +660,8 @@ func (c *Checkpointer) setLocalCheckpointStatus(status string, errorMessage stri
 	// getCheckpoint to obtain the current status
 	checkpoint, err := c.getLocalCheckpoint()
 	if err != nil {
-		base.InfofCtx(c.ctx, base.KeyReplicate, "Unable to persist status update to checkpoint: %v", err)
+		//		logger.InfofCtx(c.ctx, logger.KeyReplicate, "Unable to persist status update to checkpoint: %v", err)
+		logger.For(logger.ReplicateKey).Info().Msgf("Unable to persist status update to checkpoint: %v", err)
 	}
 	if checkpoint == nil {
 		checkpoint = &replicationCheckpoint{}
@@ -648,12 +673,14 @@ func (c *Checkpointer) setLocalCheckpointStatus(status string, errorMessage stri
 
 	checkpoint.Status.Status = status
 	checkpoint.Status.ErrorMessage = errorMessage
-	base.TracefCtx(c.ctx, base.KeyReplicate, "setLocalCheckpoint(%v)", checkpoint)
+	//	logger.TracefCtx(c.ctx, logger.KeyReplicate, "setLocalCheckpoint(%v)", checkpoint)
+	logger.For(logger.ReplicateKey).Trace().Msgf("setLocalCheckpoint(%v)", checkpoint)
 	newRev, setErr := c.setLocalCheckpoint(checkpoint)
 	if setErr != nil {
-		base.WarnfCtx(c.ctx, "Unable to persist status in local checkpoint for %s, status not updated: %v", c.clientID, setErr)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to persist status in local checkpoint for %s, status not updated: %v", c.clientID, setErr)
 	} else {
-		base.TracefCtx(c.ctx, base.KeyReplicate, "setLocalCheckpointStatus successful for %s, newRev: %s: %+v %+v", c.clientID, newRev, checkpoint, checkpoint.Status)
+		//		logger.TracefCtx(c.ctx, logger.KeyReplicate, "setLocalCheckpointStatus successful for %s, newRev: %s: %+v %+v", c.clientID, newRev, checkpoint, checkpoint.Status)
+		logger.For(logger.ReplicateKey).Trace().Msgf("setLocalCheckpointStatus successful for %s, newRev: %s: %+v %+v", c.clientID, newRev, checkpoint, checkpoint.Status)
 	}
 	c.lock.Lock()
 	c.lastLocalCheckpointRevID = newRev
@@ -662,14 +689,16 @@ func (c *Checkpointer) setLocalCheckpointStatus(status string, errorMessage stri
 }
 
 func getLocalCheckpoint(db *DatabaseContext, clientID string) (*replicationCheckpoint, error) {
-	base.TracefCtx(context.TODO(), base.KeyReplicate, "getLocalCheckpoint for %s", clientID)
+	//	logger.TracefCtx(context.TODO(), logger.KeyReplicate, "getLocalCheckpoint for %s", clientID)
+	logger.For(logger.ReplicateKey).Trace().Msgf("getLocalCheckpoint for %s", clientID)
 
 	checkpointBytes, err := db.GetSpecialBytes(DocTypeLocal, checkpointDocIDPrefix+clientID)
 	if err != nil {
 		if !base.IsKeyNotFoundError(db.Bucket, err) {
 			return nil, err
 		}
-		base.DebugfCtx(context.TODO(), base.KeyReplicate, "couldn't find existing local checkpoint for ID %q", clientID)
+		//		logger.DebugfCtx(context.TODO(), logger.KeyReplicate, "couldn't find existing local checkpoint for ID %q", clientID)
+		logger.For(logger.ReplicateKey).Debug().Msgf("couldn't find existing local checkpoint for ID %q", clientID)
 		return nil, nil
 	}
 	var checkpoint *replicationCheckpoint
@@ -684,7 +713,7 @@ func setLocalCheckpointStatus(db *Database, clientID string, status string, erro
 	// getCheckpoint to obtain the current rev
 	checkpoint, err := getLocalCheckpoint(db.DatabaseContext, clientID)
 	if err != nil {
-		base.WarnfCtx(db.Ctx, "Unable to retrieve local checkpoint for %s, status not updated", clientID)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to retrieve local checkpoint for %s, status not updated", clientID)
 		return
 	}
 	if checkpoint == nil {
@@ -697,12 +726,14 @@ func setLocalCheckpointStatus(db *Database, clientID string, status string, erro
 
 	checkpoint.Status.Status = status
 	checkpoint.Status.ErrorMessage = errorMessage
-	base.TracefCtx(db.Ctx, base.KeyReplicate, "setLocalCheckpoint(%v)", checkpoint)
+	//	logger.TracefCtx(db.Ctx, logger.KeyReplicate, "setLocalCheckpoint(%v)", checkpoint)
+	logger.For(logger.ReplicateKey).Trace().Msgf("setLocalCheckpoint(%v)", checkpoint)
 	newRev, putErr := db.putSpecial(DocTypeLocal, checkpointDocIDPrefix+clientID, checkpoint.Rev, checkpoint.AsBody())
 	if putErr != nil {
-		base.WarnfCtx(db.Ctx, "Unable to persist status in local checkpoint for %s, status not updated: %v", clientID, putErr)
+		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Unable to persist status in local checkpoint for %s, status not updated: %v", clientID, putErr)
 	} else {
-		base.TracefCtx(db.Ctx, base.KeyReplicate, "setLocalCheckpointStatus successful for %s, newRev: %s: %+v %+v", clientID, newRev, checkpoint, checkpoint.Status)
+		//		logger.TracefCtx(db.Ctx, logger.KeyReplicate, "setLocalCheckpointStatus successful for %s, newRev: %s: %+v %+v", clientID, newRev, checkpoint, checkpoint.Status)
+		logger.For(logger.ReplicateKey).Trace().Msgf("setLocalCheckpointStatus successful for %s, newRev: %s: %+v %+v", clientID, newRev, checkpoint, checkpoint.Status)
 	}
 	return
 }

@@ -27,6 +27,8 @@ import (
 
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/db"
+	"github.com/couchbase/sync_gateway/logger"
+	"github.com/couchbase/sync_gateway/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -430,7 +432,7 @@ func marshalConfig(t *testing.T, config db.ReplicationConfig) string {
 func TestPushReplicationAPI(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	rt1, rt2, remoteURLString, teardown := setupSGRPeers(t)
 	defer teardown()
@@ -473,7 +475,7 @@ func TestPushReplicationAPI(t *testing.T) {
 func TestPullReplicationAPI(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	rt1, rt2, remoteURLString, teardown := setupSGRPeers(t)
 	defer teardown()
@@ -515,7 +517,7 @@ func TestPullReplicationAPI(t *testing.T) {
 func TestReplicationStatusActions(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	rt1, rt2, remoteURLString, teardown := setupSGRPeers(t)
 	defer teardown()
@@ -613,7 +615,7 @@ func TestReplicationStatusActions(t *testing.T) {
 func TestPullOneshotReplicationAPI(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelDebug, base.KeyReplicate, base.KeyHTTP, base.KeyHTTPResp, base.KeySync, base.KeySyncMsg)
+	base.SetUpTestLogging(t, logger.LevelDebug, logger.KeyReplicate, logger.KeyHTTP, logger.KeyHTTPResp, logger.KeySync, logger.KeySyncMsg)
 
 	activeRT, remoteRT, remoteURLString, teardown := setupSGRPeers(t)
 	defer teardown()
@@ -668,7 +670,7 @@ func TestPullOneshotReplicationAPI(t *testing.T) {
 func TestReplicationConcurrentPush(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	// Disable sequence batching for multi-RT tests (pending CBG-1000)
 	defer db.SuspendSequenceBatching()()
@@ -749,7 +751,7 @@ func setupSGRPeers(t *testing.T) (activeRT *RestTester, passiveRT *RestTester, r
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
-					ExplicitChannels: base.SetOf("*"),
+					ExplicitChannels: utils.SetOf("*"),
 				},
 			},
 		}},
@@ -1189,7 +1191,7 @@ func TestGetStatusWithReplication(t *testing.T) {
 }
 
 func TestRequireReplicatorStoppedBeforeUpsert(t *testing.T) {
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyHTTP, base.KeyHTTPResp)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyHTTP, logger.KeyHTTPResp)
 
 	rt := NewRestTester(t, nil)
 	defer rt.Close()
@@ -1241,7 +1243,7 @@ func TestReplicationConfigChange(t *testing.T) {
 
 	base.RequireNumTestBuckets(t, 2)
 
-	base.SetUpTestLogging(t, base.LevelInfo, base.KeyAll)
+	base.SetUpTestLogging(t, logger.LevelInfo, logger.KeyAll)
 
 	rt1, rt2, remoteURLString, teardown := setupSGRPeers(t)
 	defer teardown()

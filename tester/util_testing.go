@@ -8,12 +8,10 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 */
 
-package base
+package tester
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -28,6 +26,8 @@ import (
 	"time"
 
 	sgbucket "github.com/couchbase/sg-bucket"
+	"github.com/couchbase/sync_gateway/base"
+	"github.com/couchbase/sync_gateway/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,8 +49,8 @@ func init() {
 }
 
 type TestBucket struct {
-	Bucket
-	BucketSpec BucketSpec
+	base.Bucket
+	BucketSpec base.BucketSpec
 	closeFn    func()
 }
 
@@ -58,22 +58,22 @@ func (tb TestBucket) Close() {
 	tb.closeFn()
 }
 
-func (tb *TestBucket) GetUnderlyingBucket() Bucket {
+func (tb *TestBucket) GetUnderlyingBucket() base.Bucket {
 	return tb.Bucket
 }
 
 // LeakyBucketClone wraps the underlying bucket on the TestBucket with a LeakyBucket and returns a new TestBucket handle.
-func (tb *TestBucket) LeakyBucketClone(c LeakyBucketConfig) *TestBucket {
+func (tb *TestBucket) LeakyBucketClone(c base.LeakyBucketConfig) *TestBucket {
 	return &TestBucket{
-		Bucket:     NewLeakyBucket(tb.Bucket, c),
+		Bucket:     base.NewLeakyBucket(tb.Bucket, c),
 		BucketSpec: tb.BucketSpec,
 		closeFn:    tb.Close,
 	}
 }
 
 // NoCloseClone returns a leaky bucket with a no-op close function for the given bucket.
-func NoCloseClone(b Bucket) *LeakyBucket {
-	return NewLeakyBucket(b, LeakyBucketConfig{IgnoreClose: true})
+func NoCloseClone(b base.Bucket) *base.LeakyBucket {
+	return base.NewLeakyBucket(b, base.LeakyBucketConfig{IgnoreClose: true})
 }
 
 // NoCloseClone returns a new test bucket referencing the same underlying bucket and bucketspec, but
@@ -118,7 +118,7 @@ func GetPersistentWalrusBucket(t testing.TB) (*TestBucket, func()) {
 	}, removeFileFunc
 }
 
-func GetTestBucketForDriver(t testing.TB, driver CouchbaseDriver) *TestBucket {
+func GetTestBucketForDriver(t testing.TB, driver base.CouchbaseDriver) *TestBucket {
 
 	bucket, spec, closeFn := GTestBucketPool.GetTestBucketAndSpec(t)
 
@@ -154,7 +154,7 @@ func GetTestBucketForDriver(t testing.TB, driver CouchbaseDriver) *TestBucket {
 		t.Fatalf("Server must use couchbase scheme for gocb testing")
 	}
 
-	store, err := GetBucket(spec)
+	store, err := base.GetBucket(spec)
 	if err != nil {
 		t.Fatalf("Unable to get store for driver %s: %v", driver, err)
 	}
@@ -232,7 +232,7 @@ func TestsShouldDropIndexes() bool {
 	}
 
 	// Otherwise fallback to hardcoded default
-	return DefaultDropIndexes
+	return base.DefaultDropIndexes
 
 }
 
@@ -269,7 +269,7 @@ func (t TestAuthenticator) GetCredentials() (username, password, bucketname stri
 }
 
 // Reset bucket state
-func DropAllBucketIndexes(bucket N1QLStore) error {
+func DropAllBucketIndexes(bucket base.N1QLStore) error {
 
 	// Retrieve all indexes
 	indexes, err := bucket.getIndexes()
@@ -468,14 +468,14 @@ var GlobalTestLoggingSet = AtomicBool{}
 // This global level overrides any tests that specify their own test log level with SetUpTestLogging.
 func SetUpGlobalTestLogging(m *testing.M) (teardownFn func()) {
 	if logLevel := os.Getenv(TestEnvGlobalLogLevel); logLevel != "" {
-		var l LogLevel
+		var l logger.LogLevel
 		err := l.UnmarshalText([]byte(logLevel))
 		if err != nil {
-			FatalfCtx(context.TODO(), "TEST: Invalid log level used for %q: %s", TestEnvGlobalLogLevel, err)
+			logger.FatalfCtx(context.TODO(), "TEST: Invalid log level used for %q: %s", TestEnvGlobalLogLevel, err)
 		}
 		caller := GetCallersName(1, false)
-		InfofCtx(context.Background(), KeyAll, "%s: Setup logging: level: %v - keys: %v", caller, logLevel, KeyAll)
-		teardown := setTestLogging(l, caller, KeyAll)
+		logger.InfofCtx(context.Background(), logger.KeyAll, "%s: Setup logging: level: %v - keys: %v", caller, logLevel, logger.KeyAll)
+		teardown := setTestLogging(l, caller, logger.KeyAll)
 		GlobalTestLoggingSet.Set(true)
 		return func() {
 			teardown()
@@ -489,24 +489,24 @@ func SetUpGlobalTestLogging(m *testing.M) (teardownFn func()) {
 // SetUpTestLogging will set the given log level and log keys, and revert the changes at the end of the current test.
 //
 // This function will panic if called multiple times in the same test.
-func SetUpTestLogging(tb testing.TB, logLevel LogLevel, logKeys ...LogKey) {
+func SetUpTestLogging(tb testing.TB, logLevel logger.LogLevel, logKeys ...logger.LogKey) {
 	caller := GetCallersName(1, false)
-	InfofCtx(context.Background(), KeyAll, "%s: Setup logging: level: %v - keys: %v", caller, logLevel, logKeys)
+	logger.InfofCtx(context.Background(), logger.KeyAll, "%s: Setup logging: level: %v - keys: %v", caller, logLevel, logKeys)
 	cleanup := setTestLogging(logLevel, caller, logKeys...)
 	tb.Cleanup(cleanup)
 }
 
-// DisableTestLogging is an alias for SetUpTestLogging(LevelNone, KeyNone)
+// DisableTestLogging is an alias for SetUpTestLogging(logger.LevelNone, logger.KeyNone)
 // This function will panic if called multiple times in the same test.
 func DisableTestLogging(tb testing.TB) {
 	caller := ""
-	cleanup := setTestLogging(LevelNone, caller, KeyNone)
+	cleanup := setTestLogging(logger.LevelNone, caller, logger.KeyNone)
 	tb.Cleanup(cleanup)
 }
 
 // SetUpBenchmarkLogging will set the given log level and key, and do log processing for that configuration,
 // but discards the output, instead of writing it to console.
-func SetUpBenchmarkLogging(tb testing.TB, logLevel LogLevel, logKeys ...LogKey) {
+func SetUpBenchmarkLogging(tb testing.TB, logLevel logger.LogLevel, logKeys ...logger.LogKey) {
 	teardownFnOrig := setTestLogging(logLevel, "", logKeys...)
 
 	// discard all logging output for benchmarking (but still execute logging as normal)
@@ -522,18 +522,18 @@ func SetUpBenchmarkLogging(tb testing.TB, logLevel LogLevel, logKeys ...LogKey) 
 	})
 }
 
-func setTestLogging(logLevel LogLevel, caller string, logKeys ...LogKey) (teardownFn func()) {
+func setTestLogging(logLevel logger.LogLevel, caller string, logKeys ...logger.LogKey) (teardownFn func()) {
 	if GlobalTestLoggingSet.IsTrue() {
 		// noop, test log level is already set globally
 		return func() {
 			if caller != "" {
-				InfofCtx(context.Background(), KeyAll, "%v: Reset logging", caller)
+				logger.InfofCtx(context.Background(), logger.KeyAll, "%v: Reset logging", caller)
 			}
 		}
 	}
 
-	initialLogLevel := LevelInfo
-	initialLogKey := logKeyMask(KeyHTTP)
+	initialLogLevel := logger.LevelInfo
+	initialLogKey := logKeyMask(logger.KeyHTTP)
 
 	// Check that a previous invocation has not forgotten to call teardownFn
 	if *consoleLogger.LogLevel != initialLogLevel ||
@@ -549,31 +549,9 @@ func setTestLogging(logLevel LogLevel, caller string, logKeys ...LogKey) (teardo
 		consoleLogger.LogLevel.Set(initialLogLevel)
 		consoleLogger.LogKeyMask.Set(initialLogKey)
 		if caller != "" {
-			InfofCtx(context.Background(), KeyAll, "%v: Reset logging", caller)
+			logger.InfofCtx(context.Background(), logger.KeyAll, "%v: Reset logging", caller)
 		}
 	}
-}
-
-// Make a deep copy from src into dst.
-// Copied from https://github.com/getlantern/deepcopy, commit 7f45deb8130a0acc553242eb0e009e3f6f3d9ce3 (Apache 2 licensed)
-func DeepCopyInefficient(dst interface{}, src interface{}) error {
-	if dst == nil {
-		return fmt.Errorf("dst cannot be nil")
-	}
-	if src == nil {
-		return fmt.Errorf("src cannot be nil")
-	}
-	b, err := json.Marshal(src)
-	if err != nil {
-		return fmt.Errorf("Unable to marshal src: %s", err)
-	}
-	d := json.NewDecoder(bytes.NewBuffer(b))
-	d.UseNumber()
-	err = d.Decode(dst)
-	if err != nil {
-		return fmt.Errorf("Unable to unmarshal into dst: %s", err)
-	}
-	return nil
 }
 
 // testRetryUntilTrue performs a short sleep-based retry loop until the timeout is reached or the
@@ -596,22 +574,6 @@ func testRetryUntilTrueCustom(t *testing.T, retryFunc RetryUntilTrueFunc, waitTi
 		timeElapsedMs += waitTimeMs
 	}
 	assert.Fail(t, fmt.Sprintf("Retry until function didn't succeed within timeout (%d ms)", timeoutMs))
-}
-
-func FileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if err != nil {
-		return false
-	}
-	return !info.IsDir()
-}
-
-func DirExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if err != nil {
-		return false
-	}
-	return info.IsDir()
 }
 
 // WaitForStat will retry for up to 20 seconds until the result of getStatFunc is equal to the expected value.
