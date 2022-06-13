@@ -97,11 +97,13 @@ func (dc *DbConfig) MakeBucketSpec() base.BucketSpec {
 	}
 
 	return base.BucketSpec{
-		Server:                server,
-		BucketName:            bucketName,
-		Keypath:               bc.KeyPath,
-		Certpath:              bc.CertPath,
-		CACertPath:            bc.CACertPath,
+		Server:     server,
+		BucketName: bucketName,
+		X509: base.X509{
+			Keypath:    bc.KeyPath,
+			Certpath:   bc.CertPath,
+			CACertPath: bc.CACertPath,
+		},
 		KvTLSPort:             tlsPort,
 		Auth:                  bc,
 		MaxConcurrentQueryOps: bc.MaxConcurrentQueryOps,

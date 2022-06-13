@@ -155,21 +155,29 @@ type AuthHandler couchbase.AuthHandler
 type CouchbaseDriver int
 type CouchbaseBucketType int
 
+type X509 struct {
+	Certpath   string
+	Keypath    string
+	CACertPath string
+}
+
 // Full specification of how to connect to a bucket
 type BucketSpec struct {
-	Server, BucketName, FeedType  string
-	Auth                          AuthHandler
-	CouchbaseDriver               CouchbaseDriver
-	Certpath, Keypath, CACertPath string         // X.509 auth parameters
-	TLSSkipVerify                 bool           // Use insecureSkipVerify when secure scheme (couchbases) is used and cacertpath is undefined
-	KvTLSPort                     int            // Port to use for memcached over TLS.  Required for cbdatasource auth when using TLS
-	MaxNumRetries                 int            // max number of retries before giving up
-	InitialRetrySleepTimeMS       int            // the initial time to sleep in between retry attempts (in millisecond), which will double each retry
-	UseXattrs                     bool           // Whether to use xattrs to store _sync metadata.  Used during view initialization
-	ViewQueryTimeoutSecs          *uint32        // the view query timeout in seconds (default: 75 seconds)
-	MaxConcurrentQueryOps         *int           // maximum number of concurrent query operations (default: DefaultMaxConcurrentQueryOps)
-	BucketOpTimeout               *time.Duration // How long bucket ops should block returning "operation timed out". If nil, uses GoCB default.  GoCB buckets only.
-	KvPoolSize                    int            // gocb kv_pool_size - number of pipelines per node. Initialized on GetGoCBConnString
+	Server                  string
+	BucketName              string
+	FeedType                string
+	Auth                    AuthHandler
+	CouchbaseDriver         CouchbaseDriver
+	X509                    X509
+	TLSSkipVerify           bool           // Use insecureSkipVerify when secure scheme (couchbases) is used and cacertpath is undefined
+	KvTLSPort               int            // Port to use for memcached over TLS.  Required for cbdatasource auth when using TLS
+	MaxNumRetries           int            // max number of retries before giving up
+	InitialRetrySleepTimeMS int            // the initial time to sleep in between retry attempts (in millisecond), which will double each retry
+	UseXattrs               bool           // Whether to use xattrs to store _sync metadata.  Used during view initialization
+	ViewQueryTimeoutSecs    *uint32        // the view query timeout in seconds (default: 75 seconds)
+	MaxConcurrentQueryOps   *int           // maximum number of concurrent query operations (default: DefaultMaxConcurrentQueryOps)
+	BucketOpTimeout         *time.Duration // How long bucket ops should block returning "operation timed out". If nil, uses GoCB default.  GoCB buckets only.
+	KvPoolSize              int            // gocb kv_pool_size - number of pipelines per node. Initialized on GetGoCBConnString
 }
 
 // Create a RetrySleeper based on the bucket spec properties.  Used to retry bucket operations after transient errors.
@@ -190,7 +198,7 @@ func (spec BucketSpec) IsTLS() bool {
 }
 
 func (spec BucketSpec) UseClientCert() bool {
-	if spec.Certpath == "" || spec.Keypath == "" {
+	if spec.X509.Certpath == "" || spec.X509.Keypath == "" {
 		return false
 	}
 	return true
@@ -234,8 +242,8 @@ func addGoCBv2ConnValues(spec *BucketSpec, connValues *url.Values) {
 	connValues.Set("max_idle_http_connections", DefaultHttpMaxIdleConns)
 	connValues.Set("idle_http_connection_timeout", DefaultHttpIdleConnTimeoutMilliseconds)
 
-	if spec.CACertPath != "" {
-		connValues.Set("ca_cert_path", spec.CACertPath)
+	if spec.X509.CACertPath != "" {
+		connValues.Set("ca_cert_path", spec.X509.CACertPath)
 	}
 }
 
@@ -249,12 +257,12 @@ func addGoCBv1ConnValues(spec *BucketSpec, connValues *url.Values) {
 
 	connValues.Set("operation_tracing", "false")
 
-	if spec.Certpath != "" && spec.Keypath != "" {
-		connValues.Set("certpath", spec.Certpath)
-		connValues.Set("keypath", spec.Keypath)
+	if spec.X509.Certpath != "" && spec.X509.Keypath != "" {
+		connValues.Set("certpath", spec.X509.Certpath)
+		connValues.Set("keypath", spec.X509.Keypath)
 	}
-	if spec.CACertPath != "" {
-		connValues.Set("cacertpath", spec.CACertPath)
+	if spec.X509.CACertPath != "" {
+		connValues.Set("cacertpath", spec.X509.CACertPath)
 	}
 }
 
@@ -282,7 +290,7 @@ func (b BucketSpec) TLSConfig() *tls.Config {
 	var certPool *x509.CertPool = nil
 	if !b.TLSSkipVerify { // Add certs if ServerTLSSkipVerify is not set
 		var err error
-		certPool, err = getRootCAs(b.CACertPath)
+		certPool, err = getRootCAs(b.X509.CACertPath)
 		if err != nil {
 			logger.For(logger.BucketKey).Err(err).Msg("Error creating tlsConfig for DCP processing")
 			return nil
@@ -295,8 +303,8 @@ func (b BucketSpec) TLSConfig() *tls.Config {
 	}
 
 	// If client cert and key are provided, add to config as x509 key pair
-	if b.Certpath != "" && b.Keypath != "" {
-		cert, err := tls.LoadX509KeyPair(b.Certpath, b.Keypath)
+	if b.X509.Certpath != "" && b.X509.Keypath != "" {
+		cert, err := tls.LoadX509KeyPair(b.X509.Certpath, b.X509.Keypath)
 		if err != nil {
 			logger.For(logger.BucketKey).Err(err).Msgf("Error creating tlsConfig for DCP processing")
 			return nil
@@ -312,7 +320,7 @@ func (b BucketSpec) GocbAuthenticator() (gocb.Authenticator, error) {
 	if b.Auth != nil {
 		username, password, _ = b.Auth.GetCredentials()
 	}
-	return GoCBv2Authenticator(username, password, b.Certpath, b.Keypath)
+	return GoCBv2Authenticator(username, password, b.X509.Certpath, b.X509.Keypath)
 }
 
 func (b BucketSpec) GocbcoreAuthProvider() (gocbcore.AuthProvider, error) {
@@ -320,7 +328,7 @@ func (b BucketSpec) GocbcoreAuthProvider() (gocbcore.AuthProvider, error) {
 	if b.Auth != nil {
 		username, password, _ = b.Auth.GetCredentials()
 	}
-	return GoCBCoreAuthConfig(username, password, b.Certpath, b.Keypath)
+	return GoCBCoreAuthConfig(username, password, b.X509.Certpath, b.X509.Keypath)
 }
 
 type couchbaseFeedImpl struct {

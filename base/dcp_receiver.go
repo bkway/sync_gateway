@@ -291,11 +291,11 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 	// If using client certificate for authentication, configure go-couchbase for cbdatasource's initial
 	// connection to retrieve cluster configuration.  go-couchbase doesn't support handling
 	// x509 auth and root ca verification as separate concerns.
-	if spec.Certpath != "" && spec.Keypath != "" {
-		couchbase.SetCertFile(spec.Certpath)
-		couchbase.SetKeyFile(spec.Keypath)
+	if spec.X509.Certpath != "" && spec.X509.Keypath != "" {
+		couchbase.SetCertFile(spec.X509.Certpath)
+		couchbase.SetKeyFile(spec.X509.Keypath)
 		auth = NoPasswordAuthHandler{Handler: spec.Auth}
-		couchbase.SetRootFile(spec.CACertPath)
+		couchbase.SetRootFile(spec.X509.CACertPath)
 		couchbase.SetSkipVerify(false)
 	}
 

@@ -95,7 +95,7 @@ func GetCouchbaseBucketGoCB(spec BucketSpec) (bucket *CouchbaseBucketGoCB, err e
 
 	bucketPassword := ""
 	// Check for client cert (x.509) authentication
-	if spec.Certpath != "" {
+	if spec.X509.Certpath != "" {
 		// log.Ctx(logCtx).Info().Err(err).Msgf(logger.KeyAuth, "Attempting cert authentication against bucket %s on %s", logger.MD(spec.BucketName), logger.MD(spec.Server))
 		logger.For(logger.AuthKey).Err(err).Msgf("Attempting cert authentication against bucket %s on %s", logger.MD(spec.BucketName), logger.MD(spec.Server))
 		certAuthErr := cluster.Authenticate(gocb.CertAuthenticator{})

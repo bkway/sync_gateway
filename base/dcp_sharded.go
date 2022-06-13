@@ -127,10 +127,10 @@ func createCBGTIndex(c *CbgtContext, dbName string, configGroupID string, bucket
 
 	// Required for initial pools request, before BucketDataSourceOptions kick in.
 	// go-couchbase doesn't support handling x509 auth and root ca verification as separate concerns.
-	if spec.Certpath != "" && spec.Keypath != "" {
-		couchbase.SetCertFile(spec.Certpath)
-		couchbase.SetKeyFile(spec.Keypath)
-		couchbase.SetRootFile(spec.CACertPath)
+	if spec.X509.Certpath != "" && spec.X509.Keypath != "" {
+		couchbase.SetCertFile(spec.X509.Certpath)
+		couchbase.SetKeyFile(spec.X509.Keypath)
+		couchbase.SetRootFile(spec.X509.CACertPath)
 		couchbase.SetSkipVerify(false)
 	}
 
@@ -333,7 +333,7 @@ func initCBGTManager(bucket Bucket, spec BucketSpec, cfgSG cbgt.Cfg, dbUUID stri
 		Cfg:     cfgSG,
 	}
 
-	if spec.Auth != nil && spec.Certpath == "" {
+	if spec.Auth != nil && spec.X509.Certpath == "" {
 		username, password, _ := spec.Auth.GetCredentials()
 		addCbgtCredentials(dbName, username, password)
 	}
