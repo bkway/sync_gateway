@@ -586,9 +586,6 @@ func (dbConfig *DbConfig) validateVersion(ctx context.Context, validateOIDCConfi
 	if err != nil {
 		multiError = multiError.Append(err)
 	}
-	if dbConfig.FeedType == base.TapFeedType && autoImportEnabled == true {
-		multiError = multiError.Append(fmt.Errorf("Invalid configuration for Sync Gw. TAP feed type can not be used with auto-import"))
-	}
 
 	if dbConfig.AutoImport != nil && autoImportEnabled && !dbConfig.UseXattrs() {
 		multiError = multiError.Append(fmt.Errorf("Invalid configuration - import_docs enabled, but enable_shared_bucket_access not enabled"))

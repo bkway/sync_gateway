@@ -348,8 +348,6 @@ func GetBucketSpec(config *DatabaseConfig, serverConfig *StartupConfig) (spec ba
 		spec.BucketName = config.Name
 	}
 
-	spec.FeedType = strings.ToLower(config.FeedType)
-
 	spec.CouchbaseDriver = base.ChooseCouchbaseDriver(base.DataBucket)
 
 	if config.ViewQueryTimeoutSecs != nil {

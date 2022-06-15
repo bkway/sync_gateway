@@ -69,40 +69,7 @@ func (listener *changeListener) Start(bucket base.Bucket, dbStats *expvar.Map) e
 }
 
 func (listener *changeListener) StartMutationFeed(bucket base.Bucket, dbStats *expvar.Map) error {
-
-	// Uses DCP by default, unless TAP is explicitly specified
-	feedType := base.GetFeedType(bucket)
-	switch feedType {
-	case base.TapFeedType:
-		// TAP Feed
-		//    TAP feed is a go-channel of Tap events served by the bucket.  Start the feed, then
-		//    start a goroutine to work the event channel, calling ProcessEvent for each event
-		var err error
-		listener.tapFeed, err = bucket.StartTapFeed(listener.FeedArgs, dbStats)
-		if err != nil {
-			return err
-		}
-		go func() {
-			defer func() {
-				if listener.FeedArgs.DoneChan != nil {
-					close(listener.FeedArgs.DoneChan)
-				}
-			}()
-			defer base.FatalPanicHandler()
-			defer listener.notifyStopping()
-			for event := range listener.tapFeed.Events() {
-				event.TimeReceived = time.Now()
-				listener.ProcessFeedEvent(event)
-			}
-		}()
-		return nil
-	default:
-		// DCP Feed
-		//    DCP receiver isn't go-channel based - DCPReceiver calls ProcessEvent directly.
-		//		logger.InfofCtx(context.TODO(), logger.KeyDCP, "Using DCP feed for bucket: %q (based on feed_type specified in config file)", logger.MD(bucket.GetName()))
-		logger.For(logger.DCPKey).Info().Msgf("Using DCP feed for bucket: %q (based on feed_type specified in config file)", logger.MD(bucket.GetName()))
-		return bucket.StartDCPFeed(listener.FeedArgs, listener.ProcessFeedEvent, dbStats)
-	}
+	return bucket.StartDCPFeed(listener.FeedArgs, listener.ProcessFeedEvent, dbStats)
 }
 
 // ProcessFeedEvent is invoked for each mutate or delete event seen on the server's mutation feed (TAP or DCP).  Uses document

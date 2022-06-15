@@ -35,11 +35,6 @@ import (
 )
 
 const (
-	TapFeedType = "tap"
-	DcpFeedType = "dcp"
-)
-
-const (
 	DefaultPool = "default"
 )
 
@@ -165,7 +160,6 @@ type X509 struct {
 type BucketSpec struct {
 	Server                  string
 	BucketName              string
-	FeedType                string
 	Auth                    AuthHandler
 	CouchbaseDriver         CouchbaseDriver
 	X509                    X509
@@ -381,9 +375,6 @@ func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 		// sgbucket.SetLogging(logger.ConsoleLogKey().Enabled(logger.BucketKey))
 		bucket, err = walrus.GetBucket(spec.Server, DefaultPool, spec.BucketName)
 		// If feed type is not specified (defaults to DCP) or isn't TAP, wrap with pseudo-vbucket handling for walrus
-		if spec.FeedType != TapFeedType {
-			bucket = &LeakyBucket{bucket: bucket, config: LeakyBucketConfig{TapFeedVbuckets: true}}
-		}
 	} else {
 
 		username := ""
@@ -394,11 +385,7 @@ func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 
 		switch spec.CouchbaseDriver {
 		case GoCB, GoCBCustomSGTranscoder:
-			if strings.ToLower(spec.FeedType) == TapFeedType {
-				return nil, fmt.Errorf("unsupported feed type: %v", spec.FeedType)
-			} else {
-				// bucket, err = GetCouchbaseBucketGoCB(spec)
-			}
+			// FIXME remove the requirements altoghether
 		case GoCBv2:
 			bucket, err = GetCouchbaseCollection(spec)
 		default:
@@ -465,23 +452,6 @@ func IsCasMismatch(err error) bool {
 	}
 
 	return false
-}
-
-// Returns mutation feed type for bucket.  Will first return the feed type from the spec, when present.  If not found, returns default feed type for bucket
-// (DCP for any couchbase bucket, TAP otherwise)
-func GetFeedType(bucket Bucket) (feedType string) {
-	switch typedBucket := bucket.(type) {
-	case *Collection:
-		return DcpFeedType
-	case *LeakyBucket:
-		return GetFeedType(typedBucket.bucket)
-	case *LoggingBucket:
-		return GetFeedType(typedBucket.bucket)
-	// case *TestBucket:
-	// 	return GetFeedType(typedBucket.Bucket)
-	default:
-		return TapFeedType
-	}
 }
 
 // Gets the bucket max TTL, or 0 if no TTL was set.  Sync gateway should fail to bring the DB online if this is non-zero,
