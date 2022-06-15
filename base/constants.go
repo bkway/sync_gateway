@@ -180,3 +180,11 @@ func ServerIsWalrus(server string) bool {
 		strings.HasPrefix(server, "/") ||
 		strings.HasPrefix(server, ".")
 }
+
+const (
+	MaxConcurrentSingleOps = 1000 // Max 1000 concurrent single bucket ops
+	MaxConcurrentQueryOps  = 1000 // Max concurrent query ops
+
+	// CRC-32 checksum represents the body hash of "Deleted" document.
+	DeleteCrc32c = "0x00000000"
+)

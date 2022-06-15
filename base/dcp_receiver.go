@@ -294,9 +294,10 @@ func StartDCPFeed(bucket Bucket, spec BucketSpec, args sgbucket.FeedArguments, c
 	if spec.X509.Certpath != "" && spec.X509.Keypath != "" {
 		couchbase.SetCertFile(spec.X509.Certpath)
 		couchbase.SetKeyFile(spec.X509.Keypath)
-		auth = NoPasswordAuthHandler{Handler: spec.Auth}
 		couchbase.SetRootFile(spec.X509.CACertPath)
 		couchbase.SetSkipVerify(false)
+
+		auth = NoPasswordAuthHandler{Handler: spec.Auth}
 	}
 
 	if spec.IsTLS() {

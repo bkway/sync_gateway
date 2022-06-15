@@ -15,6 +15,7 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -28,6 +29,50 @@ import (
 
 var _ sgbucket.KVStore = &Collection{}
 var _ CouchbaseStore = &Collection{}
+
+func isMinimumVersion(major, minor, requiredMajor, requiredMinor uint64) bool {
+	if major < requiredMajor {
+		return false
+	}
+
+	if major == requiredMajor && minor < requiredMinor {
+		return false
+	}
+
+	return true
+}
+
+func GoCBBucketMgmtEndpoints(bucket CouchbaseStore) (url []string, err error) {
+	return bucket.MgmtEps()
+}
+
+// Get one of the management endpoints.  It will be a string such as http://couchbase
+func GoCBBucketMgmtEndpoint(bucket CouchbaseStore) (url string, err error) {
+	mgmtEps, err := bucket.MgmtEps()
+	if err != nil {
+		return "", err
+	}
+	bucketEp := mgmtEps[rand.Intn(len(mgmtEps))]
+	return bucketEp, nil
+}
+
+// QueryBucketItemCount uses a request plus query to get the number of items in a bucket, as the REST API can be slow to update its value.
+// Requires a primary index on the bucket.
+func QueryBucketItemCount(n1qlStore N1QLStore) (itemCount int, err error) {
+	statement := fmt.Sprintf("SELECT COUNT(1) AS count FROM `%s`", KeyspaceQueryToken)
+	r, err := n1qlStore.Query(statement, nil, RequestPlus, true)
+	if err != nil {
+		return -1, err
+	}
+	var val struct {
+		Count int `json:"count"`
+	}
+	err = r.One(&val)
+	if err != nil {
+		return -1, err
+	}
+	return val.Count, nil
+}
 
 // Connect to the default collection for the specified bucket
 func GetCouchbaseCollection(spec BucketSpec) (*Collection, error) {
@@ -615,9 +660,9 @@ func (c *Collection) isRecoverableReadError(err error) bool {
 		return false
 	}
 
-	if isGoCBTimeoutError(err) {
-		return true
-	}
+	// if isGoCBTimeoutError(err) {
+	// 	return true
+	// }
 
 	if errors.Is(err, gocb.ErrTemporaryFailure) || errors.Is(err, gocb.ErrOverload) {
 		return true

@@ -419,8 +419,6 @@ func AsSubdocXattrStore(bucket Bucket) (SubdocXattrStore, bool) {
 
 	var underlyingBucket Bucket
 	switch typedBucket := bucket.(type) {
-	case *CouchbaseBucketGoCB:
-		return typedBucket, true
 	case *Collection:
 		return typedBucket, true
 	case *LoggingBucket:
@@ -441,8 +439,6 @@ func AsUserXattrStore(bucket Bucket) (UserXattrStore, bool) {
 
 	var underlyingBucket Bucket
 	switch typedBucket := bucket.(type) {
-	case *CouchbaseBucketGoCB:
-		return typedBucket, true
 	case *Collection:
 		return typedBucket, true
 	case *LoggingBucket:

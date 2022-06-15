@@ -2,14 +2,12 @@ package tester
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/couchbase/gocb/v2"
 	"github.com/couchbase/sync_gateway/base"
 	"github.com/couchbase/sync_gateway/logger"
-	gocbv1 "gopkg.in/couchbase/gocb.v1"
 )
 
 type clusterLogFunc func(ctx context.Context, format string, args ...interface{})
@@ -26,126 +24,9 @@ type tbpCluster interface {
 // newTestCluster returns a cluster based on the driver used by the defaultBucketSpec.  Accepts a clusterLogFunc to support
 // cluster logging within a test bucket pool context
 func newTestCluster(server string, logger clusterLogFunc) tbpCluster {
-	if tbpDefaultBucketSpec.CouchbaseDriver == base.GoCBv2 {
-		return newTestClusterV2(server, logger)
-	} else {
-		return newTestClusterV1(server, logger)
-	}
-
-}
-
-var _ tbpCluster = &tbpClusterV1{}
-
-// tbpClusterV1 implements the tbpCluster interface for a gocb v1 cluster
-type tbpClusterV1 struct {
-	cluster    *gocbv1.Cluster
-	clusterMgr *gocbv1.ClusterManager
-	logger     clusterLogFunc
-}
-
-func newTestClusterV1(server string, logger clusterLogFunc) *tbpClusterV1 {
-	tbpCluster := &tbpClusterV1{}
-	tbpCluster.cluster = initV1Cluster(server)
-	tbpCluster.clusterMgr = tbpCluster.cluster.Manager(TestClusterUsername(), TestClusterPassword())
-	tbpCluster.logger = logger
-	return tbpCluster
-}
-
-// tbpCluster returns an authenticated gocb Cluster for the given server URL.
-func initV1Cluster(server string) *gocbv1.Cluster {
-	spec := base.BucketSpec{
-		Server: server,
-	}
-
-	connStr, err := spec.GetGoCBConnString()
-	if err != nil {
-		logger.For(logger.UnknownKey).Fatal().Err(err).Msg("error getting connection string")
-	}
-
-	cluster, err := gocbv1.Connect(connStr)
-	if err != nil {
-		logger.For(logger.UnknownKey).Fatal().Err(err).Msgf("Couldn't connect to %q", server)
-	}
-
-	err = cluster.Authenticate(gocbv1.PasswordAuthenticator{
-		Username: TestClusterUsername(),
-		Password: TestClusterPassword(),
-	})
-	if err != nil {
-		logger.For(logger.UnknownKey).Fatal().Err(err).Msgf("Couldn't authenticate with %q", server)
-	}
-
-	return cluster
-}
-
-func (c *tbpClusterV1) getBucketNames() ([]string, error) {
-	buckets, err := c.clusterMgr.GetBuckets()
-	if err != nil {
-		// special handling for gocb's empty non-nil error if we send this request with invalid credentials
-		if err.Error() == "" {
-			err = errors.New("couldn't get buckets from cluster, check authentication credentials")
-		}
-		return nil, err
-	}
-
-	var names []string
-	for _, b := range buckets {
-		names = append(names, b.Name)
-	}
-
-	return names, nil
-}
-
-func (c *tbpClusterV1) insertBucket(name string, quotaMB int) error {
-	return c.clusterMgr.InsertBucket(&gocbv1.BucketSettings{
-		Name:          name,
-		Quota:         quotaMB,
-		Type:          gocbv1.Couchbase,
-		FlushEnabled:  true,
-		IndexReplicas: false,
-		Replicas:      0,
-	})
-}
-
-func (c *tbpClusterV1) removeBucket(name string) error {
-	return c.clusterMgr.RemoveBucket(name)
-}
-
-// openTestBucket opens the bucket of the given name for the gocb cluster in the given TestBucketPool.
-func (c *tbpClusterV1) openTestBucket(testBucketName tbpBucketName, waitUntilReadySeconds int) (base.Bucket, error) {
-
-	sleeper := base.CreateSleeperFunc(waitUntilReadySeconds, 1000)
-	// FIXME
-	// ctx := bucketNameCtx(context.Background(), string(testBucketName))
-	ctx := context.TODO()
-
-	bucketSpec := getBucketSpec(testBucketName)
-
-	waitForNewBucketWorker := func() (shouldRetry bool, err error, value interface{}) {
-		gocbBucket, err := base.GetCouchbaseBucketGoCBFromAuthenticatedCluster(c.cluster, bucketSpec, "")
-		if err != nil {
-			c.logger(ctx, "Retrying OpenBucket")
-			return true, err, nil
-		}
-		return false, nil, gocbBucket
-	}
-
-	c.logger(ctx, "Opening bucket")
-	err, val := base.RetryLoop("waitForNewBucket", waitForNewBucketWorker, sleeper)
-
-	gocbBucket, _ := val.(*base.CouchbaseBucketGoCB)
-
-	return gocbBucket, err
-}
-
-func (c *tbpClusterV1) close() error {
-	if c.cluster != nil {
-		if err := c.cluster.Close(); err != nil {
-			c.logger(context.Background(), "Couldn't close cluster connection: %v", err)
-			return err
-		}
-	}
-	return nil
+	// if tbpDefaultBucketSpec.CouchbaseDriver == base.GoCBv2 {
+	return newTestClusterV2(server, logger)
+	// }
 }
 
 // tbpClusterV2 implements the tbpCluster interface for a gocb v2 cluster

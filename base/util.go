@@ -775,15 +775,6 @@ func sanitizeRequestURLQueryParams(urlStr string, values url.Values) string {
 	return urlStr
 }
 
-func GetGoCBBucketFromBaseBucket(baseBucket Bucket) (bucket CouchbaseBucketGoCB, err error) {
-	switch baseBucket := baseBucket.(type) {
-	case *CouchbaseBucketGoCB:
-		return *baseBucket, nil
-	default:
-		return CouchbaseBucketGoCB{}, logger.RedactErrorf("baseBucket %v was not a CouchbaseBucketGoCB.  Was type: %T", logger.MD(baseBucket), baseBucket)
-	}
-}
-
 // StdlibDurationPtr returns a pointer to the given time.Duration literal.
 func StdlibDurationPtr(value time.Duration) *time.Duration {
 	return &value
@@ -863,8 +854,7 @@ func CouchbaseURIToHttpURL(bucket Bucket, couchbaseUri string, connSpec *gocbcon
 
 	// First try to do a simple URL parse, which will only work for http:// and https:// urls where there
 	// is a single host.  If that works, return the result
-	singleHttpUrl := SingleHostCouchbaseURIToHttpURL(couchbaseUri)
-	if len(singleHttpUrl) > 0 {
+	if singleHttpUrl, ok := SingleHostCouchbaseURIToHttpURL(couchbaseUri); ok {
 		return []string{singleHttpUrl}, nil
 	}
 
@@ -940,27 +930,27 @@ func ServerUrlsWithAuth(urls []string, spec BucketSpec) (urlsWithAuth []string, 
 // Special case for couchbaseUri strings that contain a single host with http:// or https:// schemes,
 // possibly containing embedded basic auth.  Needed since gocbconnstr.Parse() will remove embedded
 // basic auth from URLS.
-func SingleHostCouchbaseURIToHttpURL(couchbaseUri string) (httpUrl string) {
+func SingleHostCouchbaseURIToHttpURL(couchbaseUri string) (string, bool) {
 	result, parseUrlErr := couchbase.ParseURL(couchbaseUri)
 
 	// If there was an error parsing, return an empty string
 	if parseUrlErr != nil {
-		return ""
+		return "", false
 	}
 
 	// If the host contains a "," then it parsed http://host1,host2 into a url with "host1,host2" as the host, which
 	// is not going to work.  Return an empty string
 	if strings.Contains(result.Host, ",") {
-		return ""
+		return "", false
 	}
 
 	// The scheme was couchbase://, but this method only deals with non-couchbase schemes, so return empty slice
 	if strings.Contains(result.Scheme, "couchbase") {
-		return ""
+		return "", false
 	}
 
 	// It made it past all checks.  Return a slice with a single string
-	return result.String()
+	return result.String(), true
 
 }
 

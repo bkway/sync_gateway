@@ -11,8 +11,14 @@ licenses/APL2.txt.
 package base
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -30,6 +36,67 @@ import (
 // TotalRows
 type viewMetadata struct {
 	TotalRows int `json:"total_rows,omitempty"`
+}
+
+// putDDocForTombstones uses the provided client and endpoints to create a design doc with index_xattr_on_deleted_docs=true
+func putDDocForTombstones(name string, payload []byte, capiEps []string, client *http.Client, username string, password string) error {
+
+	// From gocb.Bucket.getViewEp() - pick view endpoint at random
+	if len(capiEps) == 0 {
+		return errors.New("No available view nodes.")
+	}
+	viewEp := capiEps[rand.Intn(len(capiEps))]
+
+	// Based on implementation in gocb.BucketManager.UpsertDesignDocument
+	uri := fmt.Sprintf("/_design/%s", name)
+	body := bytes.NewReader(payload)
+
+	// Build the HTTP request
+	req, err := http.NewRequest("PUT", viewEp+uri, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth(username, password)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer ensureBodyClosed(resp.Body)
+	if resp.StatusCode != 201 {
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("Client error: %s", string(data))
+	}
+
+	return nil
+
+}
+
+// If the error is a net/url.Error and the error message is:
+// 		net/http: request canceled while waiting for connection
+// Then it means that the view request timed out, most likely due to the fact that it's a stale=false query and
+// it's rebuilding the index.  In that case, it's desirable to return a more informative error than the
+// underlying net/url.Error. See https://github.com/couchbase/sync_gateway/issues/2639
+func isGoCBQueryTimeoutError(err error) bool {
+
+	if err == nil {
+		return false
+	}
+
+	// If it's not a *url.Error, then it's not a viewtimeout error
+	netUrlError, ok := pkgerrors.Cause(err).(*url.Error)
+	if !ok {
+		return false
+	}
+
+	// If it's a *url.Error and contains the "request canceled" substring, then it's a viewtimeout error.
+	return strings.Contains(netUrlError.Error(), "request canceled")
+
 }
 
 func (c *Collection) GetDDoc(docname string) (ddoc sgbucket.DesignDoc, err error) {
@@ -262,6 +329,39 @@ func (c *Collection) waitForAvailQueryOp() {
 
 func (c *Collection) releaseQueryOp() {
 	<-c.queryOps
+}
+
+func asBool(value interface{}) bool {
+
+	switch typeValue := value.(type) {
+	case string:
+		parsedVal, err := strconv.ParseBool(typeValue)
+		if err != nil {
+			logger.For(logger.BucketKey).Warn().Err(err).Msgf("asBool called with unknown value: %v.  defaulting to false", typeValue)
+			return false
+		}
+		return parsedVal
+	case bool:
+		return typeValue
+	default:
+		logger.For(logger.BucketKey).Warn().Msgf("asBool called with unknown type: %T.  defaulting to false", typeValue)
+		return false
+	}
+
+}
+
+func normalizeIntToUint(value interface{}) (uint, error) {
+	switch typeValue := value.(type) {
+	case int:
+		return uint(typeValue), nil
+	case uint64:
+		return uint(typeValue), nil
+	case string:
+		i, err := strconv.Atoi(typeValue)
+		return uint(i), err
+	default:
+		return uint(0), fmt.Errorf("Unable to convert %v (%T) -> uint.", value, value)
+	}
 }
 
 // Applies the viewquery options as specified in the params map to the gocb.ViewOptions

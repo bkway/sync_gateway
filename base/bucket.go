@@ -31,7 +31,6 @@ import (
 	"github.com/couchbase/sync_gateway/logger"
 	"github.com/couchbaselabs/walrus"
 	pkgerrors "github.com/pkg/errors"
-	gocbV1 "gopkg.in/couchbase/gocb.v1"
 	"gopkg.in/couchbaselabs/gocbconnstr.v1"
 )
 
@@ -147,11 +146,12 @@ func init() {
 	gomemcached.MaxBodyLen = int(20 * 1024 * 1024)
 }
 
+type AuthHandler couchbase.AuthHandler // TODO get rid of this!
+
 type Bucket sgbucket.DataStore
 type FeedArguments sgbucket.FeedArguments
 type TapFeed sgbucket.MutationFeed
 
-type AuthHandler couchbase.AuthHandler
 type CouchbaseDriver int
 type CouchbaseBucketType int
 
@@ -331,22 +331,9 @@ func (b BucketSpec) GocbcoreAuthProvider() (gocbcore.AuthProvider, error) {
 	return GoCBCoreAuthConfig(username, password, b.X509.Certpath, b.X509.Keypath)
 }
 
-type couchbaseFeedImpl struct {
-	*couchbase.TapFeed
-	events chan sgbucket.FeedEvent
-}
-
 var (
 	versionString string
 )
-
-func (feed *couchbaseFeedImpl) Events() <-chan sgbucket.FeedEvent {
-	return feed.events
-}
-
-func (feed *couchbaseFeedImpl) WriteEvents() chan<- sgbucket.FeedEvent {
-	return feed.events
-}
 
 func GetStatsVbSeqno(stats map[string]map[string]string, maxVbno uint16, useAbsHighSeqNo bool) (uuids map[uint16]uint64, highSeqnos map[uint16]uint64, seqErr error) {
 
@@ -410,7 +397,7 @@ func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 			if strings.ToLower(spec.FeedType) == TapFeedType {
 				return nil, fmt.Errorf("unsupported feed type: %v", spec.FeedType)
 			} else {
-				bucket, err = GetCouchbaseBucketGoCB(spec)
+				// bucket, err = GetCouchbaseBucketGoCB(spec)
 			}
 		case GoCBv2:
 			bucket, err = GetCouchbaseCollection(spec)
@@ -467,11 +454,6 @@ func IsCasMismatch(err error) bool {
 
 	unwrappedErr := pkgerrors.Cause(err)
 
-	// GoCB handling
-	if unwrappedErr == gocbV1.ErrKeyExists || unwrappedErr == gocbV1.ErrNotStored {
-		return true
-	}
-
 	// GoCB V2 handling
 	if isKVError(unwrappedErr, memd.StatusKeyExists) || isKVError(unwrappedErr, memd.StatusNotStored) {
 		return true
@@ -489,12 +471,6 @@ func IsCasMismatch(err error) bool {
 // (DCP for any couchbase bucket, TAP otherwise)
 func GetFeedType(bucket Bucket) (feedType string) {
 	switch typedBucket := bucket.(type) {
-	case *CouchbaseBucketGoCB:
-		if typedBucket.Spec.FeedType != "" {
-			return strings.ToLower(typedBucket.Spec.FeedType)
-		} else {
-			return DcpFeedType
-		}
 	case *Collection:
 		return DcpFeedType
 	case *LeakyBucket:
