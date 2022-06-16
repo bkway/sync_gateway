@@ -347,8 +347,8 @@ func AsN1QLStore(bucket Bucket) (N1QLStore, bool) {
 		return typedBucket, true
 	case *LoggingBucket:
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
-	case *LeakyBucket:
-		underlyingBucket = typedBucket.GetUnderlyingBucket()
+	// case *LeakyBucket:
+	// 	underlyingBucket = typedBucket.GetUnderlyingBucket()
 	// case *TestBucket:
 	// 	underlyingBucket = typedBucket.Bucket
 	default:

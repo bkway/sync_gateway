@@ -423,8 +423,8 @@ func AsSubdocXattrStore(bucket Bucket) (SubdocXattrStore, bool) {
 		return typedBucket, true
 	case *LoggingBucket:
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
-	case *LeakyBucket:
-		underlyingBucket = typedBucket.GetUnderlyingBucket()
+	// case *LeakyBucket:
+	// 	underlyingBucket = typedBucket.GetUnderlyingBucket()
 	// case *TestBucket:
 	// 	underlyingBucket = typedBucket.Bucket
 	default:
@@ -443,8 +443,8 @@ func AsUserXattrStore(bucket Bucket) (UserXattrStore, bool) {
 		return typedBucket, true
 	case *LoggingBucket:
 		underlyingBucket = typedBucket.GetUnderlyingBucket()
-	case *LeakyBucket:
-		underlyingBucket = typedBucket.GetUnderlyingBucket()
+	// case *LeakyBucket:
+	// 	underlyingBucket = typedBucket.GetUnderlyingBucket()
 	// case *TestBucket:
 	// 	underlyingBucket = typedBucket.Bucket
 	default:

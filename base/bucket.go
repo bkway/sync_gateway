@@ -383,15 +383,7 @@ func GetBucket(spec BucketSpec) (bucket Bucket, err error) {
 		}
 		logger.For(logger.BucketKey).Info().Msgf("%v Opening Couchbase database %s on <%s> as user %q", spec.CouchbaseDriver, logger.MD(spec.BucketName), logger.SD(spec.Server), logger.UD(username))
 
-		switch spec.CouchbaseDriver {
-		case GoCB, GoCBCustomSGTranscoder:
-			// FIXME remove the requirements altoghether
-		case GoCBv2:
-			bucket, err = GetCouchbaseCollection(spec)
-		default:
-			return nil, fmt.Errorf("%w: unexpected CouchbaseDriver: %v", ErrFatalBucketConnection, spec.CouchbaseDriver)
-		}
-
+		bucket, err = GetCouchbaseCollection(spec)
 		if err != nil {
 			return nil, err
 		}
