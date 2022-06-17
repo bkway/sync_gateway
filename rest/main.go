@@ -47,7 +47,7 @@ func serverMain(ctx context.Context, osArgs []string) error {
 		return err
 	}
 
-	if *disablePersistentConfig {
+	if disablePersistentConfig {
 		return legacyServerMain(osArgs, flagStartupConfig)
 	}
 
@@ -189,7 +189,7 @@ func automaticConfigUpgrade(configPath string) (sc *StartupConfig, disablePersis
 		return nil, false, nil, nil, err
 	}
 
-	if legacyServerConfig.DisablePersistentConfig != nil && *legacyServerConfig.DisablePersistentConfig {
+	if legacyServerConfig.DisablePersistentConfig {
 		return nil, true, users, roles, nil
 	}
 
@@ -384,13 +384,13 @@ func createCouchbaseClusterFromStartupConfig(config *StartupConfig) (*base.Couch
 }
 
 // parseFlags handles the parsing of legacy and persistent config flags.
-func parseFlags(args []string) (flagStartupConfig *StartupConfig, fs *flag.FlagSet, disablePersistentConfig *bool, err error) {
+func parseFlags(args []string) (flagStartupConfig *StartupConfig, fs *flag.FlagSet, disablePersistentConfig bool, err error) {
 	fs = flag.NewFlagSet(args[0], flag.ContinueOnError)
 
 	// used by service scripts as a way to specify a per-distro defaultLogFilePath
 	defaultLogFilePathFlag := fs.String("defaultLogFilePath", "", "Path to log files, if not overridden by --logFilePath, or the config")
 
-	disablePersistentConfig = fs.Bool("disable_persistent_config", false, "Can be set to false to disable persistent config handling, and read all configuration from a legacy config file.")
+	disablePersistentConfig = *fs.Bool("disable_persistent_config", false, "Can be set to false to disable persistent config handling, and read all configuration from a legacy config file.")
 
 	// register config property flags
 	startupConfig := NewEmptyStartupConfig()
@@ -400,12 +400,12 @@ func parseFlags(args []string) (flagStartupConfig *StartupConfig, fs *flag.FlagS
 	// legacyConfigFlags := registerLegacyFlags(&legacyStartupConfig, fs)
 
 	if err = fs.Parse(args[1:]); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, false, err
 	}
 
 	err = fillConfigWithFlags(fs, configFlags)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error merging flags on to config: %w", err)
+		return nil, nil, false, fmt.Errorf("error merging flags on to config: %w", err)
 	}
 
 	// TODO support?
@@ -416,7 +416,7 @@ func parseFlags(args []string) (flagStartupConfig *StartupConfig, fs *flag.FlagS
 	// Merge persistent config on to legacy startup config to give priority to persistent config flags
 	err = legacyStartupConfig.Merge(&startupConfig)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, false, err
 	}
 
 	defaultLogFilePath = *defaultLogFilePathFlag

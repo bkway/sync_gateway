@@ -180,7 +180,7 @@ func (h *handler) ctx() context.Context {
 // Top-level handler call. It's passed a pointer to the specific method to run.
 func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, responsePermissions []Permission) error {
 	var err error
-	if h.server.config.API.CompressResponses == nil || *h.server.config.API.CompressResponses {
+	if h.server.config.API.CompressResponses {
 		if encoded := NewEncodedResponseWriter(h.response, h.rq); encoded != nil {
 			h.response = encoded
 			defer encoded.Close()
@@ -214,7 +214,7 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 
 	// If an Admin Request and admin auth enabled or a metrics request with metrics auth enabled we need to check the
 	// user credentials
-	shouldCheckAdminAuth := (h.privs == adminPrivs && *h.server.config.API.AdminInterfaceAuthentication) || (h.privs == metricsPrivs && *h.server.config.API.MetricsInterfaceAuthentication)
+	shouldCheckAdminAuth := (h.privs == adminPrivs && h.server.config.API.AdminInterfaceAuthentication) || (h.privs == metricsPrivs && h.server.config.API.MetricsInterfaceAuthentication)
 
 	// If there is a "db" path variable, look up the database context:
 	var dbContext *db.DatabaseContext
@@ -288,7 +288,7 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 
 		username, password := h.getBasicAuth()
 		if username == "" {
-			if dbContext == nil || dbContext.Options.SendWWWAuthenticateHeader == nil || *dbContext.Options.SendWWWAuthenticateHeader {
+			if dbContext == nil || dbContext.Options.SendWWWAuthenticateHeader {
 				h.response.Header().Set("WWW-Authenticate", wwwAuthenticateHeader)
 			}
 			return base.HTTPErrorf(http.StatusUnauthorized, "Login required")
@@ -329,8 +329,7 @@ func (h *handler) invoke(method handlerMethod, accessPermissions []Permission, r
 		}
 
 		permissions, statusCode, err := checkAdminAuth(authScope, username, password, h.rq.Method, httpClient,
-			managementEndpoints, *h.server.config.API.EnableAdminAuthenticationPermissionsCheck, accessPermissions,
-			responsePermissions)
+			managementEndpoints, accessPermissions, responsePermissions)
 		if err != nil {
 			//log.Ctx(h.ctx()).Warn().Err(err).Msgf("An error occurred whilst checking whether a user was authorized: %v", err)
 			logger.For(logger.AuthKey).Warn().Err(err).Msg("An error occurred whilst checking whether a user was authorized")
@@ -491,7 +490,7 @@ func (h *handler) checkAuth(dbCtx *db.DatabaseContext) (err error) {
 			if h.user == nil {
 				//log.Ctx(h.ctx()).Info().Err(err).Msgf(logger.KeyAll, "HTTP auth failed for username=%q", logger.UD(userName))
 				logger.For(logger.SystemKey).Info().Err(err).Msgf("HTTP auth failed for username=%q", logger.UD(userName))
-				if dbCtx.Options.SendWWWAuthenticateHeader == nil || *dbCtx.Options.SendWWWAuthenticateHeader {
+				if dbCtx.Options.SendWWWAuthenticateHeader {
 					h.response.Header().Set("WWW-Authenticate", wwwAuthenticateHeader)
 				}
 				return base.HTTPErrorf(http.StatusUnauthorized, "Invalid login")
@@ -513,7 +512,7 @@ func (h *handler) checkAuth(dbCtx *db.DatabaseContext) (err error) {
 		return err
 	}
 	if h.privs == regularPrivs && h.user.Disabled() {
-		if dbCtx.Options.SendWWWAuthenticateHeader == nil || *dbCtx.Options.SendWWWAuthenticateHeader {
+		if dbCtx.Options.SendWWWAuthenticateHeader {
 			h.response.Header().Set("WWW-Authenticate", wwwAuthenticateHeader)
 		}
 		return base.HTTPErrorf(http.StatusUnauthorized, "Login required")
@@ -549,41 +548,47 @@ func (h *handler) checkAdminAuthenticationOnly() (bool, error) {
 	return true, nil
 }
 
-func checkAdminAuth(bucketName, basicAuthUsername, basicAuthPassword string, attemptedHTTPOperation string, httpClient *http.Client, managementEndpoints []string, shouldCheckPermissions bool, accessPermissions []Permission, responsePermissions []Permission) (responsePermissionResults map[string]bool, statusCode int, err error) {
-	anyResponsePermFailed := false
+func checkAdminAuth(
+	bucketName, basicAuthUsername, basicAuthPassword string,
+	attemptedHTTPOperation string,
+	httpClient *http.Client,
+	managementEndpoints []string,
+	accessPermissions []Permission,
+	responsePermissions []Permission) (responsePermissionResults map[string]bool, statusCode int, err error) {
+	// anyResponsePermFailed := false
 	permissionStatusCode, permResults, err := CheckPermissions(httpClient, managementEndpoints, bucketName, basicAuthUsername, basicAuthPassword, accessPermissions, responsePermissions)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	if len(responsePermissions) > 0 {
-		responsePermissionResults = permResults
-		for _, permResult := range permResults {
-			if !permResult {
-				anyResponsePermFailed = true
-				break
-			}
-		}
-	}
+	// if len(responsePermissions) > 0 {
+	// 	responsePermissionResults = permResults
+	// 	for _, permResult := range permResults {
+	// 		if !permResult {
+	// 			// anyResponsePermFailed = true
+	// 			break
+	// 		}
+	// 	}
+	// }
 
 	// If the user has not logged in correctly we shouldn't continue to do any more work and return
 	if permissionStatusCode == http.StatusUnauthorized {
 		return nil, permissionStatusCode, nil
 	}
 
-	if shouldCheckPermissions {
-		// If user has required accessPerms and all response perms return with statusOK
-		// Otherwise we need to fall through to continue as the user may have access to responsePermissions through roles.
-		if permissionStatusCode == http.StatusOK && !anyResponsePermFailed {
-			return responsePermissionResults, http.StatusOK, nil
-		}
+	// if shouldCheckPermissions {
+	// 	// If user has required accessPerms and all response perms return with statusOK
+	// 	// Otherwise we need to fall through to continue as the user may have access to responsePermissions through roles.
+	// 	if permissionStatusCode == http.StatusOK && !anyResponsePermFailed {
+	// 		return responsePermissionResults, http.StatusOK, nil
+	// 	}
 
-		// If status code was not 'ok' or 'forbidden' return
-		// If user has authenticated correctly but is not authorized with all permissions. We'll fall through to try
-		// with roles.
-		if permissionStatusCode != http.StatusOK && permissionStatusCode != http.StatusForbidden {
-			return responsePermissionResults, permissionStatusCode, nil
-		}
-	}
+	// 	// If status code was not 'ok' or 'forbidden' return
+	// 	// If user has authenticated correctly but is not authorized with all permissions. We'll fall through to try
+	// 	// with roles.
+	// 	if permissionStatusCode != http.StatusOK && permissionStatusCode != http.StatusForbidden {
+	// 		return responsePermissionResults, permissionStatusCode, nil
+	// 	}
+	// }
 
 	var requestRoles []RouteRole
 	if bucketName != "" {
@@ -621,7 +626,8 @@ func checkAdminAuth(bucketName, basicAuthUsername, basicAuthPassword string, att
 
 	// If resultStatus code is not okay (role check did 401, 403 or 500) and we're supposed to be allowing users in
 	// based on permissions we will select the code from the permission result as that may allow more access.
-	if resultStatusCode != http.StatusOK && shouldCheckPermissions {
+	// TODO this is all weird. the permissions thing was an EE feature
+	if resultStatusCode != http.StatusOK /* && shouldCheckPermissions */ {
 		resultStatusCode = permissionStatusCode
 	}
 
@@ -944,7 +950,7 @@ func (h *handler) writeJSONStatus(status int, value interface{}) {
 		h.writeStatus(http.StatusInternalServerError, "JSON serialization failed")
 		return
 	}
-	if base.BoolDefault(h.server.config.API.Pretty, false) {
+	if h.server.config.API.Pretty {
 		var buffer bytes.Buffer
 		_ = json.Indent(&buffer, jsonOut, "", "  ")
 		jsonOut = append(buffer.Bytes(), '\n')
@@ -1214,7 +1220,7 @@ func (h *handler) formatSerialNumber() string {
 // shouldShowProductVersion returns whether the handler should show detailed product info (version).
 // Admin requests can always see this, regardless of the HideProductVersion setting.
 func (h *handler) shouldShowProductVersion() bool {
-	hideProductVersion := base.BoolDefault(h.server.config.API.HideProductVersion, false)
+	hideProductVersion := h.server.config.API.HideProductVersion
 	return h.privs == adminPrivs || !hideProductVersion
 }
 

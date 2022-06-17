@@ -33,21 +33,20 @@ func registerConfigFlags(config *StartupConfig, fs *flag.FlagSet) map[string]con
 		"bootstrap.x509_key_path":           {&config.Bootstrap.X509KeyPath, fs.String("bootstrap.x509_key_path", "", "Key path (private key) for X.509 bucket auth")},
 		"bootstrap.use_tls_server":          {&config.Bootstrap.UseTLSServer, fs.Bool("bootstrap.use_tls_server", false, "Forces the connection to Couchbase Server to use TLS")},
 
-		"api.public_interface":                              {&config.API.PublicInterface, fs.String("api.public_interface", "", "Network interface to bind public API to")},
-		"api.admin_interface":                               {&config.API.AdminInterface, fs.String("api.admin_interface", "", "Network interface to bind admin API to")},
-		"api.metrics_interface":                             {&config.API.MetricsInterface, fs.String("api.metrics_interface", "", "Network interface to bind metrics API to")},
-		"api.profile_interface":                             {&config.API.ProfileInterface, fs.String("api.profile_interface", "", "Network interface to bind profiling API to")},
-		"api.admin_interface_authentication":                {&config.API.AdminInterfaceAuthentication, fs.Bool("api.admin_interface_authentication", false, "Whether the admin API requires authentication")},
-		"api.metrics_interface_authentication":              {&config.API.MetricsInterfaceAuthentication, fs.Bool("api.metrics_interface_authentication", false, "Whether the metrics API requires authentication")},
-		"api.enable_admin_authentication_permissions_check": {&config.API.EnableAdminAuthenticationPermissionsCheck, fs.Bool("api.enable_admin_authentication_permissions_check", false, "Whether to enable the DP permissions check feature of admin auth")},
-		"api.server_read_timeout":                           {&config.API.ServerReadTimeout, fs.String("api.server_read_timeout", "", "Maximum duration.Second before timing out read of the HTTP(S) request")},
-		"api.server_write_timeout":                          {&config.API.ServerWriteTimeout, fs.String("api.server_write_timeout", "", "Maximum duration.Second before timing out write of the HTTP(S) response")},
-		"api.read_header_timeout":                           {&config.API.ReadHeaderTimeout, fs.String("api.read_header_timeout", "", "The amount of time allowed to read request headers")},
-		"api.idle_timeout":                                  {&config.API.IdleTimeout, fs.String("api.idle_timeout", "", "The maximum amount of time to wait for the next request when keep-alives are enabled")},
-		"api.pretty":                                        {&config.API.Pretty, fs.Bool("api.pretty", false, "Pretty-print JSON responses")},
-		"api.max_connections":                               {&config.API.MaximumConnections, fs.Uint("api.max_connections", 0, "Max # of incoming HTTP connections to accept")},
-		"api.compress_responses":                            {&config.API.CompressResponses, fs.Bool("api.compress_responses", false, "If false, disables compression of HTTP responses")},
-		"api.hide_product_version":                          {&config.API.CompressResponses, fs.Bool("api.hide_product_version", false, "Whether product versions removed from Server headers and REST API responses")},
+		"api.public_interface":                 {&config.API.PublicInterface, fs.String("api.public_interface", "", "Network interface to bind public API to")},
+		"api.admin_interface":                  {&config.API.AdminInterface, fs.String("api.admin_interface", "", "Network interface to bind admin API to")},
+		"api.metrics_interface":                {&config.API.MetricsInterface, fs.String("api.metrics_interface", "", "Network interface to bind metrics API to")},
+		"api.profile_interface":                {&config.API.ProfileInterface, fs.String("api.profile_interface", "", "Network interface to bind profiling API to")},
+		"api.admin_interface_authentication":   {&config.API.AdminInterfaceAuthentication, fs.Bool("api.admin_interface_authentication", false, "Whether the admin API requires authentication")},
+		"api.metrics_interface_authentication": {&config.API.MetricsInterfaceAuthentication, fs.Bool("api.metrics_interface_authentication", false, "Whether the metrics API requires authentication")},
+		"api.server_read_timeout":              {&config.API.ServerReadTimeout, fs.String("api.server_read_timeout", "", "Maximum duration.Second before timing out read of the HTTP(S) request")},
+		"api.server_write_timeout":             {&config.API.ServerWriteTimeout, fs.String("api.server_write_timeout", "", "Maximum duration.Second before timing out write of the HTTP(S) response")},
+		"api.read_header_timeout":              {&config.API.ReadHeaderTimeout, fs.String("api.read_header_timeout", "", "The amount of time allowed to read request headers")},
+		"api.idle_timeout":                     {&config.API.IdleTimeout, fs.String("api.idle_timeout", "", "The maximum amount of time to wait for the next request when keep-alives are enabled")},
+		"api.pretty":                           {&config.API.Pretty, fs.Bool("api.pretty", false, "Pretty-print JSON responses")},
+		"api.max_connections":                  {&config.API.MaximumConnections, fs.Uint("api.max_connections", 0, "Max # of incoming HTTP connections to accept")},
+		"api.compress_responses":               {&config.API.CompressResponses, fs.Bool("api.compress_responses", false, "If false, disables compression of HTTP responses")},
+		"api.hide_product_version":             {&config.API.CompressResponses, fs.Bool("api.hide_product_version", false, "Whether product versions removed from Server headers and REST API responses")},
 
 		"api.https.tls_minimum_version": {&config.API.HTTPS.TLSMinimumVersion, fs.String("api.https.tls_minimum_version", "", "The minimum allowable TLS version for the REST APIs")},
 		"api.https.tls_cert_path":       {&config.API.HTTPS.TLSCertPath, fs.String("api.https.tls_cert_path", "", "The TLS cert file to use for the REST APIs")},
@@ -163,7 +162,7 @@ func fillConfigWithFlags(fs *flag.FlagSet, flags map[string]configFlag) error {
 				} else {
 					*val.config.(*int) = *val.flagValue.(*int)
 				}
-			case *bool:
+			case bool:
 				rval.Set(reflect.ValueOf(val.flagValue))
 			case *base.ConfigDuration:
 				duration, err := time.ParseDuration(*val.flagValue.(*string))

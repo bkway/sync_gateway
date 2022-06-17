@@ -23,7 +23,7 @@ func TestUsersAPI(t *testing.T) {
 				QueryPaginationLimit: base.IntPtr(5),
 				// Disable the guest user to support testing the zero user boundary condition
 				Guest: &db.PrincipalConfig{
-					Disabled: base.BoolPtr(false),
+					Disabled: false,
 				},
 			},
 		},
@@ -76,7 +76,7 @@ func TestUsersAPIDetailsViews(t *testing.T) {
 				QueryPaginationLimit: base.IntPtr(5),
 				// Disable the guest user to support testing the zero user boundary condition
 				Guest: &db.PrincipalConfig{
-					Disabled: base.BoolPtr(false),
+					Disabled: false,
 				},
 			},
 		},
@@ -104,7 +104,7 @@ func TestUsersAPIDetails(t *testing.T) {
 				QueryPaginationLimit: base.IntPtr(5),
 				// Disable the guest user to support testing the zero user boundary condition
 				Guest: &db.PrincipalConfig{
-					Disabled: base.BoolPtr(false),
+					Disabled: false,
 				},
 			},
 		},
@@ -206,7 +206,7 @@ func TestUsersAPIDetailsWithLimit(t *testing.T) {
 				QueryPaginationLimit: base.IntPtr(5),
 				// Disable the guest user to support testing the zero user boundary condition
 				Guest: &db.PrincipalConfig{
-					Disabled: base.BoolPtr(false),
+					Disabled: false,
 				},
 			},
 		},

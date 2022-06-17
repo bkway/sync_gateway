@@ -26,23 +26,22 @@ func DefaultStartupConfig(defaultLogFilePath string) StartupConfig {
 		Bootstrap: BootstrapConfig{
 			ConfigGroupID:         persistentConfigDefaultGroupID,
 			ConfigUpdateFrequency: base.NewConfigDuration(persistentConfigDefaultUpdateFrequency),
-			ServerTLSSkipVerify:   base.BoolPtr(false),
-			UseTLSServer:          base.BoolPtr(DefaultUseTLSServer),
+			ServerTLSSkipVerify:   false,
+			UseTLSServer:          DefaultUseTLSServer,
 		},
 		API: APIConfig{
 			PublicInterface:    DefaultPublicInterface,
 			AdminInterface:     DefaultAdminInterface,
 			MetricsInterface:   DefaultMetricsInterface,
 			MaximumConnections: DefaultMaxIncomingConnections,
-			CompressResponses:  base.BoolPtr(true),
+			CompressResponses:  true,
 			HTTPS: HTTPSConfig{
 				TLSMinimumVersion: "tlsv1.2",
 			},
-			ReadHeaderTimeout:                         base.NewConfigDuration(base.DefaultReadHeaderTimeout),
-			IdleTimeout:                               base.NewConfigDuration(base.DefaultIdleTimeout),
-			AdminInterfaceAuthentication:              base.BoolPtr(true),
-			MetricsInterfaceAuthentication:            base.BoolPtr(true),
-			EnableAdminAuthenticationPermissionsCheck: base.BoolPtr(false), // TODO remove, was only for EE
+			ReadHeaderTimeout:              base.NewConfigDuration(base.DefaultReadHeaderTimeout),
+			IdleTimeout:                    base.NewConfigDuration(base.DefaultIdleTimeout),
+			AdminInterfaceAuthentication:   true,
+			MetricsInterfaceAuthentication: true,
 		},
 		Logging: logger.ConfigOpts{
 			// LogFilePath:    defaultLogFilePath,
@@ -83,10 +82,10 @@ type BootstrapConfig struct {
 	Username              string               `json:"username,omitempty"                help:"Username for authenticating to server"`
 	Password              string               `json:"password,omitempty"                help:"Password for authenticating to server"`
 	CACertPath            string               `json:"ca_cert_path,omitempty"            help:"Root CA cert path for TLS connection"`
-	ServerTLSSkipVerify   *bool                `json:"server_tls_skip_verify,omitempty"  help:"Allow empty server CA Cert Path without attempting to use system root pool"`
+	ServerTLSSkipVerify   bool                 `json:"server_tls_skip_verify,omitempty"  help:"Allow empty server CA Cert Path without attempting to use system root pool"`
 	X509CertPath          string               `json:"x509_cert_path,omitempty"          help:"Cert path (public key) for X.509 bucket auth"`
 	X509KeyPath           string               `json:"x509_key_path,omitempty"           help:"Key path (private key) for X.509 bucket auth"`
-	UseTLSServer          *bool                `json:"use_tls_server,omitempty"          help:"Enforces a secure or non-secure server scheme"`
+	UseTLSServer          bool                 `json:"use_tls_server,omitempty"          help:"Enforces a secure or non-secure server scheme"`
 }
 
 type APIConfig struct {
@@ -95,19 +94,18 @@ type APIConfig struct {
 	MetricsInterface string `json:"metrics_interface,omitempty" help:"Network interface to bind metrics API to"`
 	ProfileInterface string `json:"profile_interface,omitempty" help:"Network interface to bind profiling API to"`
 
-	AdminInterfaceAuthentication              *bool `json:"admin_interface_authentication,omitempty" help:"Whether the admin API requires authentication"`
-	MetricsInterfaceAuthentication            *bool `json:"metrics_interface_authentication,omitempty" help:"Whether the metrics API requires authentication"`
-	EnableAdminAuthenticationPermissionsCheck *bool `json:"enable_advanced_auth_dp,omitempty" help:"Whether to enable the DP permissions check feature of admin auth"`
+	AdminInterfaceAuthentication   bool `json:"admin_interface_authentication,omitempty" help:"Whether the admin API requires authentication"`
+	MetricsInterfaceAuthentication bool `json:"metrics_interface_authentication,omitempty" help:"Whether the metrics API requires authentication"`
 
 	ServerReadTimeout  *base.ConfigDuration `json:"server_read_timeout,omitempty"  help:"Maximum duration.Second before timing out read of the HTTP(S) request"`
 	ServerWriteTimeout *base.ConfigDuration `json:"server_write_timeout,omitempty" help:"Maximum duration.Second before timing out write of the HTTP(S) response"`
 	ReadHeaderTimeout  *base.ConfigDuration `json:"read_header_timeout,omitempty"  help:"The amount of time allowed to read request headers"`
 	IdleTimeout        *base.ConfigDuration `json:"idle_timeout,omitempty"         help:"The maximum amount of time to wait for the next request when keep-alives are enabled"`
 
-	Pretty             *bool `json:"pretty,omitempty"               help:"Pretty-print JSON responses"`
-	MaximumConnections uint  `json:"max_connections,omitempty"      help:"Max # of incoming HTTP connections to accept"`
-	CompressResponses  *bool `json:"compress_responses,omitempty"   help:"If false, disables compression of HTTP responses"`
-	HideProductVersion *bool `json:"hide_product_version,omitempty" help:"Whether product versions removed from Server headers and REST API responses"`
+	Pretty             bool `json:"pretty,omitempty"               help:"Pretty-print JSON responses"`
+	MaximumConnections uint `json:"max_connections,omitempty"      help:"Max # of incoming HTTP connections to accept"`
+	CompressResponses  bool `json:"compress_responses,omitempty"   help:"If false, disables compression of HTTP responses"`
+	HideProductVersion bool `json:"hide_product_version,omitempty" help:"Whether product versions removed from Server headers and REST API responses"`
 
 	HTTPS HTTPSConfig `json:"https,omitempty"`
 	CORS  *CORSConfig `json:"cors,omitempty"`
@@ -137,13 +135,13 @@ type ReplicatorConfig struct {
 
 type UnsupportedConfig struct {
 	StatsLogFrequency *base.ConfigDuration `json:"stats_log_frequency,omitempty"    help:"How often should stats be written to stats logs"`
-	UseStdlibJSON     *bool                `json:"use_stdlib_json,omitempty"        help:"Bypass the jsoniter package and use Go's stdlib instead"`
+	UseStdlibJSON     bool                 `json:"use_stdlib_json,omitempty"        help:"Bypass the jsoniter package and use Go's stdlib instead"`
 
 	HTTP2 *HTTP2Config `json:"http2,omitempty"`
 }
 
 type HTTP2Config struct {
-	Enabled *bool `json:"enabled,omitempty" help:"Whether HTTP2 support is enabled"`
+	Enabled bool `json:"enabled,omitempty" help:"Whether HTTP2 support is enabled"`
 }
 
 type PerDatabaseCredentialsConfig map[string]*DatabaseCredentialsConfig
@@ -240,7 +238,7 @@ func setGlobalConfig(sc *StartupConfig) error {
 	}
 
 	// Given unscoped usage of base.JSON functions, this can't be scoped.
-	if base.BoolDefault(sc.Unsupported.UseStdlibJSON, false) {
+	if sc.Unsupported.UseStdlibJSON {
 		//logger.InfofCtx(context.Background(), logger.KeyAll, "Using the stdlib JSON package")
 		logger.For(logger.SystemKey).Info().Msg("Using the stdlib JSON package")
 		base.UseStdlibJSON = true

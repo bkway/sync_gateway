@@ -194,7 +194,7 @@ func (dc *DCPClient) initAgent(spec BucketSpec) error {
 		return fmt.Errorf("Unable to start DCP Client - error creating authenticator: %w", authErr)
 	}
 
-	tlsRootCAProvider, err := GoCBCoreTLSRootCAProvider(&spec.TLSSkipVerify, spec.X509.CACertPath)
+	tlsRootCAProvider, err := TLSRootCAProvider(spec.TLSSkipVerify, spec.X509.CACertPath)
 	if err != nil {
 		return err
 	}

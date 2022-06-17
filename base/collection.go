@@ -82,7 +82,7 @@ func GetCouchbaseCollection(spec BucketSpec) (*Collection, error) {
 		return nil, err
 	}
 
-	securityConfig, err := GoCBv2SecurityConfig(&spec.TLSSkipVerify, spec.X509.CACertPath)
+	securityConfig, err := GoCBv2SecurityConfig(spec.TLSSkipVerify, spec.X509.CACertPath)
 	if err != nil {
 		return nil, err
 	}

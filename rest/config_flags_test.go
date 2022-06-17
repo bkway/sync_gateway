@@ -66,7 +66,7 @@ func TestFillConfigWithFlagsValidVals(t *testing.T) {
 
 	err := fs.Parse([]string{
 		"-bootstrap.server", "testServer", // String
-		"-bootstrap.server_tls_skip_verify=true",   // *bool
+		"-bootstrap.server_tls_skip_verify=true",   // bool
 		"-bootstrap.config_update_frequency", "2h", // *base.ConfigDuration
 		"-api.max_connections", "5", // uint
 		"-api.cors.origin", "*,example.com,test.net", // []string
@@ -82,7 +82,7 @@ func TestFillConfigWithFlagsValidVals(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "testServer", config.Bootstrap.Server)
-	assert.Equal(t, base.BoolPtr(true), config.Bootstrap.ServerTLSSkipVerify)
+	assert.Equal(t, true, config.Bootstrap.ServerTLSSkipVerify)
 	assert.Equal(t, uint(5), config.API.MaximumConnections)
 	require.NotNil(t, config.Bootstrap.ConfigUpdateFrequency)
 	assert.Equal(t, base.NewConfigDuration(time.Hour*2), config.Bootstrap.ConfigUpdateFrequency)

@@ -514,7 +514,7 @@ func (bh *blipHandler) handleChanges(rq *blip.Message) error {
 		ignoreNoConflicts = val == "true"
 	}
 
-	if !ignoreNoConflicts && !bh.db.AllowConflicts() {
+	if !ignoreNoConflicts && !bh.db.Options.AllowConflicts {
 		return ErrUseProposeChanges
 	}
 

@@ -23,28 +23,28 @@ func TestGoCBv2SecurityConfig(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		tlsSkipVerify  *bool
+		tlsSkipVerify  bool
 		caCertPath     string
 		expectCertPool bool // True if should not be empty, false if nil (true on windows asserts empty due to no System Root Pool)
 		expectError    bool
 	}{
 		{
 			name:           "TLS Skip Verify",
-			tlsSkipVerify:  BoolPtr(true),
+			tlsSkipVerify:  true,
 			caCertPath:     "",
 			expectCertPool: false,
 			expectError:    false,
 		},
 		{
 			name:           "File does not exist",
-			tlsSkipVerify:  BoolPtr(false),
+			tlsSkipVerify:  false,
 			caCertPath:     "/var/lib/couchbase/unknown.root.ca.pem",
 			expectCertPool: false,
 			expectError:    true,
 		},
 		{
 			name:           "Normal CA",
-			tlsSkipVerify:  BoolPtr(false),
+			tlsSkipVerify:  false,
 			caCertPath:     rootCertPath,
 			expectCertPool: true,
 			expectError:    false,

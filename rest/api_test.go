@@ -99,7 +99,7 @@ func TestDisablePublicBasicAuth(t *testing.T) {
 			DbConfig: DbConfig{
 				DisablePasswordAuth: true,
 				Guest: &db.PrincipalConfig{
-					Disabled: base.BoolPtr(true),
+					Disabled: true,
 				},
 			},
 		},
@@ -5470,7 +5470,7 @@ func TestAttachmentContentType(t *testing.T) {
 	}
 
 	// Ran against allow insecure
-	rt.DatabaseConfig.ServeInsecureAttachmentTypes = base.BoolPtr(true)
+	rt.DatabaseConfig.ServeInsecureAttachmentTypes = true
 	for index := range tests {
 		response := rt.SendRequest("GET", fmt.Sprintf("/db/doc_allow_insecure_%d/login.aspx", index), "")
 		contentDisposition := response.Header().Get("Content-Disposition")
@@ -8584,7 +8584,7 @@ func TestAttachmentRemovalWithConflicts(t *testing.T) {
 	rt := NewRestTester(t, &RestTesterConfig{
 		DatabaseConfig: &DatabaseConfig{
 			DbConfig: DbConfig{
-				AllowConflicts: base.BoolPtr(true),
+				AllowConflicts: true,
 			},
 		},
 	})

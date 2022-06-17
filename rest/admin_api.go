@@ -369,7 +369,7 @@ func (h *handler) handleGetConfig() error {
 func (h *handler) handlePutConfig() error {
 
 	type FileLoggerPutConfig struct {
-		Enabled *bool `json:"enabled,omitempty"`
+		Enabled bool `json:"enabled,omitempty"`
 	}
 
 	type ConsoleLoggerPutConfig struct {
@@ -1200,7 +1200,7 @@ func marshalPrincipal(princ auth.Principal, includeDynamicGrantInfo bool) ([]byt
 	}
 	if user, ok := princ.(auth.User); ok {
 		info.Email = user.Email()
-		info.Disabled = base.BoolPtr(user.Disabled())
+		info.Disabled = user.Disabled()
 		info.ExplicitRoleNames = user.ExplicitRoles().AllKeys()
 		if includeDynamicGrantInfo {
 			info.Channels = user.InheritedChannels().AsSet()

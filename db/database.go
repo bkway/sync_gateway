@@ -138,8 +138,8 @@ type DatabaseContextOptions struct {
 	SecureCookieOverride          bool             // Pass-through DBConfig.SecureCookieOverride
 	SessionCookieName             string           // Pass-through DbConfig.SessionCookieName
 	SessionCookieHttpOnly         bool             // Pass-through DbConfig.SessionCookieHTTPOnly
-	AllowConflicts                *bool            // False forbids creating conflicts
-	SendWWWAuthenticateHeader     *bool            // False disables setting of 'WWW-Authenticate' header
+	AllowConflicts                bool             // False forbids creating conflicts
+	SendWWWAuthenticateHeader     bool             // False disables setting of 'WWW-Authenticate' header
 	DisablePasswordAuthentication bool             // True enforces OIDC/guest only
 	UseViews                      bool             // Force use of views
 	DeltaSyncOptions              DeltaSyncOptions // Delta Sync Options
@@ -163,7 +163,7 @@ type OidcTestProviderOptions struct {
 }
 
 type UserViewsOptions struct {
-	Enabled *bool `json:"enabled,omitempty"` // Whether pass-through view query is supported through public API
+	Enabled bool `json:"enabled,omitempty"` // Whether pass-through view query is supported through public API
 }
 
 type DeltaSyncOptions struct {
@@ -321,7 +321,7 @@ func NewDatabaseContext(dbName string, bucket base.Bucket, autoImport bool, opti
 		base.SyncGatewayStats.ClearDBStats(dbName)
 	})
 
-	if dbContext.AllowConflicts() {
+	if dbContext.Options.AllowConflicts {
 		dbContext.RevsLimit = DefaultRevsLimitConflicts
 	} else {
 		dbContext.RevsLimit = DefaultRevsLimitNoConflicts
@@ -1058,7 +1058,7 @@ outerLoop:
 				principal := PrincipalConfig{
 					Name:     &queryRow.Name,
 					Email:    queryRow.Email,
-					Disabled: &queryRow.Disabled,
+					Disabled: queryRow.Disabled,
 				}
 				users = append(users, principal)
 				totalCount++
@@ -1602,8 +1602,8 @@ func (dbCtx *DatabaseContext) ObtainManagementEndpointsAndHTTPClient() ([]string
 }
 
 func (context *DatabaseContext) GetUserViewsEnabled() bool {
-	if context.Options.UnsupportedOptions != nil && context.Options.UnsupportedOptions.UserViews != nil && context.Options.UnsupportedOptions.UserViews.Enabled != nil {
-		return *context.Options.UnsupportedOptions.UserViews.Enabled
+	if context.Options.UnsupportedOptions != nil && context.Options.UnsupportedOptions.UserViews != nil && context.Options.UnsupportedOptions.UserViews.Enabled {
+		return context.Options.UnsupportedOptions.UserViews.Enabled
 	}
 	return false
 }
@@ -1637,7 +1637,7 @@ func (context *DatabaseContext) SetUserViewsEnabled(value bool) {
 	if context.Options.UnsupportedOptions.UserViews == nil {
 		context.Options.UnsupportedOptions.UserViews = &UserViewsOptions{}
 	}
-	context.Options.UnsupportedOptions.UserViews.Enabled = &value
+	context.Options.UnsupportedOptions.UserViews.Enabled = value
 }
 
 // For test usage
@@ -1693,13 +1693,6 @@ func initDatabaseStats(dbName string, autoImport bool, options DatabaseContextOp
 // For test usage
 func (context *DatabaseContext) GetRevisionCacheForTest() RevisionCache {
 	return context.revisionCache
-}
-
-func (context *DatabaseContext) AllowConflicts() bool {
-	if context.Options.AllowConflicts != nil {
-		return *context.Options.AllowConflicts
-	}
-	return base.DefaultAllowConflicts
 }
 
 func (context *DatabaseContext) AllowFlushNonCouchbaseBuckets() bool {

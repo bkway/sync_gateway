@@ -147,14 +147,14 @@ type ReplicationUpsertConfig struct {
 	Direction              *string     `json:"direction"`
 	ConflictResolutionType *string     `json:"conflict_resolution_type,omitempty"`
 	ConflictResolutionFn   *string     `json:"custom_conflict_resolver,omitempty"`
-	PurgeOnRemoval         *bool       `json:"purge_on_removal,omitempty"`
-	DeltaSyncEnabled       *bool       `json:"enable_delta_sync,omitempty"`
+	PurgeOnRemoval         bool        `json:"purge_on_removal,omitempty"`
+	DeltaSyncEnabled       bool        `json:"enable_delta_sync,omitempty"`
 	MaxBackoff             *int        `json:"max_backoff_time,omitempty"`
 	InitialState           *string     `json:"initial_state,omitempty"`
-	Continuous             *bool       `json:"continuous"`
+	Continuous             bool        `json:"continuous"`
 	Filter                 *string     `json:"filter,omitempty"`
 	QueryParams            interface{} `json:"query_params,omitempty"`
-	Adhoc                  *bool       `json:"adhoc,omitempty"`
+	Adhoc                  bool        `json:"adhoc,omitempty"`
 	BatchSize              *int        `json:"batch_size,omitempty"`
 	RunAs                  *string     `json:"run_as,omitempty"`
 }
@@ -279,12 +279,12 @@ func (rc *ReplicationConfig) Upsert(c *ReplicationUpsertConfig) {
 	if c.ConflictResolutionFn != nil {
 		rc.ConflictResolutionFn = *c.ConflictResolutionFn
 	}
-	if c.PurgeOnRemoval != nil {
-		rc.PurgeOnRemoval = *c.PurgeOnRemoval
+	if c.PurgeOnRemoval {
+		rc.PurgeOnRemoval = c.PurgeOnRemoval
 	}
 
-	if c.DeltaSyncEnabled != nil {
-		rc.DeltaSyncEnabled = *c.DeltaSyncEnabled
+	if c.DeltaSyncEnabled {
+		rc.DeltaSyncEnabled = c.DeltaSyncEnabled
 	}
 	if c.MaxBackoff != nil {
 		rc.MaxBackoff = *c.MaxBackoff
@@ -292,14 +292,14 @@ func (rc *ReplicationConfig) Upsert(c *ReplicationUpsertConfig) {
 	if c.InitialState != nil {
 		rc.InitialState = *c.InitialState
 	}
-	if c.Continuous != nil {
-		rc.Continuous = *c.Continuous
+	if c.Continuous {
+		rc.Continuous = c.Continuous
 	}
 	if c.Filter != nil {
 		rc.Filter = *c.Filter
 	}
-	if c.Adhoc != nil {
-		rc.Adhoc = *c.Adhoc
+	if c.Adhoc {
+		rc.Adhoc = c.Adhoc
 	}
 	if c.QueryParams != nil {
 		rc.QueryParams = c.QueryParams

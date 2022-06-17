@@ -31,7 +31,7 @@ type PrincipalConfig struct {
 	Channels         utils.Set `json:"all_channels,omitempty"`
 	// Fields below only apply to Users, not Roles:
 	Email             string   `json:"email,omitempty"`
-	Disabled          *bool    `json:"disabled,omitempty"`
+	Disabled          bool     `json:"disabled,omitempty"`
 	Password          *string  `json:"password,omitempty"`
 	ExplicitRoleNames []string `json:"admin_roles,omitempty"`
 	RoleNames         []string `json:"roles,omitempty"`
@@ -170,8 +170,8 @@ func (dbc *DatabaseContext) UpdatePrincipal(ctx context.Context, newInfo Princip
 				}
 				changed = true
 			}
-			if newInfo.Disabled != nil && *newInfo.Disabled != user.Disabled() {
-				user.SetDisabled(*newInfo.Disabled)
+			if newInfo.Disabled && newInfo.Disabled != user.Disabled() {
+				user.SetDisabled(newInfo.Disabled)
 				changed = true
 			}
 

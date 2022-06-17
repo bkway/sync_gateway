@@ -1573,7 +1573,7 @@ Truth table for AllowConflicts and noConflicts combinations:
    noConflicts=false   return false            continue checks */
 func (db *Database) IsIllegalConflict(doc *Document, parentRevID string, deleted, noConflicts bool, docHistory []string) bool {
 
-	if db.AllowConflicts() && !noConflicts {
+	if db.Options.AllowConflicts && !noConflicts {
 		return false
 	}
 

@@ -218,7 +218,7 @@ func TestDeprecatedCacheConfig(t *testing.T) {
 	dbConfig.CacheConfig.DeprecatedChannelCacheAge = base.IntPtr(10)
 	dbConfig.CacheConfig.DeprecatedChannelCacheMinLength = base.IntPtr(10)
 	dbConfig.CacheConfig.DeprecatedChannelCacheMaxLength = base.IntPtr(10)
-	dbConfig.CacheConfig.DeprecatedEnableStarChannel = base.BoolPtr(true)
+	dbConfig.CacheConfig.DeprecatedEnableStarChannel = true
 	dbConfig.CacheConfig.DeprecatedCacheSkippedSeqMaxWait = base.Uint32Ptr(10)
 	dbConfig.CacheConfig.DeprecatedCachePendingSeqMaxNum = base.IntPtr(10)
 	dbConfig.CacheConfig.DeprecatedCachePendingSeqMaxWait = base.Uint32Ptr(10)
@@ -250,8 +250,8 @@ func TestDeprecatedCacheConfig(t *testing.T) {
 	// Set A Couple Deprecated Values AND Their New Counterparts
 	dbConfig.DeprecatedRevCacheSize = base.Uint32Ptr(10)
 	dbConfig.CacheConfig.RevCacheConfig.Size = base.Uint32Ptr(20)
-	dbConfig.CacheConfig.DeprecatedEnableStarChannel = base.BoolPtr(false)
-	dbConfig.CacheConfig.ChannelCacheConfig.EnableStarChannel = base.BoolPtr(true)
+	dbConfig.CacheConfig.DeprecatedEnableStarChannel = false
+	dbConfig.CacheConfig.ChannelCacheConfig.EnableStarChannel = true
 
 	// Run Deprecated Fallback
 	warnings = dbConfig.deprecatedConfigCacheFallback()
@@ -697,8 +697,8 @@ func TestValidateServerContextSharedBuckets(t *testing.T) {
 	xattrs := base.TestUseXattrs()
 	config := &StartupConfig{
 		Bootstrap: BootstrapConfig{
-			UseTLSServer:        base.BoolPtr(base.ServerIsTLS(base.UnitTestUrl())),
-			ServerTLSSkipVerify: base.BoolPtr(base.TestTLSSkipVerify()),
+			UseTLSServer:        base.ServerIsTLS(base.UnitTestUrl()),
+			ServerTLSSkipVerify: base.TestTLSSkipVerify(),
 		},
 	}
 	databases := DbConfigMap{
@@ -710,7 +710,7 @@ func TestValidateServerContextSharedBuckets(t *testing.T) {
 				Password: tb1Password,
 			},
 			EnableXattrs:     &xattrs,
-			UseViews:         base.BoolPtr(base.TestsDisableGSI()),
+			UseViews:         base.TestsDisableGSI(),
 			NumIndexReplicas: base.UintPtr(0),
 		},
 		"db2": {
@@ -721,7 +721,7 @@ func TestValidateServerContextSharedBuckets(t *testing.T) {
 				Password: tb1Password,
 			},
 			EnableXattrs:     &xattrs,
-			UseViews:         base.BoolPtr(base.TestsDisableGSI()),
+			UseViews:         base.TestsDisableGSI(),
 			NumIndexReplicas: base.UintPtr(0),
 		},
 		"db3": {
@@ -732,7 +732,7 @@ func TestValidateServerContextSharedBuckets(t *testing.T) {
 				Password: tb2Password,
 			},
 			EnableXattrs:     &xattrs,
-			UseViews:         base.BoolPtr(base.TestsDisableGSI()),
+			UseViews:         base.TestsDisableGSI(),
 			NumIndexReplicas: base.UintPtr(0),
 		},
 	}
@@ -1089,8 +1089,8 @@ func TestSetupServerContext(t *testing.T) {
 	t.Run("Create server context with a valid configuration", func(t *testing.T) {
 		config := DefaultStartupConfig("")
 		config.Bootstrap.Server = base.UnitTestUrl() // Valid config requires server to be explicitly defined
-		config.Bootstrap.UseTLSServer = base.BoolPtr(base.ServerIsTLS(base.UnitTestUrl()))
-		config.Bootstrap.ServerTLSSkipVerify = base.BoolPtr(base.TestTLSSkipVerify())
+		config.Bootstrap.UseTLSServer = base.ServerIsTLS(base.UnitTestUrl())
+		config.Bootstrap.ServerTLSSkipVerify = base.TestTLSSkipVerify()
 		config.Bootstrap.Username = base.TestClusterUsername()
 		config.Bootstrap.Password = base.TestClusterPassword()
 		sc, err := setupServerContext(&config, false)
@@ -1123,7 +1123,7 @@ func TestConfigGroupIDValidation(t *testing.T) {
 				Bootstrap: BootstrapConfig{
 					ConfigGroupID: test.cfgGroupID,
 					Server:        base.UnitTestUrl(),
-					UseTLSServer:  base.BoolPtr(base.ServerIsTLS(base.UnitTestUrl())),
+					UseTLSServer:  base.ServerIsTLS(base.UnitTestUrl()),
 				},
 			}
 			err := sc.validate()
@@ -1875,7 +1875,7 @@ func TestJSLoadTypeString(t *testing.T) {
 func TestUseXattrs(t *testing.T) {
 	testCases := []struct {
 		name           string
-		enableXattrs   *bool
+		enableXattrs   bool
 		expectedXattrs bool
 	}{
 		{
@@ -1885,12 +1885,12 @@ func TestUseXattrs(t *testing.T) {
 		},
 		{
 			name:           "False Xattrs",
-			enableXattrs:   base.BoolPtr(false),
+			enableXattrs:   false,
 			expectedXattrs: false,
 		},
 		{
 			name:           "True Xattrs",
-			enableXattrs:   base.BoolPtr(true),
+			enableXattrs:   true,
 			expectedXattrs: true,
 		},
 	}

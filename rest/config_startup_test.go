@@ -55,22 +55,22 @@ func TestStartupConfigMerge(t *testing.T) {
 			expected: StartupConfig{Bootstrap: BootstrapConfig{Server: "test.net"}},
 		},
 		{
-			name:     "Keep original *bool",
-			config:   StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(true)}},
+			name:     "Keep original bool",
+			config:   StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: true}},
 			override: StartupConfig{},
-			expected: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(true)}},
+			expected: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: true}},
 		},
 		{
-			name:     "Override *bool",
-			config:   StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(true)}},
-			override: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(false)}},
-			expected: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(false)}},
+			name:     "Override bool",
+			config:   StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: true}},
+			override: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: false}},
+			expected: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: false}},
 		},
 		{
-			name:     "Override unset *bool",
+			name:     "Override unset bool",
 			config:   StartupConfig{},
-			override: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(true)}},
-			expected: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: base.BoolPtr(true)}},
+			override: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: true}},
+			expected: StartupConfig{Bootstrap: BootstrapConfig{ServerTLSSkipVerify: true}},
 		},
 		{
 			name:     "Keep original *ConsoleLoggerConfig",
@@ -80,8 +80,8 @@ func TestStartupConfigMerge(t *testing.T) {
 		}, {
 			name:     "Override empty logging",
 			config:   StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{}}},
-			override: StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{Enabled: base.BoolPtr(true)}}},
-			expected: StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{Enabled: base.BoolPtr(true)}}},
+			override: StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{Enabled: true}}},
+			expected: StartupConfig{Logging: logger.LoggingConfig{Trace: &logger.FileLoggerConfig{Enabled: true}}},
 		},
 		{
 			name:     "Keep original *CORSconfig",

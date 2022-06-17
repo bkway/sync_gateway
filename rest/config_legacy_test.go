@@ -57,27 +57,27 @@ func TestLegacyConfigToStartupConfig(t *testing.T) {
 		},
 		{
 			name:     "Override bool Pretty",
-			base:     StartupConfig{API: APIConfig{Pretty: base.BoolPtr(true)}},
+			base:     StartupConfig{API: APIConfig{Pretty: true}},
 			input:    LegacyServerConfig{Pretty: false},
-			expected: StartupConfig{API: APIConfig{Pretty: base.BoolPtr(true)}},
+			expected: StartupConfig{API: APIConfig{Pretty: true}},
 		},
 		{
-			name:     "Override *bool(false) CompressResponses",
-			base:     StartupConfig{API: APIConfig{CompressResponses: base.BoolPtr(true)}},
-			input:    LegacyServerConfig{CompressResponses: base.BoolPtr(false)},
-			expected: StartupConfig{API: APIConfig{CompressResponses: base.BoolPtr(false)}},
+			name:     "Override bool(false) CompressResponses",
+			base:     StartupConfig{API: APIConfig{CompressResponses: true}},
+			input:    LegacyServerConfig{CompressResponses: false},
+			expected: StartupConfig{API: APIConfig{CompressResponses: false}},
 		},
 		{
-			name:     "Override nil *bool HTTP2Enable",
+			name:     "Override nil bool HTTP2Enable",
 			base:     StartupConfig{},
-			input:    LegacyServerConfig{Unsupported: &UnsupportedServerConfigLegacy{Http2Config: &HTTP2Config{Enabled: base.BoolPtr(false)}}},
-			expected: StartupConfig{Unsupported: UnsupportedConfig{HTTP2: &HTTP2Config{Enabled: base.BoolPtr(false)}}},
+			input:    LegacyServerConfig{Unsupported: &UnsupportedServerConfigLegacy{Http2Config: &HTTP2Config{Enabled: false}}},
+			expected: StartupConfig{Unsupported: UnsupportedConfig{HTTP2: &HTTP2Config{Enabled: false}}},
 		},
 		{
 			name:     "Absent property AdminInterfaceAuthentication",
-			base:     StartupConfig{API: APIConfig{AdminInterfaceAuthentication: base.BoolPtr(true)}},
+			base:     StartupConfig{API: APIConfig{AdminInterfaceAuthentication: true}},
 			input:    LegacyServerConfig{},
-			expected: StartupConfig{API: APIConfig{AdminInterfaceAuthentication: base.BoolPtr(true)}},
+			expected: StartupConfig{API: APIConfig{AdminInterfaceAuthentication: true}},
 		},
 		{
 			name:     "http:// to couchbase://",
@@ -224,7 +224,7 @@ func TestLegacyServerAddressUpgrade(t *testing.T) {
 func TestLegacyConfigXattrsDefault(t *testing.T) {
 	tests := []struct {
 		name           string
-		xattrs         *bool
+		xattrs         bool
 		expectedXattrs bool
 	}{
 		{
@@ -234,12 +234,12 @@ func TestLegacyConfigXattrsDefault(t *testing.T) {
 		},
 		{
 			name:           "False Xattrs",
-			xattrs:         base.BoolPtr(false),
+			xattrs:         false,
 			expectedXattrs: false,
 		},
 		{
 			name:           "True Xattrs",
-			xattrs:         base.BoolPtr(true),
+			xattrs:         true,
 			expectedXattrs: true,
 		},
 	}
@@ -283,7 +283,7 @@ func TestLegacyGuestUserMigration(t *testing.T) {
 
 	expected := db.PrincipalConfig{
 		ExplicitChannels: utils.SetFromArray([]string{"*"}),
-		Disabled:         base.BoolPtr(false),
+		Disabled:         false,
 	}
 
 	tb := base.GetTestBucket(t)

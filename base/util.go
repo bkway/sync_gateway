@@ -821,18 +821,13 @@ func IntPtr(i int) *int {
 	return &i
 }
 
-// BoolPtr returns a pointer to the given bool literal.
-func BoolPtr(b bool) *bool {
-	return &b
-}
-
 // BoolDefault returns ifNil if b is nil, or else returns dereferenced value of b
-func BoolDefault(b *bool, ifNil bool) bool {
-	if b != nil {
-		return *b
-	}
-	return ifNil
-}
+// func BoolDefault(b bool, ifNil bool) bool {
+// 	if b != nil {
+// 		return *b
+// 	}
+// 	return ifNil
+// }
 
 func Float32Ptr(f float32) *float32 {
 	return &f

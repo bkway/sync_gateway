@@ -146,7 +146,7 @@ type ExpectedChange struct {
 	docId    string // DocId or "*" for any doc id
 	revId    string // RevId or "*" for any rev id
 	sequence string // Sequence or "*" for any sequence
-	deleted  *bool  // Deleted status or nil for any deleted status
+	deleted  bool   // Deleted status or nil for any deleted status
 }
 
 func (e ExpectedChange) Equals(change []interface{}) error {
@@ -155,13 +155,12 @@ func (e ExpectedChange) Equals(change []interface{}) error {
 	// TODO: I think this should be addressed by adding a BlipChange struct stronger typing than a slice of empty interfaces.  TBA.
 	// changeSequence := change[0].(string)
 
-	var changeDeleted *bool
+	var changeDeleted bool
 
 	changeDocId := change[1].(string)
 	changeRevId := change[2].(string)
 	if len(change) > 3 {
-		changeDeletedVal := change[3].(bool)
-		changeDeleted = &changeDeletedVal
+		changeDeleted = change[3].(bool)
 	}
 
 	if e.docId != "*" && changeDocId != e.docId {
@@ -177,8 +176,8 @@ func (e ExpectedChange) Equals(change []interface{}) error {
 	//	return fmt.Errorf("changeSequence (%s) != expectedChangeSequence (%s)", changeSequence, e.sequence)
 	// }
 
-	if changeDeleted != nil && e.deleted != nil && *changeDeleted != *e.deleted {
-		return fmt.Errorf("changeDeleted (%v) != expectedChangeDeleted (%v)", *changeDeleted, *e.deleted)
+	if changeDeleted != e.deleted {
+		return fmt.Errorf("changeDeleted (%v) != expectedChangeDeleted (%v)", changeDeleted, e.deleted)
 	}
 
 	return nil

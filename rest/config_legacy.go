@@ -21,9 +21,9 @@ import (
 // JSON object that defines the server configuration.
 type LegacyServerConfig struct {
 	TLSMinVersion         *string               `json:"tls_minimum_version,omitempty"`    // Set TLS Version
-	UseTLSServer          *bool                 `json:"use_tls_server,omitempty"`         // Use TLS for CBS <> SGW communications
+	UseTLSServer          bool                  `json:"use_tls_server,omitempty"`         // Use TLS for CBS <> SGW communications
 	Interface             *string               `json:",omitempty"`                       // Interface to bind REST API to, default ":4984"
-	ServerTLSSkipVerify   *bool                 `json:"server_tls_skip_verify,omitempty"` // Allow empty server CA Cert Path without attempting to use system root pool
+	ServerTLSSkipVerify   bool                  `json:"server_tls_skip_verify,omitempty"` // Allow empty server CA Cert Path without attempting to use system root pool
 	SSLCert               *string               `json:",omitempty"`                       // Path to SSL cert file, or nil
 	SSLKey                *string               `json:",omitempty"`                       // Path to SSL private key file, or nil
 	ServerReadTimeout     *int                  `json:",omitempty"`                       // maximum duration.Second before timing out read of the HTTP(S) request
@@ -40,27 +40,26 @@ type LegacyServerConfig struct {
 	DeprecatedLog         []string              `json:"log,omitempty"`                    // Log keywords to enable
 	DeprecatedLogFilePath *string               `json:"logFilePath,omitempty"`            // Path to log file, if missing write to stderr
 	// FIXME: Logging                                   *logger.LegacyLoggingConfig    `json:",omitempty"`                       // Configuration for logging with optional log file rotation
-	Pretty                                    bool                           `json:",omitempty"`                       // Pretty-print JSON responses?
-	DeploymentID                              *string                        `json:",omitempty"`                       // Optional customer/deployment ID for stats reporting
-	StatsReportInterval                       *float64                       `json:",omitempty"`                       // Optional stats report interval (0 to disable)
-	CouchbaseKeepaliveInterval                *int                           `json:",omitempty"`                       // TCP keep-alive interval between SG and Couchbase server
-	SlowQueryWarningThreshold                 *int                           `json:",omitempty"`                       // Log warnings if N1QL queries take this many ms
-	MaxIncomingConnections                    *int                           `json:",omitempty"`                       // Max # of incoming HTTP connections to accept
-	MaxFileDescriptors                        *uint64                        `json:",omitempty"`                       // Max # of open file descriptors (RLIMIT_NOFILE)
-	CompressResponses                         *bool                          `json:",omitempty"`                       // If false, disables compression of HTTP responses
-	Databases                                 DbConfigMap                    `json:",omitempty"`                       // Pre-configured databases, mapped by name
-	MaxHeartbeat                              *uint64                        `json:",omitempty"`                       // Max heartbeat value for _changes request (seconds)
-	ClusterConfig                             *ClusterConfigLegacy           `json:"cluster_config,omitempty"`         // Bucket and other config related to CBGT
-	Unsupported                               *UnsupportedServerConfigLegacy `json:"unsupported,omitempty"`            // Config for unsupported features
-	ReplicatorCompression                     *int                           `json:"replicator_compression,omitempty"` // BLIP data compression level (0-9)
-	BcryptCost                                int                            `json:"bcrypt_cost,omitempty"`            // bcrypt cost to use for password hashes - Default: bcrypt.DefaultCost
-	MetricsInterface                          *string                        `json:"metricsInterface,omitempty"`       // Interface to bind metrics to. If not set then metrics isn't accessible
-	HideProductVersion                        bool                           `json:"hide_product_version,omitempty"`   // Determines whether product versions removed from Server headers and REST API responses. This setting does not apply to the Admin REST API.
-	DisablePersistentConfig                   *bool                          `json:"disable_persistent_config,omitempty" help:"Can be set to true to disable 3.0/persistent config handling."`
-	AdminInterfaceAuthentication              *bool                          `json:"admin_interface_authentication,omitempty" help:"Whether the admin API requires authentication"`
-	MetricsInterfaceAuthentication            *bool                          `json:"metrics_interface_authentication,omitempty" help:"Whether the metrics API requires authentication"`
-	EnableAdminAuthenticationPermissionsCheck *bool                          `json:"enable_advanced_auth_dp,omitempty" help:"Whether to enable the permissions check feature of admin auth"`
-	ConfigUpgradeGroupID                      string                         `json:"config_upgrade_group_id,omitempty"` // If set, determines the config group ID used when this legacy config is upgraded to a persistent config.
+	Pretty                         bool                           `json:",omitempty"`                       // Pretty-print JSON responses?
+	DeploymentID                   *string                        `json:",omitempty"`                       // Optional customer/deployment ID for stats reporting
+	StatsReportInterval            *float64                       `json:",omitempty"`                       // Optional stats report interval (0 to disable)
+	CouchbaseKeepaliveInterval     *int                           `json:",omitempty"`                       // TCP keep-alive interval between SG and Couchbase server
+	SlowQueryWarningThreshold      *int                           `json:",omitempty"`                       // Log warnings if N1QL queries take this many ms
+	MaxIncomingConnections         *int                           `json:",omitempty"`                       // Max # of incoming HTTP connections to accept
+	MaxFileDescriptors             *uint64                        `json:",omitempty"`                       // Max # of open file descriptors (RLIMIT_NOFILE)
+	CompressResponses              bool                           `json:",omitempty"`                       // If false, disables compression of HTTP responses
+	Databases                      DbConfigMap                    `json:",omitempty"`                       // Pre-configured databases, mapped by name
+	MaxHeartbeat                   *uint64                        `json:",omitempty"`                       // Max heartbeat value for _changes request (seconds)
+	ClusterConfig                  *ClusterConfigLegacy           `json:"cluster_config,omitempty"`         // Bucket and other config related to CBGT
+	Unsupported                    *UnsupportedServerConfigLegacy `json:"unsupported,omitempty"`            // Config for unsupported features
+	ReplicatorCompression          *int                           `json:"replicator_compression,omitempty"` // BLIP data compression level (0-9)
+	BcryptCost                     int                            `json:"bcrypt_cost,omitempty"`            // bcrypt cost to use for password hashes - Default: bcrypt.DefaultCost
+	MetricsInterface               *string                        `json:"metricsInterface,omitempty"`       // Interface to bind metrics to. If not set then metrics isn't accessible
+	HideProductVersion             bool                           `json:"hide_product_version,omitempty"`   // Determines whether product versions removed from Server headers and REST API responses. This setting does not apply to the Admin REST API.
+	DisablePersistentConfig        bool                           `json:"disable_persistent_config,omitempty" help:"Can be set to true to disable 3.0/persistent config handling."`
+	AdminInterfaceAuthentication   bool                           `json:"admin_interface_authentication,omitempty" help:"Whether the admin API requires authentication"`
+	MetricsInterfaceAuthentication bool                           `json:"metrics_interface_authentication,omitempty" help:"Whether the metrics API requires authentication"`
+	ConfigUpgradeGroupID           string                         `json:"config_upgrade_group_id,omitempty"` // If set, determines the config group ID used when this legacy config is upgraded to a persistent config.
 	RemovedLegacyServerConfig
 }
 
@@ -99,7 +98,7 @@ func (c ClusterConfigLegacy) CBGTEnabled() bool {
 type UnsupportedServerConfigLegacy struct {
 	Http2Config           *HTTP2Config `json:"http2,omitempty"`               // Config settings for HTTP2
 	StatsLogFrequencySecs *uint        `json:"stats_log_freq_secs,omitempty"` // How often should stats be written to stats logs
-	UseStdlibJSON         *bool        `json:"use_stdlib_json,omitempty"`     // Bypass the jsoniter package and use Go's stdlib instead
+	UseStdlibJSON         bool         `json:"use_stdlib_json,omitempty"`     // Bypass the jsoniter package and use Go's stdlib instead
 }
 
 // ToStartupConfig returns the given LegacyServerConfig as a StartupConfig and a set of DBConfigs.
@@ -167,10 +166,9 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 	sc := StartupConfig{
 		Bootstrap: *bsc,
 		API: APIConfig{
-			CompressResponses:                         lc.CompressResponses,
-			AdminInterfaceAuthentication:              lc.AdminInterfaceAuthentication,
-			MetricsInterfaceAuthentication:            lc.MetricsInterfaceAuthentication,
-			EnableAdminAuthenticationPermissionsCheck: lc.EnableAdminAuthenticationPermissionsCheck,
+			CompressResponses:              lc.CompressResponses,
+			AdminInterfaceAuthentication:   lc.AdminInterfaceAuthentication,
+			MetricsInterfaceAuthentication: lc.MetricsInterfaceAuthentication,
 		},
 		Logging: logger.ConfigOpts{},
 		Auth: AuthConfig{
@@ -183,11 +181,11 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 	}
 
 	if lc.Pretty {
-		sc.API.Pretty = &lc.Pretty
+		sc.API.Pretty = lc.Pretty
 	}
 
 	if lc.HideProductVersion {
-		sc.API.HideProductVersion = &lc.HideProductVersion
+		sc.API.HideProductVersion = lc.HideProductVersion
 	}
 
 	if lc.Facebook != nil || lc.Google != nil {
@@ -271,9 +269,7 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 		if lc.Unsupported.StatsLogFrequencySecs != nil {
 			sc.Unsupported.StatsLogFrequency = base.NewConfigDuration(time.Second * time.Duration(*lc.Unsupported.StatsLogFrequencySecs))
 		}
-		if lc.Unsupported.UseStdlibJSON != nil {
-			sc.Unsupported.UseStdlibJSON = lc.Unsupported.UseStdlibJSON
-		}
+		sc.Unsupported.UseStdlibJSON = lc.Unsupported.UseStdlibJSON
 	}
 	if lc.MaxFileDescriptors != nil {
 		sc.MaxFileDescriptors = *lc.MaxFileDescriptors
@@ -286,11 +282,6 @@ func (lc *LegacyServerConfig) ToStartupConfig() (*StartupConfig, DbConfigMap, er
 func (dbc *DbConfig) ToDatabaseConfig() *DatabaseConfig {
 	if dbc == nil {
 		return nil
-	}
-
-	// Backwards compatibility: Continue defaulting to xattrs=false for upgraded 2.x configs (3.0+ default xattrs=true)
-	if dbc.EnableXattrs == nil {
-		dbc.EnableXattrs = base.BoolPtr(false)
 	}
 
 	// Move guest out of the Users section and into its own promoted field
@@ -610,7 +601,7 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 		}
 
 		config = &LegacyServerConfig{
-			UseTLSServer:     base.BoolPtr(true),
+			UseTLSServer:     true,
 			Interface:        addr,
 			AdminInterface:   authAddr,
 			ProfileInterface: profAddr,
@@ -620,7 +611,7 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 			// Logging: &logger.LegacyLoggingConfig{
 			// 	Console: logger.ConsoleLoggerConfig{
 			// 		// Enable the logger only when log keys have explicitly been set on the command line
-			// 		FileLoggerConfig: logger.FileLoggerConfig{Enabled: base.BoolPtr(*logKeys != "")},
+			// 		FileLoggerConfig: logger.FileLoggerConfig{Enabled: *logKeys != ""},
 			// 		LogKeys:          strings.Split(*logKeys, ","),
 			// 	},
 			// 	LogFilePath: *logFilePath,
@@ -637,7 +628,7 @@ func ParseCommandLine(args []string, handling flag.ErrorHandling) (*LegacyServer
 					},
 					Users: map[string]*db.PrincipalConfig{
 						base.GuestUsername: {
-							Disabled:         base.BoolPtr(false),
+							Disabled:         false,
 							ExplicitChannels: utils.SetFromArray([]string{"*"}),
 						},
 					},

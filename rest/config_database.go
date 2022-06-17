@@ -80,13 +80,13 @@ func DefaultDbConfig(sc *StartupConfig) *DbConfig {
 		Users:        nil,
 		Roles:        nil,
 		RevsLimit:    nil, // Set this below struct
-		AutoImport:   base.BoolPtr(base.DefaultAutoImport),
+		AutoImport:   base.DefaultAutoImport,
 		// ImportPartitions:   base.Uint16Ptr(base.DefaultImportPartitions),
 		ImportFilter:       nil,
-		ImportBackupOldRev: base.BoolPtr(false),
+		ImportBackupOldRev: false,
 		EventHandlers:      nil,
 		FeedType:           "",
-		AllowEmptyPassword: base.BoolPtr(false),
+		AllowEmptyPassword: false,
 		CacheConfig: &CacheConfig{
 			RevCacheConfig: &RevCacheConfig{
 				Size:       base.Uint32Ptr(db.DefaultRevisionCacheSize),
@@ -99,43 +99,43 @@ func DefaultDbConfig(sc *StartupConfig) *DbConfig {
 				MaxWaitPending:    base.Uint32Ptr(uint32(db.DefaultCachePendingSeqMaxWait.Milliseconds())),
 				MaxNumPending:     base.IntPtr(db.DefaultCachePendingSeqMaxNum),
 				MaxWaitSkipped:    base.Uint32Ptr(uint32(db.DefaultSkippedSeqMaxWait.Milliseconds())),
-				EnableStarChannel: base.BoolPtr(false),
+				EnableStarChannel: false,
 				MaxLength:         base.IntPtr(db.DefaultChannelCacheMaxLength),
 				MinLength:         base.IntPtr(db.DefaultChannelCacheMinLength),
 				ExpirySeconds:     base.IntPtr(int(db.DefaultChannelCacheAge.Seconds())),
 			},
 		},
-		StartOffline:                base.BoolPtr(false),
+		StartOffline:                false,
 		OIDCConfig:                  nil,
 		OldRevExpirySeconds:         base.Uint32Ptr(base.DefaultOldRevExpirySeconds),
 		ViewQueryTimeoutSecs:        base.Uint32Ptr(base.DefaultViewTimeoutSecs),
 		LocalDocExpirySecs:          base.Uint32Ptr(base.DefaultLocalDocExpirySecs),
-		EnableXattrs:                base.BoolPtr(base.DefaultUseXattrs),
-		SecureCookieOverride:        base.BoolPtr(sc.API.HTTPS.TLSCertPath != ""),
+		EnableXattrs:                base.DefaultUseXattrs,
+		SecureCookieOverride:        sc.API.HTTPS.TLSCertPath != "",
 		SessionCookieName:           "",
-		SessionCookieHTTPOnly:       base.BoolPtr(false),
-		AllowConflicts:              base.BoolPtr(base.DefaultAllowConflicts),
+		SessionCookieHTTPOnly:       false,
+		AllowConflicts:              base.DefaultAllowConflicts,
 		NumIndexReplicas:            base.UintPtr(DefaultNumIndexReplicas),
-		UseViews:                    base.BoolPtr(false),
-		SendWWWAuthenticateHeader:   base.BoolPtr(true),
+		UseViews:                    false,
+		SendWWWAuthenticateHeader:   true,
 		BucketOpTimeoutMs:           nil,
 		SlowQueryWarningThresholdMs: base.Uint32Ptr(kDefaultSlowQueryWarningThreshold),
 		// DeltaSync: &DeltaSyncConfig{
-		// 	Enabled:          base.BoolPtr(db.DefaultDeltaSyncEnabled),
+		// 	Enabled:          db.DefaultDeltaSyncEnabled,
 		// 	RevMaxAgeSeconds: base.Uint32Ptr(db.DefaultDeltaSyncRevMaxAge),
 		// },
 		CompactIntervalDays:              base.Float32Ptr(float32(db.DefaultCompactInterval)),
-		SGReplicateEnabled:               base.BoolPtr(db.DefaultSGReplicateEnabled),
+		SGReplicateEnabled:               db.DefaultSGReplicateEnabled,
 		SGReplicateWebsocketPingInterval: base.IntPtr(int(db.DefaultSGReplicateWebsocketPingInterval.Seconds())),
 		Replications:                     nil,
-		ServeInsecureAttachmentTypes:     base.BoolPtr(false),
+		ServeInsecureAttachmentTypes:     false,
 		QueryPaginationLimit:             base.IntPtr(db.DefaultQueryPaginationLimit),
 		UserXattrKey:                     "",
 		ClientPartitionWindowSecs:        base.IntPtr(int(base.DefaultClientPartitionWindow.Seconds())),
 	}
 
 	revsLimit := db.DefaultRevsLimitNoConflicts
-	if dbConfig.AllowConflicts != nil && *dbConfig.AllowConflicts {
+	if dbConfig.AllowConflicts {
 		revsLimit = db.DefaultRevsLimitConflicts
 	}
 	dbConfig.RevsLimit = base.Uint32Ptr(uint32(revsLimit))

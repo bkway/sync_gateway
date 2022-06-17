@@ -116,8 +116,8 @@ func NewServerContext(config *StartupConfig, persistentConfig bool) *ServerConte
 		// Disable Admin API authentication when running as walrus on the default admin interface to support dev
 		// environments.
 		if sc.config.API.AdminInterface == DefaultAdminInterface {
-			sc.config.API.AdminInterfaceAuthentication = base.BoolPtr(false)
-			sc.config.API.MetricsInterfaceAuthentication = base.BoolPtr(false)
+			sc.config.API.AdminInterfaceAuthentication = false
+			sc.config.API.MetricsInterfaceAuthentication = false
 		}
 	}
 
@@ -340,21 +340,19 @@ func GetBucketSpec(config *DatabaseConfig, serverConfig *StartupConfig) (spec ba
 
 	spec = config.MakeBucketSpec()
 
-	if serverConfig.Bootstrap.ServerTLSSkipVerify != nil {
-		spec.TLSSkipVerify = *serverConfig.Bootstrap.ServerTLSSkipVerify
+	if serverConfig.Bootstrap.ServerTLSSkipVerify {
+		spec.TLSSkipVerify = serverConfig.Bootstrap.ServerTLSSkipVerify
 	}
 
 	if spec.BucketName == "" {
 		spec.BucketName = config.Name
 	}
 
-	spec.CouchbaseDriver = base.ChooseCouchbaseDriver(base.DataBucket)
-
 	if config.ViewQueryTimeoutSecs != nil {
 		spec.ViewQueryTimeoutSecs = config.ViewQueryTimeoutSecs
 	}
 
-	spec.UseXattrs = config.UseXattrs()
+	spec.UseXattrs = config.EnableXattrs
 	if !spec.UseXattrs {
 		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Running Sync Gateway without shared bucket access is deprecated. Recommendation: set enable_shared_bucket_access=true")
 		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Running Sync Gateway without shared bucket access is deprecated. Recommendation: set enable_shared_bucket_access=true")
@@ -412,7 +410,7 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 	}
 
 	// If using a walrus bucket, force use of views
-	useViews := base.BoolDefault(config.UseViews, false)
+	useViews := config.UseViews
 	if !useViews && spec.IsWalrusBucket() {
 		// 		log.Ctx(context.TODO()).Warn().Err(err).Msgf("Using GSI is not supported when using a walrus bucket - switching to use views.  Set 'use_views':true in Sync Gateway's database config to avoid this warning.")
 		logger.For(logger.UnknownKey).Warn().Err(err).Msgf("Using GSI is not supported when using a walrus bucket - switching to use views.  Set 'use_views':true in Sync Gateway's database config to avoid this warning.")
@@ -435,7 +433,7 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 			return nil, errors.New("Cannot create indexes on non-Couchbase data store.")
 
 		}
-		indexErr := db.InitializeIndexes(n1qlStore, config.UseXattrs(), numReplicas)
+		indexErr := db.InitializeIndexes(n1qlStore, config.EnableXattrs, numReplicas)
 		if indexErr != nil {
 			return nil, indexErr
 		}
@@ -523,7 +521,7 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 
 	if config.RevsLimit != nil {
 		dbcontext.RevsLimit = *config.RevsLimit
-		if dbcontext.AllowConflicts() {
+		if dbcontext.Options.AllowConflicts {
 			if dbcontext.RevsLimit < 20 {
 				return nil, fmt.Errorf("The revs_limit (%v) value in your Sync Gateway configuration cannot be set lower than 20.", dbcontext.RevsLimit)
 			}
@@ -539,8 +537,8 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 		}
 	}
 
-	dbcontext.AllowEmptyPassword = base.BoolDefault(config.AllowEmptyPassword, false)
-	dbcontext.ServeInsecureAttachmentTypes = base.BoolDefault(config.ServeInsecureAttachmentTypes, false)
+	dbcontext.AllowEmptyPassword = config.AllowEmptyPassword
+	dbcontext.ServeInsecureAttachmentTypes = config.ServeInsecureAttachmentTypes
 
 	if dbcontext.ChannelMapper == nil {
 		//log.Ctx(context.TODO()).Info().Err(err).Msgf(logger.KeyAll, "Using default sync function 'channel(doc.channels)' for database %q", logger.MD(dbName))
@@ -578,7 +576,7 @@ func (sc *ServerContext) _getOrAddDatabaseFromConfig(config DatabaseConfig, useE
 	sc.dbConfigs[dbcontext.Name] = &config
 	sc.bucketDbName[spec.BucketName] = dbName
 
-	if base.BoolDefault(config.StartOffline, false) {
+	if config.StartOffline {
 		atomic.StoreUint32(&dbcontext.State, db.DBOffline)
 		_ = dbcontext.EventMgr.RaiseDBStateChangeEvent(dbName, "offline", "DB loaded from config", &sc.config.API.AdminInterface)
 	} else {
@@ -598,7 +596,7 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	if config.ImportFilter != nil {
 		importOptions.ImportFilter = db.NewImportFilterFunction(*config.ImportFilter)
 	}
-	importOptions.BackupOldRev = base.BoolDefault(config.ImportBackupOldRev, false)
+	importOptions.BackupOldRev = config.ImportBackupOldRev
 
 	// TODO unecessary?
 	importOptions.ImportPartitions = base.DefaultImportPartitions
@@ -623,8 +621,8 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 				cacheOptions.CacheSkippedSeqMaxWait = time.Duration(*config.CacheConfig.ChannelCacheConfig.MaxWaitSkipped) * time.Millisecond
 			}
 			// set EnableStarChannelLog directly here (instead of via NewDatabaseContext), so that it's set when we create the channels view in ConnectToBucket
-			if config.CacheConfig.ChannelCacheConfig.EnableStarChannel != nil {
-				db.EnableStarChannelLog = *config.CacheConfig.ChannelCacheConfig.EnableStarChannel
+			if config.CacheConfig.ChannelCacheConfig.EnableStarChannel {
+				db.EnableStarChannelLog = config.CacheConfig.ChannelCacheConfig.EnableStarChannel
 			}
 			if config.CacheConfig.ChannelCacheConfig.MaxLength != nil {
 				cacheOptions.ChannelCacheMaxLength = *config.CacheConfig.ChannelCacheConfig.MaxLength
@@ -692,13 +690,13 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	cacheOptions.ChannelQueryLimit = queryPaginationLimit
 
 	secureCookieOverride := sc.config.API.HTTPS.TLSCertPath != ""
-	if config.SecureCookieOverride != nil {
-		secureCookieOverride = *config.SecureCookieOverride
+	if config.SecureCookieOverride {
+		secureCookieOverride = config.SecureCookieOverride
 	}
 
 	sgReplicateEnabled := db.DefaultSGReplicateEnabled
-	if config.SGReplicateEnabled != nil {
-		sgReplicateEnabled = *config.SGReplicateEnabled
+	if config.SGReplicateEnabled {
+		sgReplicateEnabled = config.SGReplicateEnabled
 	}
 
 	sgReplicateWebsocketPingInterval := db.DefaultSGReplicateWebsocketPingInterval
@@ -735,7 +733,7 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 		groupID = sc.config.Bootstrap.ConfigGroupID
 	}
 
-	if config.AllowConflicts != nil && *config.AllowConflicts {
+	if config.AllowConflicts {
 		//log.Ctx(context.TODO()).Warn().Err(err).Msgf(`Deprecation notice: setting database configuration option "allow_conflicts" to true is due to be removed. In the future, conflicts will not be allowed.`)
 		logger.For(logger.SystemKey).Warn().Msg(`Deprecation notice: setting database configuration option "allow_conflicts" to true is due to be removed. In the future, conflicts will not be allowed.`)
 	}
@@ -743,7 +741,7 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 	// If basic auth is disabled, it doesn't make sense to send WWW-Authenticate
 	sendWWWAuthenticate := config.SendWWWAuthenticateHeader
 	if config.DisablePasswordAuth {
-		sendWWWAuthenticate = base.BoolPtr(false)
+		sendWWWAuthenticate = false
 	}
 
 	contextOptions := db.DatabaseContextOptions{
@@ -756,11 +754,11 @@ func dbcOptionsFromConfig(sc *ServerContext, config *DbConfig, dbName string) (d
 		OIDCOptions:                   config.OIDCConfig,
 		DBOnlineCallback:              dbOnlineCallback,
 		ImportOptions:                 importOptions,
-		EnableXattr:                   config.UseXattrs(),
+		EnableXattr:                   config.EnableXattrs,
 		SecureCookieOverride:          secureCookieOverride,
 		SessionCookieName:             config.SessionCookieName,
-		SessionCookieHttpOnly:         base.BoolDefault(config.SessionCookieHTTPOnly, false),
-		AllowConflicts:                config.ConflictsAllowed(),
+		SessionCookieHttpOnly:         config.SessionCookieHTTPOnly,
+		AllowConflicts:                config.AllowConflicts,
 		SendWWWAuthenticateHeader:     sendWWWAuthenticate,
 		DisablePasswordAuthentication: config.DisablePasswordAuth,
 		CompactInterval:               compactIntervalSecs,
@@ -1129,13 +1127,13 @@ func (sc *ServerContext) updateCalculatedStats() {
 
 }
 
-func initClusterAgent(clusterAddress, clusterUser, clusterPass, certPath, keyPath, caCertPath string, tlsSkipVerify *bool) (*gocbcore.Agent, error) {
+func initClusterAgent(clusterAddress, clusterUser, clusterPass, certPath, keyPath, caCertPath string, tlsSkipVerify bool) (*gocbcore.Agent, error) {
 	authenticator, err := base.GoCBCoreAuthConfig(clusterUser, clusterPass, certPath, keyPath)
 	if err != nil {
 		return nil, err
 	}
 
-	tlsRootCAProvider, err := base.GoCBCoreTLSRootCAProvider(tlsSkipVerify, caCertPath)
+	tlsRootCAProvider, err := base.TLSRootCAProvider(tlsSkipVerify, caCertPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1231,7 +1229,7 @@ func (sc *ServerContext) initializeNoX509HttpClient() (*http.Client, error) {
 		MinVersion: tls.VersionTLS12,
 	}
 	var rootCAs *x509.CertPool
-	tlsRootCAProvider, err := base.GoCBCoreTLSRootCAProvider(sc.config.Bootstrap.ServerTLSSkipVerify, sc.config.Bootstrap.CACertPath)
+	tlsRootCAProvider, err := base.TLSRootCAProvider(sc.config.Bootstrap.ServerTLSSkipVerify, sc.config.Bootstrap.CACertPath)
 	if err != nil {
 		return nil, err
 	}

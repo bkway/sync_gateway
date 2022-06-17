@@ -41,7 +41,7 @@ func TestLegacyFlagsValid(t *testing.T) {
 	assert.Equal(t, "12.34.56.78", config.API.PublicInterface)
 	assert.Equal(t, "admin-interface:123", config.API.AdminInterface)
 	assert.Equal(t, "prof", config.API.ProfileInterface)
-	assert.Equal(t, base.BoolPtr(true), config.API.Pretty)
+	assert.Equal(t, true, config.API.Pretty)
 	assert.Equal(t, base.LogLevelPtr(logger.LevelInfo), config.Logging.Console.LogLevel)
 	assert.Equal(t, "server-url.com", config.Bootstrap.Server)
 	assert.Equal(t, "cert", config.API.HTTPS.TLSCertPath)

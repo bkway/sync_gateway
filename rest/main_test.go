@@ -75,7 +75,7 @@ func TestParseFlags(t *testing.T) {
 		name                            string
 		osArgs                          []string
 		expectedError                   *string // Text to check error contains
-		expectedDisablePersistentConfig *bool
+		expectedDisablePersistentConfig bool
 	}{
 		{
 			name:                            "Help error returned on -h",
@@ -93,13 +93,13 @@ func TestParseFlags(t *testing.T) {
 			name:                            "Disable persistent config",
 			osArgs:                          []string{"-disable_persistent_config"},
 			expectedError:                   nil,
-			expectedDisablePersistentConfig: base.BoolPtr(true),
+			expectedDisablePersistentConfig: true,
 		},
 		{
 			name:                            "Config flag",
 			osArgs:                          []string{"-bootstrap.server", "1.2.3.4"},
 			expectedError:                   nil,
-			expectedDisablePersistentConfig: base.BoolPtr(false),
+			expectedDisablePersistentConfig: false,
 		},
 	}
 	for _, test := range testCases {

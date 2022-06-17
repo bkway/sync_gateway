@@ -203,7 +203,7 @@ func TestUserPasswordValidation(t *testing.T) {
 func TestUserAllowEmptyPassword(t *testing.T) {
 
 	// PUT a user
-	rt := NewRestTester(t, &RestTesterConfig{DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{AllowEmptyPassword: base.BoolPtr(true)}}})
+	rt := NewRestTester(t, &RestTesterConfig{DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{AllowEmptyPassword: true}}})
 	defer rt.Close()
 
 	response := rt.SendAdminRequest("PUT", "/db/_user/snej", `{"email":"jens@couchbase.com", "password":"letmein", "admin_channels":["foo", "bar"]}`)
@@ -2115,7 +2115,7 @@ func TestHandleCreateDB(t *testing.T) {
 	resource := fmt.Sprintf("/%s/", bucket)
 
 	bucketConfig := BucketConfig{Server: &server, Bucket: &bucket, KvTLSPort: kvTLSPort}
-	dbConfig := &DbConfig{BucketConfig: bucketConfig, SGReplicateEnabled: base.BoolPtr(false)}
+	dbConfig := &DbConfig{BucketConfig: bucketConfig, SGReplicateEnabled: false}
 	var respBody db.Body
 
 	reqBody, err := json.Marshal(dbConfig)
@@ -2196,9 +2196,9 @@ func TestHandleDBConfig(t *testing.T) {
 			},
 		},
 		NumIndexReplicas:   base.UintPtr(0),
-		EnableXattrs:       base.BoolPtr(base.TestUseXattrs()),
-		UseViews:           base.BoolPtr(base.TestsDisableGSI()),
-		SGReplicateEnabled: base.BoolPtr(false),
+		EnableXattrs:       base.TestUseXattrs(),
+		UseViews:           base.TestsDisableGSI(),
+		SGReplicateEnabled: false,
 	}
 	reqBody, err := json.Marshal(dbConfig)
 	assert.NoError(t, err, "Error unmarshalling changes response")
@@ -3547,7 +3547,7 @@ func TestApiInternalPropertiesHandling(t *testing.T) {
 		name                        string
 		inputBody                   map[string]interface{}
 		expectedErrorStatus         *int // If nil, will check for 201 Status Created
-		skipDocContentsVerification *bool
+		skipDocContentsVerification bool
 	}{
 		{
 			name:      "Valid document with special prop",
@@ -3566,17 +3566,17 @@ func TestApiInternalPropertiesHandling(t *testing.T) {
 		{
 			name:                        "Valid _deleted",
 			inputBody:                   map[string]interface{}{"_deleted": false},
-			skipDocContentsVerification: base.BoolPtr(true),
+			skipDocContentsVerification: true,
 		},
 		{
 			name:                        "Valid _revisions",
 			inputBody:                   map[string]interface{}{"_revisions": map[string]interface{}{"ids": "1-abc"}},
-			skipDocContentsVerification: base.BoolPtr(true),
+			skipDocContentsVerification: true,
 		},
 		{
 			name:                        "Valid _exp",
 			inputBody:                   map[string]interface{}{"_exp": "123"},
-			skipDocContentsVerification: base.BoolPtr(true),
+			skipDocContentsVerification: true,
 		},
 		{
 			name:                "Invalid _exp",

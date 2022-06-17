@@ -800,16 +800,16 @@ func TestPublicPortAuthentication(t *testing.T) {
 	changesChannelUser1 := btUser1.WaitForNumChanges(1)
 	assert.Equal(t, 1, len(changesChannelUser1))
 	change := changesChannelUser1[0]
-	AssertChangeEquals(t, change, ExpectedChange{docId: "foo", revId: "1-abc", sequence: "*", deleted: base.BoolPtr(false)})
+	AssertChangeEquals(t, change, ExpectedChange{docId: "foo", revId: "1-abc", sequence: "*", deleted: false})
 
 	// Assert that user2 received user1's change as well as it's own change
 	changesChannelUser2 := btUser2.WaitForNumChanges(2)
 	assert.Equal(t, 2, len(changesChannelUser2))
 	change = changesChannelUser2[0]
-	AssertChangeEquals(t, change, ExpectedChange{docId: "foo", revId: "1-abc", sequence: "*", deleted: base.BoolPtr(false)})
+	AssertChangeEquals(t, change, ExpectedChange{docId: "foo", revId: "1-abc", sequence: "*", deleted: false})
 
 	change = changesChannelUser2[1]
-	AssertChangeEquals(t, change, ExpectedChange{docId: "foo2", revId: "1-abcd", sequence: "*", deleted: base.BoolPtr(false)})
+	AssertChangeEquals(t, change, ExpectedChange{docId: "foo2", revId: "1-abcd", sequence: "*", deleted: false})
 
 }
 
@@ -2823,7 +2823,7 @@ func TestMinRevPosWorkToAvoidUnnecessaryProveAttachment(t *testing.T) {
 		guestEnabled: true,
 		DatabaseConfig: &DatabaseConfig{
 			DbConfig: DbConfig{
-				AllowConflicts: base.BoolPtr(true),
+				AllowConflicts: true,
 			},
 		},
 	})
@@ -3027,7 +3027,7 @@ func TestBlipInternalPropertiesHandling(t *testing.T) {
 		name                        string
 		inputBody                   map[string]interface{}
 		expectReject                bool
-		skipDocContentsVerification *bool
+		skipDocContentsVerification bool
 	}{
 		{
 			name:         "Valid document",
@@ -3068,19 +3068,19 @@ func TestBlipInternalPropertiesHandling(t *testing.T) {
 			name:                        "Valid _attachments",
 			inputBody:                   map[string]interface{}{"_attachments": map[string]interface{}{"attch": map[string]interface{}{"data": "c2d3IGZ0dw=="}}},
 			expectReject:                false,
-			skipDocContentsVerification: base.BoolPtr(true),
+			skipDocContentsVerification: true,
 		},
 		{
 			name:                        "_revisions",
 			inputBody:                   map[string]interface{}{"_revisions": false},
 			expectReject:                true,
-			skipDocContentsVerification: base.BoolPtr(true),
+			skipDocContentsVerification: true,
 		},
 		{
 			name:                        "Valid _exp",
 			inputBody:                   map[string]interface{}{"_exp": "123"},
 			expectReject:                false,
-			skipDocContentsVerification: base.BoolPtr(true),
+			skipDocContentsVerification: true,
 		},
 		{
 			name:         "Invalid _exp",

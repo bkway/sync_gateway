@@ -2955,7 +2955,7 @@ func TestActiveReplicatorIgnoreNoConflicts(t *testing.T) {
 	rt2 := NewRestTester(t, &RestTesterConfig{
 		TestBucket: base.GetTestBucket(t),
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			AllowConflicts: base.BoolPtr(false),
+			AllowConflicts: false,
 			Users: map[string]*db.PrincipalConfig{
 				"alice": {
 					Password:         base.StringPtr("pass"),
@@ -2970,7 +2970,7 @@ func TestActiveReplicatorIgnoreNoConflicts(t *testing.T) {
 	rt1 := NewRestTester(t, &RestTesterConfig{
 		TestBucket: base.GetTestBucket(t),
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			AllowConflicts: base.BoolPtr(false),
+			AllowConflicts: false,
 		}},
 	})
 	defer rt1.Close()
@@ -4553,7 +4553,7 @@ func TestSendChangesToNoConflictPreHydrogenTarget(t *testing.T) {
 	rt2 := NewRestTester(t, &RestTesterConfig{
 		TestBucket: tb2,
 		DatabaseConfig: &DatabaseConfig{DbConfig: DbConfig{
-			AllowConflicts: base.BoolPtr(false),
+			AllowConflicts: false,
 		}},
 	})
 	defer rt2.Close()
